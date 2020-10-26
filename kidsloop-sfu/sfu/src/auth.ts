@@ -23,6 +23,25 @@ const issuers = new Map<
                 "-----END PUBLIC KEY-----"
             ].join("\n")
         }
+    ],
+    [
+        "kidsloop",
+        {
+            options: {
+                issuer: "kidsloop",
+                algorithms: [ "RS256", "RS384", "RS512", "PS256", "PS384", "PS512", "ES256", "ES384", "ES512", "HS256", "HS384", "HS512"]
+            },
+            secretOrPublicKey: [
+                "---- BEGIN SSH2 PUBLIC KEY ----",
+                "AAAAB3NzaC1yc2EAAAADAQABAAABAQDF0cxhOoWhuPegYP8kNhsM3TuJxMf8OPuMG0lIbZ",
+                "yUzqFDUdEsClBQ2ipytwnMDQDto2oQsgm7Eyi9gChG0BMTWlgxalXIbjWKdCImMoXICS4e",
+                "xXMv63YLvvwEXGVdML9VahHoKjBZJYlpiVPl8D+StR7Dv/6wZbquNXaVCrEE3exCx9oM50",
+                "3kgaSLOx8yl2sRNtzm0qSw2zqcvpIVEN4uhLgAfkojhPT8cLneIsOOAGiRru0m67diw4HP",
+                "ENfbYVth9MVXsyY/Kr77wA1vNMuyBoPaXBaF9Y7nVxYmcUg9zuAcGr2QyowrdPZ3DSMIek",
+                "Di9gQyOwSs1JYqNrEXw78X",
+                "---- END SSH2 PUBLIC KEY ----"
+            ].join("\n")
+        }
     ]
 ]);
 
