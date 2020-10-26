@@ -60,35 +60,42 @@ export class SFU {
         // PGDATABASE=mydb
         // PGPORT=3211
 
-        // These environment variables should be read
-        const PGSSLCA = process.env.PGSSLCA
-        const PGSSLKEY = process.env.PGSSLKEY
-        const PGSSLCERT = process.env.PGSSLCERT
+        const PGNOSSL = process.env.PGNOSSL
 
-        if (!PGSSLCA) {
-            Logger.error("PGSSLCA is not set.  It should point to the server certificate, i.e. /path/to/server-certificates/root.crt")
-            process.exit(-1)
-        }
-        if (!PGSSLKEY) {
-            Logger.error("PGSSLKEY is not set.  It should point to the client key, i.e. /path/to/client-key/postgresql.key")
-            process.exit(-1)
-        }
-        if (!PGSSLCERT) {
-            Logger.error("PGSSLCERT is not set.  It should point to the client certificate, i.e. /path/to/client-certificates/postgresql.crt")
-            process.exit(-1)
-        }
+        let client
+        if (PGNOSSL) {
+            client = new pg.Client()
+        } else {
+            // These environment variables should be read
+            const PGSSLCA = process.env.PGSSLCA
+            const PGSSLKEY = process.env.PGSSLKEY
+            const PGSSLCERT = process.env.PGSSLCERT
 
-        // connect via SSL socket
-        const config = {
-            ssl: {
-                rejectUnauthorized: false,
-                ca: fs.readFileSync(PGSSLCA).toString(),
-                key: fs.readFileSync(PGSSLKEY).toString(),
-                cert: fs.readFileSync(PGSSLCERT).toString()
+            if (!PGSSLCA) {
+                Logger.error("PGSSLCA is not set.  It should point to the server certificate, i.e. /path/to/server-certificates/root.crt.  Run with PGNOSSL set to attempt connecting without SSL.")
+                process.exit(-1)
             }
-        }
+            if (!PGSSLKEY) {
+                Logger.error("PGSSLKEY is not set.  It should point to the client key, i.e. /path/to/client-key/postgresql.key. Run with PGNOSSL set to attempt connecting without SSL.")
+                process.exit(-1)
+            }
+            if (!PGSSLCERT) {
+                Logger.error("PGSSLCERT is not set.  It should point to the client certificate, i.e. /path/to/client-certificates/postgresql.crt. Run with PGNOSSL set to attempt connecting without SSL.")
+                process.exit(-1)
+            }
 
-        const client = new pg.Client(config)
+            // connect via SSL socket
+            const config = {
+                ssl: {
+                    rejectUnauthorized: false,
+                    ca: fs.readFileSync(PGSSLCA).toString(),
+                    key: fs.readFileSync(PGSSLKEY).toString(),
+                    cert: fs.readFileSync(PGSSLCERT).toString()
+                }
+            }
+
+            client = new pg.Client(config)
+        }
 
         await client.connect()
         Logger.info("🐘 POSTGRES database connected")
