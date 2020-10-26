@@ -187,7 +187,7 @@ async function main() {
                     connectionCount--
                     setGraphQLConnections(connectionCount)
                     if (connectionCount <= 0) {
-                        startServerTimeout()
+                        startServerTimeout(sfu)
                     }
                     const {sessionId} = connectionData as any
                     Logger.info(`Disconnection(${connectionCount}) from ${sessionId}`)
@@ -244,7 +244,7 @@ async function main() {
 
 let timeout: NodeJS.Timeout | undefined
 
-export function startServerTimeout() {
+export function startServerTimeout(sfu: SFU) {
     if (timeout) {
         clearTimeout(timeout)
     }
@@ -252,7 +252,9 @@ export function startServerTimeout() {
     let serverTimeout = !isNaN(serverTimeoutEnvVar) ? serverTimeoutEnvVar : 5
     timeout = setTimeout(() => {
         Logger.error(`There have been no new connections after ${serverTimeout} minutes, shutting down`)
-        process.exit(-1)
+        sfu.shutdown().then(() => {
+            process.exit(-1)
+        })
     }, 1000 * 60 * serverTimeout)
 }
 

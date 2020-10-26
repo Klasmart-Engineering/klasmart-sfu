@@ -1,13 +1,13 @@
-import {v4 as uuid} from "uuid";
+import {v4 as uuid} from "uuid"
 import {
     observer,
     createWorker,
     types as MediaSoup,
-} from "mediasoup";
-import {Client, Stream} from "./client";
-import {Context, Logger, startServerTimeout} from "./entry";
+} from "mediasoup"
+import {Client, Stream} from "./client"
+import {Context, Logger, startServerTimeout} from "./entry"
 import Redis = require("ioredis")
-import {RedisKeys} from "./redisKeys";
+import {RedisKeys} from "./redisKeys"
 import {
     setAvailable,
     incrementConsumerCount,
@@ -15,10 +15,12 @@ import {
     incrementProducerCount,
     decrementProducerCount,
 } from "./reporting";
-import * as cassandra from "cassandra-driver"
-import {JWT} from "./auth";
-import {mediaCodecs} from "./config";
-import {MuteNotification} from "./schema";
+import * as pg from "pg"
+import {JWT} from "./auth"
+import {mediaCodecs} from "./config"
+import {MuteNotification} from "./schema"
+
+import * as fs from "fs"
 
 enum UserAction {
     Join = "JOIN",
@@ -49,37 +51,47 @@ export class SFU {
         await redis.connect();
         Logger.info("🔴 Redis database connected")
 
-        const cassandraHostsString = process.env.CASSANDRA_HOSTS || ""
-        const cassandraHosts = cassandraHostsString.split(",")
-        if (cassandraHosts.length === 0) {
-            Logger.error("CASSANDRA_HOSTS is not set.  It should consist of IP addresses or domain names separated by commas, e.g. \"CASSANDRA_HOSTS=127.0.0.1,192.168.1.100\"")
-            process.exit(-1)
-        }
-
         const id = uuid()
 
-        const cassandraDatacenter = process.env.CASSANDRA_DATACENTER || "datacenter1"
-        const cassandraKeyspace = process.env.CASSANDRA_KEYSPACE || "sfu"
-        const cassandraUsername = process.env.CASSANDRA_USERNAME || "sfu"
-        const cassandraPassword = process.env.CASSANDRA_PASSWORD
-        if (cassandraPassword === undefined) {
-            Logger.error("CASSANDRA_PASSWORD is not set.")
+        // These environment variables don't need to be read, but they do need to be defined in order to connect
+        // PGUSER=dbuser
+        // PGHOST=database.server.com
+        // PGPASSWORD=secretpassword
+        // PGDATABASE=mydb
+        // PGPORT=3211
+
+        // These environment variables should be read
+        const PGSSLCA = process.env.PGSSLCA
+        const PGSSLKEY = process.env.PGSSLKEY
+        const PGSSLCERT = process.env.PGSSLCERT
+
+        if (!PGSSLCA) {
+            Logger.error("PGSSLCA is not set.  It should point to the server certificate, i.e. /path/to/server-certificates/root.crt")
+            process.exit(-1)
+        }
+        if (!PGSSLKEY) {
+            Logger.error("PGSSLKEY is not set.  It should point to the client key, i.e. /path/to/client-key/postgresql.key")
+            process.exit(-1)
+        }
+        if (!PGSSLCERT) {
+            Logger.error("PGSSLCERT is not set.  It should point to the client certificate, i.e. /path/to/client-certificates/postgresql.crt")
             process.exit(-1)
         }
 
-        const cassandraOptions: cassandra.ClientOptions = {
-            contactPoints: cassandraHosts,
-            localDataCenter: cassandraDatacenter,
-            keyspace: cassandraKeyspace,
-            credentials: {
-                username: cassandraUsername,
-                password: cassandraPassword
+        // connect via SSL socket
+        const config = {
+            ssl: {
+                rejectUnauthorized: false,
+                ca: fs.readFileSync(PGSSLCA).toString(),
+                key: fs.readFileSync(PGSSLKEY).toString(),
+                cert: fs.readFileSync(PGSSLCERT).toString()
             }
         }
-        const client = new cassandra.Client(cassandraOptions)
+
+        const client = new pg.Client(config)
 
         await client.connect()
-        Logger.info("👁  Cassandra database connected")
+        Logger.info("🐘 POSTGRES database connected")
 
         Logger.info("Creating SFU")
         return new SFU(ip, uri, id, redis, worker, router, client)
@@ -101,6 +113,11 @@ export class SFU {
         client.disconnect()
     }
 
+    public async shutdown() {
+        await this.db.end()
+        await this.redis.disconnect()
+    }
+
     public async subscribe({sessionId, token}: Context) {
         if (!sessionId) {
             Logger.error("Can not initiate subscription without sessionId");
@@ -114,7 +131,11 @@ export class SFU {
         const client = await this.getOrCreateClient(sessionId, token)
         if (!this.roomStatusMap.get(token.roomid)) {
             this.roomStatusMap.set(token.roomid, true)
-            await this.recordRoomStart(token.roomid)
+            try {
+                await this.recordRoomStart(token.roomid)
+            } catch (e) {
+                Logger.error(e)
+            }
         }
         return client.subscribe()
     }
@@ -223,10 +244,10 @@ export class SFU {
     private redis: Redis.Redis
     private worker: MediaSoup.Worker
     private readonly router: MediaSoup.Router
-    private db: cassandra.Client
+    private db: pg.Client
     private roomStatusMap = new Map<string, boolean>()
 
-    private constructor(ip: string, uri: string, id: string, redis: Redis.Redis, worker: MediaSoup.Worker, router: MediaSoup.Router, db: cassandra.Client) {
+    private constructor(ip: string, uri: string, id: string, redis: Redis.Redis, worker: MediaSoup.Worker, router: MediaSoup.Router, db: pg.Client) {
         this.externalIp = ip
         this.listenIps = [{ip: "0.0.0.0", announcedIp: process.env.PUBLIC_ADDRESS || ip}]
         this.address = uri
@@ -254,7 +275,7 @@ export class SFU {
         setAvailable(false)
 
         Logger.info(`Assigned to Room(${roomId})`)
-        startServerTimeout()
+        startServerTimeout(this)
         const notify = RedisKeys.roomNotify(this.roomId);
         await this.redis.xadd(
             notify.key,
@@ -262,7 +283,7 @@ export class SFU {
             "json", JSON.stringify({sfu: this.address})
         );
 
-        this.checkRoomStatus();
+        await this.checkRoomStatus();
 
         let value: string | null
         do {
@@ -275,44 +296,48 @@ export class SFU {
         process.exit(-2)
     }
 
-    private checkRoomStatus() {
+    private async checkRoomStatus() {
         if (this.clients.size === 0 && this.roomId && this.roomStatusMap.get(this.roomId)) {
             this.roomStatusMap.set(this.roomId, false)
-            this.recordRoomEnd(this.roomId)
+            try {
+                await this.recordRoomEnd(this.roomId)
+            } catch (e) {
+                Logger.error(e)
+            }
         }
         setTimeout(() => this.checkRoomStatus(), 60 * 1000)
     }
 
     private async recordUserJoin(clientid: number, issuer: string, roomId: string, teacher: boolean) {
         Logger.info(`Recording client: ${clientid} joining room ${roomId} teacher: ${teacher}`)
-        const query = `INSERT INTO users (userid, issuer, roomid, timestamp, action, teacher) 
-                       VALUES (?, ?, ?, ?, ?, ?)`
-        const keys = [clientid, issuer, roomId, Date.now(), UserAction.Join, teacher]
-        return this.db.execute(query, keys, {prepare: true})
+        const query = `INSERT INTO users (userid, issuer, roomid, action, teacher) 
+                       VALUES ($1, $2, $3, $4, $5)`
+        const keys = [clientid, issuer, roomId, UserAction.Join, teacher]
+        return this.db.query(query, keys)
     }
 
     private async recordUserLeave(clientid: number, issuer: string, roomId: string, teacher: boolean) {
         Logger.info(`Recording client: ${clientid} leaving room ${roomId} teacher: ${teacher}`)
-        const query = `INSERT INTO users (userid, issuer, roomid, timestamp, action, teacher)
-                       VALUES (?, ?, ?, ?, ?, ?)`
-        const keys = [clientid, issuer, roomId, Date.now(), UserAction.Leave, teacher]
-        return this.db.execute(query, keys, {prepare: true})
+        const query = `INSERT INTO users (userid, issuer, roomid, action, teacher)
+                       VALUES ($1, $2, $3, $4, $5)`
+        const keys = [clientid, issuer, roomId, UserAction.Leave, teacher]
+        return this.db.query(query, keys)
     }
 
     public async recordRoomStart(roomId: string) {
         Logger.info(`Recording room: ${roomId} starting`)
-        const query = `INSERT INTO rooms (roomid, timestamp, action)
-                       VALUES (?, ?, ?)`
-        const keys = [roomId, Date.now(), RoomAction.Start]
-        return this.db.execute(query, keys, {prepare: true})
+        const query = `INSERT INTO rooms (roomid, action)
+                       VALUES ($1, $2)`
+        const keys = [roomId, RoomAction.Start]
+        return this.db.query(query, keys)
     }
 
     public async recordRoomEnd(roomId: string) {
         Logger.info(`Recording room: ${roomId} ending`)
-        const query = `INSERT INTO rooms (roomid, timestamp, action)
-                       VALUES (?, ?, ?)`
-        const keys = [roomId, Date.now(), RoomAction.End]
-        return this.db.execute(query, keys, {prepare: true})
+        const query = `INSERT INTO rooms (roomid, action)
+                       VALUES ($1, $2)`
+        const keys = [roomId, RoomAction.End]
+        return this.db.query(query, keys)
     }
 
     private async getOrCreateClient(id: string, token?: JWT): Promise<Client> {
@@ -322,13 +347,21 @@ export class SFU {
                 Logger.error("Token must be supplied to create a client")
                 throw new Error("Token must be supplied to create a client")
             }
-            await this.recordUserJoin(token.userid, token.iss, token.roomid, token.teacher)
+            try {
+                await this.recordUserJoin(token.userid, token.iss, token.roomid, token.teacher)
+            } catch (e) {
+                Logger.error(e)
+            }
             client = await Client.create(
                 id,
                 this.router,
                 this.listenIps,
                 () => {
-                    this.recordUserLeave(token.userid, token.iss, token.roomid, token.teacher)
+                    try {
+                        this.recordUserLeave(token.userid, token.iss, token.roomid, token.teacher)
+                    } catch (e) {
+                        Logger.error(e)
+                    }
                     this.clients.delete(id)
                 },
                 token
