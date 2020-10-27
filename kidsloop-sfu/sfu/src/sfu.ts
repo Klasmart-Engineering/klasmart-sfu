@@ -100,7 +100,7 @@ export class SFU {
         await client.connect()
 
         const usersQuery = `CREATE TABLE IF NOT EXISTS users (
-                                userid INT8 NOT NULL DEFAULT unique_rowid(),
+                                userid VARCHAR(255) NOT NULL,
                                 issuer VARCHAR(255) NOT NULL,
                                 roomid VARCHAR(255) NOT NULL,
                                 action VARCHAR(255) NOT NULL,
@@ -156,6 +156,7 @@ export class SFU {
     public async shutdown() {
         await this.db.end()
         await this.redis.disconnect()
+        process.exit(-1)
     }
 
     public async subscribe({sessionId, token}: Context) {
@@ -348,7 +349,7 @@ export class SFU {
         setTimeout(() => this.checkRoomStatus(), 60 * 1000)
     }
 
-    private async recordUserJoin(clientid: number, issuer: string, roomId: string, teacher: boolean) {
+    private async recordUserJoin(clientid: string, issuer: string, roomId: string, teacher: boolean) {
         Logger.info(`Recording client: ${clientid} joining room ${roomId} teacher: ${teacher}`)
         const query = `INSERT INTO users (userid, issuer, roomid, action, teacher) 
                        VALUES ($1, $2, $3, $4, $5)`
@@ -356,7 +357,7 @@ export class SFU {
         return this.db.query(query, keys)
     }
 
-    private async recordUserLeave(clientid: number, issuer: string, roomId: string, teacher: boolean) {
+    private async recordUserLeave(clientid: string, issuer: string, roomId: string, teacher: boolean) {
         Logger.info(`Recording client: ${clientid} leaving room ${roomId} teacher: ${teacher}`)
         const query = `INSERT INTO users (userid, issuer, roomid, action, teacher)
                        VALUES ($1, $2, $3, $4, $5)`

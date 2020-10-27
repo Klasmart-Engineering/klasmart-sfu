@@ -252,9 +252,7 @@ export function startServerTimeout(sfu: SFU) {
     let serverTimeout = !isNaN(serverTimeoutEnvVar) ? serverTimeoutEnvVar : 5
     timeout = setTimeout(() => {
         Logger.error(`There have been no new connections after ${serverTimeout} minutes, shutting down`)
-        sfu.shutdown().then(() => {
-            process.exit(-1)
-        })
+        sfu.shutdown()
     }, 1000 * 60 * serverTimeout)
 }
 

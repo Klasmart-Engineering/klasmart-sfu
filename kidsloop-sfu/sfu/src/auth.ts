@@ -32,14 +32,15 @@ const issuers = new Map<
                 algorithms: [ "RS256", "RS384", "RS512", "PS256", "PS384", "PS512", "ES256", "ES384", "ES512", "HS256", "HS384", "HS512"]
             },
             secretOrPublicKey: [
-                "---- BEGIN SSH2 PUBLIC KEY ----",
-                "AAAAB3NzaC1yc2EAAAADAQABAAABAQDF0cxhOoWhuPegYP8kNhsM3TuJxMf8OPuMG0lIbZ",
-                "yUzqFDUdEsClBQ2ipytwnMDQDto2oQsgm7Eyi9gChG0BMTWlgxalXIbjWKdCImMoXICS4e",
-                "xXMv63YLvvwEXGVdML9VahHoKjBZJYlpiVPl8D+StR7Dv/6wZbquNXaVCrEE3exCx9oM50",
-                "3kgaSLOx8yl2sRNtzm0qSw2zqcvpIVEN4uhLgAfkojhPT8cLneIsOOAGiRru0m67diw4HP",
-                "ENfbYVth9MVXsyY/Kr77wA1vNMuyBoPaXBaF9Y7nVxYmcUg9zuAcGr2QyowrdPZ3DSMIek",
-                "Di9gQyOwSs1JYqNrEXw78X",
-                "---- END SSH2 PUBLIC KEY ----"
+                "-----BEGIN PUBLIC KEY-----\n" +
+                "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAxdHMYTqFobj3oGD/JDYb",
+                "DN07icTH/Dj7jBtJSG2clM6hQ1HRLApQUNoqcrcJzA0A7aNqELIJuxMovYAoRtAT",
+                "E1pYMWpVyG41inQiJjKFyAkuHsVzL+t2C778BFxlXTC/VWoR6CowWSWJaYlT5fA/",
+                "krUew7/+sGW6rjV2lQqxBN3sQsfaDOdN5IGkizsfMpdrETbc5tKksNs6nL6SFRDe",
+                "LoS4AH5KI4T0/HC53iLDjgBoka7tJuu3YsOBzxDX22FbYfTFV7MmPyq++8ANbzTL",
+                "sgaD2lwWhfWO51cWJnFIPc7gHBq9kMqMK3T2dw0jCHpA4vYEMjsErNSWKjaxF8O/",
+                "FwIDAQAB",
+                "-----END PUBLIC KEY-----"
             ].join("\n")
         }
     ]
@@ -70,7 +71,7 @@ export type JWT = {
     Data: string,
     name: string,
     roomid: string,
-    userid: number,
+    userid: string,
     teacher: boolean
 }
 
