@@ -107,11 +107,12 @@ export class SFU {
                                 roomid VARCHAR(255) NOT NULL,
                                 action VARCHAR(255) NOT NULL,
                                 teacher BOOL NOT NULL DEFAULT false,
-                                "timestamp" TIMESTAMP NOT NULL DEFAULT now():::TIMESTAMP,
+                                "timestamp" TIMESTAMP NOT NULL DEFAULT now(),
                                 CONSTRAINT users_pk PRIMARY KEY (userid ASC, "timestamp" ASC),
                                 FAMILY "primary" (userid, issuer, roomid, action, teacher, "timestamp")
                             );`
         try {
+            Logger.info("Creating users table")
             await client.query(usersQuery)
         } catch (e) {
             Logger.error(e)
@@ -121,12 +122,13 @@ export class SFU {
         const roomsQuery = `CREATE TABLE IF NOT EXISTS rooms (
                                 roomid VARCHAR(255) NOT NULL,
                                 action VARCHAR(255) NULL,
-                                "timestamp" TIMESTAMP NOT NULL DEFAULT now():::TIMESTAMP,
+                                "timestamp" TIMESTAMP NOT NULL DEFAULT now(),
                                 CONSTRAINT rooms_pk PRIMARY KEY (roomid ASC, "timestamp" ASC),
                                 FAMILY "primary" (roomid, action, "timestamp")
                             );`
 
         try {
+            Logger.info("Creating rooms table")
             await client.query(roomsQuery)
         } catch (e) {
             Logger.error(e)
