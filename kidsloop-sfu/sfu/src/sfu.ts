@@ -53,18 +53,19 @@ export class SFU {
 
         const id = uuid()
 
-        // These environment variables don't need to be read, but they do need to be defined in order to connect
-        // PGUSER=dbuser
-        // PGHOST=database.server.com
-        // PGPASSWORD=secretpassword
-        // PGDATABASE=mydb
-        // PGPORT=3211
-
         const PGNOSSL = process.env.PGNOSSL
+        const PGURL = process.env.PGURL
+        if (!PGURL) {
+            Logger.error("PGURL is not set.")
+            process.exit(-1)
+        }
 
         let client
         if (PGNOSSL) {
-            client = new pg.Client()
+            const config = {
+                connectionString: PGURL
+            }
+            client = new pg.Client(config)
         } else {
             // These environment variables should be read
             const PGSSLCA = process.env.PGSSLCA
@@ -86,6 +87,7 @@ export class SFU {
 
             // connect via SSL socket
             const config = {
+                connectionString: PGURL,
                 ssl: {
                     rejectUnauthorized: false,
                     ca: fs.readFileSync(PGSSLCA).toString(),
