@@ -101,16 +101,32 @@ export class SFU {
 
         await client.connect()
 
-        const usersQuery = `CREATE TABLE IF NOT EXISTS users (
+        const COCKROACH = process.env.COCKROACH
+        let usersQuery
+        if (COCKROACH) {
+            usersQuery = `CREATE TABLE IF NOT EXISTS users (
                                 userid VARCHAR(255) NOT NULL,
                                 issuer VARCHAR(255) NOT NULL,
                                 roomid VARCHAR(255) NOT NULL,
                                 action VARCHAR(255) NOT NULL,
                                 teacher BOOL NOT NULL DEFAULT false,
-                                "timestamp" TIMESTAMP NOT NULL DEFAULT now(),
+                                "timestamp" TIMESTAMP NOT NULL DEFAULT now():::TIMESTAMP,
                                 CONSTRAINT users_pk PRIMARY KEY (userid ASC, "timestamp" ASC),
                                 FAMILY "primary" (userid, issuer, roomid, action, teacher, "timestamp")
                             );`
+        } else {
+            usersQuery = `CREATE TABLE IF NOT EXISTS users (
+                            userid varchar(255) not null,
+                            issuer varchar(255) not null,
+                            roomid varchar(255) not null,
+                            action varchar(255) not null,
+                            teacher boolean default false,
+                            timestamp timestamp default now(),
+                            constraint users_pk
+                            primary key (userid, timestamp)
+                        );`
+        }
+
         try {
             Logger.info("Creating users table")
             await client.query(usersQuery)
@@ -119,13 +135,25 @@ export class SFU {
             process.exit(-1)
         }
 
-        const roomsQuery = `CREATE TABLE IF NOT EXISTS rooms (
+        let roomsQuery
+        if (COCKROACH) {
+            roomsQuery = `CREATE TABLE IF NOT EXISTS rooms (
                                 roomid VARCHAR(255) NOT NULL,
                                 action VARCHAR(255) NULL,
-                                "timestamp" TIMESTAMP NOT NULL DEFAULT now(),
+                                "timestamp" TIMESTAMP NOT NULL DEFAULT now():::TIMESTAMP,
                                 CONSTRAINT rooms_pk PRIMARY KEY (roomid ASC, "timestamp" ASC),
                                 FAMILY "primary" (roomid, action, "timestamp")
                             );`
+        } else {
+            roomsQuery = `CREATE TABLE IF NOT EXISTS rooms (
+                                roomid VARCHAR(255) NOT NULL,
+                                action VARCHAR(255) NULL,
+                                "timestamp" TIMESTAMP NOT NULL DEFAULT now(),
+                                CONSTRAINT rooms_pk 
+                                PRIMARY KEY (roomid, "timestamp")
+                            );`
+        }
+
 
         try {
             Logger.info("Creating rooms table")
