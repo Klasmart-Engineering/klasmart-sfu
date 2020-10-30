@@ -205,7 +205,8 @@ async function main() {
                     consumer: (_parent, {id, pause}, context: Context) => sfu.consumerMessage(context, id, pause),
                     stream: (_parent, {id, producerIds}, context: Context) => sfu.streamMessage(context, id, producerIds),
                     close: (_parent, {id}, context: Context) => sfu.closeMessage(context, id),
-                    mute: (_parent, muteNotification: MuteNotification, context: Context) => sfu.muteMessage(context, muteNotification)
+                    mute: (_parent, muteNotification: MuteNotification, context: Context) => sfu.muteMessage(context, muteNotification),
+                    endClass: (_parent, {roomId}, context: Context) => sfu.endClassMessage(context, roomId)
                 },
                 Subscription: {
                     media: {

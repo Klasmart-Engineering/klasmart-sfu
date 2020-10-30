@@ -280,7 +280,6 @@ export class SFU {
         let teacher = sourceClient.jwt.teacher
         let clientMessages: Promise<boolean>[] = []
         if (teacher) {
-            Logger.info("teacher")
             if ((!targetClient.selfAudioMuted && audio !== undefined) ||
                 (!targetClient.selfVideoMuted && video !== undefined)) {
                 for (const client of this.clients.values()) {
@@ -291,7 +290,6 @@ export class SFU {
             }
 
         } else if (self) {
-            Logger.info("self")
             if ((!targetClient.teacherAudioMuted && audio !== undefined) ||
                 (!targetClient.teacherVideoMuted && video !== undefined)) {
                 for (const client of this.clients.values()) {
@@ -301,11 +299,31 @@ export class SFU {
                 return sourceClient.muteMessage(roomId, sessionId, producerId, consumerId, audio, video, teacher)
             }
         } else {
-            Logger.info("local")
             return sourceClient.muteMessage(roomId, sessionId, producerId, consumerId, audio, video)
         }
 
         return (await Promise.all(clientMessages)).reduce((p, c) => c && p)
+    }
+
+    public async endClassMessage(context: Context, roomId?: string): Promise<boolean> {
+        Logger.info(`endClassMessage from: ${context.sessionId}`)
+        if (!context.sessionId) {
+            Logger.warn("No sessionId in context")
+            return false
+        }
+        const sourceClient = await this.getOrCreateClient(context.sessionId)
+        let teacher = sourceClient.jwt.teacher
+
+        if (!teacher) {
+            Logger.warn(`SessionId: ${context.sessionId} attempted to end the class!`)
+            return false
+        }
+
+        for (const client of this.clients.values()) {
+            await client.endClassMessage(roomId)
+        }
+
+        return true
     }
 
     private readonly id: string;

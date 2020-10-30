@@ -228,6 +228,11 @@ export class Client {
         return true
     }
 
+    public async endClassMessage(roomId?: string) {
+        this.close()
+        return true
+    }
+
     public async muteMessage(roomId: string, sessionId: string, producerId?: string, consumerId?: string, audio?: boolean, video?: boolean, teacher?: boolean) {
         Logger.info(`muteMessage: ${this}`)
         let consumer
@@ -239,12 +244,10 @@ export class Client {
         }
         if (producerId && sessionId !== this.id) {
             // Someone else's self mute message
-            Logger.info("Sending mute update to other participant")
             consumer = Array.from(this.consumers.values()).find((c) => c.producerId === producerId)
         }
         if ((consumerId || consumer) && sessionId !== this.id) {
             // A teacher's mute message
-            Logger.info("Sending teacher mute update to other participant")
             if (!consumer && consumerId) {
                 consumer = this.consumers.get(consumerId)
             }
@@ -255,27 +258,21 @@ export class Client {
             Logger.info(`muteMessage: consumer ${consumerId}`)
             switch (consumer.kind) {
                 case "audio":
-                    Logger.info(`muteMessage: audio`)
                     if (audio) {
-                        Logger.info(`muteMessage: resume`)
                         await consumer.resume()
                     } else if (audio === false) {
-                        Logger.info(`muteMessage: pause`)
                         await consumer.pause()
                     }
                     break;
                 case "video":
-                    Logger.info(`muteMessage: video`)
                     if (video) {
-                        Logger.info(`muteMessage: resume`)
                         await consumer.resume()
                     } else if (video === false) {
-                        Logger.info(`muteMessage: pause`)
                         await consumer.pause()
                     }
                     break;
                 default:
-                    Logger.info(`muteMessage: default`)
+                    Logger.warn(`muteMessage: unknown consumer kind`)
                     break;
             }
 

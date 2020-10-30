@@ -12,7 +12,8 @@ export const schema = gql`
         consumer(id: String!, pause: Boolean): Boolean,
         stream(id: String!, producerIds: [String]!): Boolean,
         close(id: String!): Boolean,
-        mute(roomId: String!, sessionId: String!, producerId: String, consumerId: String, audio: Boolean, video: Boolean): Boolean
+        mute(roomId: String!, sessionId: String!, producerId: String, consumerId: String, audio: Boolean, video: Boolean): Boolean,
+        endClass(roomId: String): Boolean
     }
 
     type Subscription {
