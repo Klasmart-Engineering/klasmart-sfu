@@ -365,7 +365,6 @@ export class Client {
         Logger.info("Teacher muting producer")
         this.teacherAudioMuted = audio !== undefined ? !audio : this.teacherAudioMuted
         this.teacherVideoMuted = video !== undefined ? !video : this.teacherVideoMuted
-        this.selfAudioMuted = audio !== undefined ? true : this.selfAudioMuted
         this.selfVideoMuted = video !== undefined ? true : this.selfVideoMuted
         // A teacher has muted a producer
         if (audio !== undefined) {
