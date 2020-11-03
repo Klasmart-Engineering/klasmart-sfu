@@ -279,16 +279,15 @@ export class SFU {
         let self = sessionId === context.sessionId
         let teacher = sourceClient.jwt.teacher
         let clientMessages: Promise<boolean>[] = []
-        if (teacher) {
-            if ((!targetClient.selfAudioMuted && audio !== undefined) ||
-                (!targetClient.selfVideoMuted && video !== undefined)) {
+        if (teacher && !self) {
                 for (const client of this.clients.values()) {
+                    if (audio !== undefined) {
+                        producerId = Array.from(targetClient.producers.values()).find((p) => p.kind === "audio")?.id
+                    } else if (video !== undefined) {
+                        producerId = Array.from(targetClient.producers.values()).find((p) => p.kind === "video")?.id
+                    }
                     clientMessages.push(client.muteMessage(roomId, sessionId, producerId, consumerId, audio, video, teacher))
                 }
-            } else {
-                return targetClient.muteMessage(roomId, sessionId, producerId, consumerId, audio, video, teacher)
-            }
-
         } else if (self) {
             if ((!targetClient.teacherAudioMuted && audio !== undefined) ||
                 (!targetClient.teacherVideoMuted && video !== undefined)) {

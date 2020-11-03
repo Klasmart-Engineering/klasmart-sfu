@@ -233,8 +233,14 @@ export class Client {
         return true
     }
 
-    public async muteMessage(roomId: string, sessionId: string, producerId?: string, consumerId?: string, audio?: boolean, video?: boolean, teacher?: boolean) {
-        Logger.info(`muteMessage: ${this}`)
+    public async muteMessage(roomId: string,
+                             sessionId: string,
+                             producerId?: string,
+                             consumerId?: string,
+                             audio?: boolean,
+                             video?: boolean,
+                             teacher?: boolean) {
+        Logger.info(`muteMessage: ${this.id}`)
         let consumer
         if (consumerId && sessionId === this.id && teacher) {
             return await this.teacherMute(audio, video, producerId, roomId, sessionId, consumerId);
@@ -243,7 +249,7 @@ export class Client {
             return await this.selfMute(producerId, audio, video, roomId, sessionId, consumerId);
         }
         if (producerId && sessionId !== this.id) {
-            // Someone else's self mute message
+            // Someone else's mute message
             consumer = Array.from(this.consumers.values()).find((c) => c.producerId === producerId)
         }
         if ((consumerId || consumer) && sessionId !== this.id) {
@@ -255,7 +261,7 @@ export class Client {
                 Logger.error(`Failed to find consumer with id: ${consumerId}`)
                 return false
             }
-            Logger.info(`muteMessage: consumer ${consumerId}`)
+            Logger.info(`muteMessage: consumer ${consumer.id}`)
             switch (consumer.kind) {
                 case "audio":
                     if (audio) {
@@ -321,22 +327,16 @@ export class Client {
         Logger.info(`muteMessage: producer ${producerId}`)
         switch (producer.kind) {
             case "audio":
-                Logger.info(`muteMessage: audio`)
                 if (audio && !this.teacherAudioMuted) {
-                    Logger.info(`muteMessage: resume`)
                     await producer.resume()
                 } else if (audio !== undefined && this.selfAudioMuted) {
-                    Logger.info(`muteMessage: pause`)
                     await producer.pause()
                 }
                 break;
             case "video":
-                Logger.info(`muteMessage: video`)
                 if (video && !this.teacherVideoMuted) {
-                    Logger.info(`muteMessage: resume`)
                     await producer.resume()
                 } else if (video !== undefined && this.selfVideoMuted) {
-                    Logger.info(`muteMessage: pause`)
                     await producer.pause()
                 }
                 break;
@@ -380,25 +380,19 @@ export class Client {
             Logger.error(`Failed to find producer with id: ${producerId}`)
             return false
         }
-        Logger.info(`muteMessage: producer ${producerId}`)
+        Logger.info(`muteMessage: producer ${producer.id}`)
         switch (producer.kind) {
             case "audio":
-                Logger.info(`muteMessage: audio`)
                 if (audio && !this.selfAudioMuted) {
-                    Logger.info(`muteMessage: resume`)
                     await producer.resume()
                 } else if (audio !== undefined && this.selfAudioMuted) {
-                    Logger.info(`muteMessage: pause`)
                     await producer.pause()
                 }
                 break;
             case "video":
-                Logger.info(`muteMessage: video`)
                 if (video && !this.selfVideoMuted) {
-                    Logger.info(`muteMessage: resume`)
                     await producer.resume()
                 } else if (video !== undefined && this.selfVideoMuted) {
-                    Logger.info(`muteMessage: pause`)
                     await producer.pause()
                 }
                 break;
@@ -426,7 +420,7 @@ export class Client {
     public emitter = new EventEmitter()
     private destructors = new Map<string, () => unknown>()
     private streams = new Map<string, Stream>()
-    private producers = new Map<string, MediaSoup.Producer>()
+    public producers = new Map<string, MediaSoup.Producer>()
     private consumers = new Map<string, MediaSoup.Consumer>()
     private channel = new PubSub()
     private router: MediaSoup.Router
