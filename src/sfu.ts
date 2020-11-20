@@ -30,7 +30,7 @@ enum RoomAction {
 }
 
 export class SFU {
-    public static async create(ip: string, uri: string): Promise<SFU> {
+    public static async create(ip: string): Promise<SFU> {
         const worker = await createWorker({
             logLevel: "warn",
         })
@@ -50,9 +50,8 @@ export class SFU {
 
         const id = uuid()
 
-
         Logger.info("Creating SFU")
-        return new SFU(ip, uri, id, redis, worker, router)
+        return new SFU(ip, id, redis, worker, router)
     }
 
     public connect(sessionId: string) {
@@ -212,7 +211,6 @@ export class SFU {
 
     private readonly id: string;
     private readonly externalIp: string
-    private readonly address: string
     private readonly listenIps: MediaSoup.TransportListenIp[]
     public clients = new Map<string, Client>()
     public roomId?: string
@@ -221,18 +219,16 @@ export class SFU {
     private readonly router: MediaSoup.Router
     private roomStatusMap = new Map<string, boolean>()
 
-    private constructor(ip: string, uri: string, id: string, redis: Redis.Redis, worker: MediaSoup.Worker, router: MediaSoup.Router) {
+    private constructor(ip: string, id: string, redis: Redis.Redis, worker: MediaSoup.Worker, router: MediaSoup.Router) {
         this.externalIp = ip
         this.listenIps = [{ip: "0.0.0.0", announcedIp: process.env.PUBLIC_ADDRESS || ip}]
-        this.address = uri
         this.id = id
         this.redis = redis
         this.worker = worker
         this.router = router
-        this.claimRoom()
     }
 
-    private async claimRoom() {
+    public async claimRoom(announceURI: string) {
         let roomId: string
         let claimed: "OK" | null = null
         let sfu = {key: "", ttl: 0}
@@ -242,7 +238,7 @@ export class SFU {
                 continue
             }
             sfu = RedisKeys.roomSfu(roomId)
-            claimed = await this.redis.set(sfu.key, this.address, "EX", sfu.ttl, "NX")
+            claimed = await this.redis.set(sfu.key, announceURI, "EX", sfu.ttl, "NX")
         } while (claimed !== "OK")
         this.roomId = roomId
         setAvailable(false)
@@ -253,19 +249,19 @@ export class SFU {
         await this.redis.xadd(
             notify.key,
             "MAXLEN", "~", 32, "*",
-            "json", JSON.stringify({sfu: this.address})
+            "json", JSON.stringify({sfu: announceURI})
         );
 
         await this.checkRoomStatus();
 
         let value: string | null
         do {
-            await this.redis.set(sfu.key, this.address, "EX", sfu.ttl, "XX")
+            await this.redis.set(sfu.key, announceURI, "EX", sfu.ttl, "XX")
             await new Promise((resolve) => setTimeout(resolve, sfu.ttl / 2))
             value = await this.redis.get(sfu.key)
-        } while (value === this.address)
+        } while (value === announceURI)
 
-        Logger.error(`Room(${roomId})::SFU was '${value}' but expected '${this.address}', terminating SFU`)
+        Logger.error(`Room(${roomId})::SFU was '${value}' but expected '${announceURI}', terminating SFU`)
         process.exit(-2)
     }
 

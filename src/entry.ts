@@ -151,15 +151,13 @@ export const connectionCount = new Map<string, number>()
 
 async function main() {
     try {
-        const port = process.env.PORT || 8000 + Math.floor(128 * Math.random());
         const ip = (await getECSTaskENIPublicIP()) || getIPAddress()
         if (!ip) {
             Logger.error("No network interface found");
             process.exit(-4)
         }
         Logger.info(`ip address ${ip}`)
-        const uri = `${ip}:${port}/graphql`
-        const sfu = await SFU.create(ip, uri)
+        const sfu = await SFU.create(ip)
         setTimeout(() => {
             reportConferenceStats(sfu)
         }, 10000)
@@ -219,24 +217,17 @@ async function main() {
                     return connection.context;
                 }
                 const token = await checkToken(req.headers.authorization)
-                return {token: req.headers.authorization}
+                return {}
             }
         });
-        server.listen({port}, () => {
-            Logger.info(`🌎 Server available at \n${
-                    [
-                        {address: ip, family: "IPv4"},
-                        ...getNetworkInterfaceInfo(),
-                    ].map((info) => `\thttp://${
-                        info.family === "IPv6"
-                            ? `[${info.address}]`
-                            : info.address
-                    }:${port}${server.graphqlPath}`)
-                        .join("\n")
-                }`
-            );
-            setAvailable(true)
+        const listener = await server.listen({port: process.env.PORT}, () => {
+            Logger.info(`🌎 Server available`);
         })
+
+        setAvailable(true)
+        const uri = `${ip}:${listener.port}${listener.subscriptionsPath}`
+        console.log(`Anouncing address for webRTC signaling: ${uri}`)
+        await sfu.claimRoom(uri)
     } catch (e) {
         Logger.error(e)
         process.exit(-1)
