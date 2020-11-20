@@ -15,12 +15,9 @@ import {
     incrementProducerCount,
     decrementProducerCount,
 } from "./reporting";
-import * as pg from "pg"
 import {JWT} from "./auth"
 import {mediaCodecs} from "./config"
 import {MuteNotification} from "./schema"
-
-import * as fs from "fs"
 
 enum UserAction {
     Join = "JOIN",
@@ -53,120 +50,9 @@ export class SFU {
 
         const id = uuid()
 
-        const PGNOSSL = process.env.PGNOSSL
-        const PGURL = process.env.PGURL
-        if (!PGURL) {
-            Logger.error("PGURL is not set.")
-            process.exit(-1)
-        }
-
-        let client
-        if (PGNOSSL) {
-            const config = {
-                connectionString: PGURL
-            }
-            client = new pg.Client(config)
-        } else {
-            // These environment variables should be read
-            const PGSSLCA = process.env.PGSSLCA
-            const PGSSLKEY = process.env.PGSSLKEY
-            const PGSSLCERT = process.env.PGSSLCERT
-
-            if (!PGSSLCA) {
-                Logger.error("PGSSLCA is not set.  It should point to the server certificate, i.e. /path/to/server-certificates/root.crt.  Run with PGNOSSL set to attempt connecting without SSL.")
-                process.exit(-1)
-            }
-            if (!PGSSLKEY) {
-                Logger.error("PGSSLKEY is not set.  It should point to the client key, i.e. /path/to/client-key/postgresql.key. Run with PGNOSSL set to attempt connecting without SSL.")
-                process.exit(-1)
-            }
-            if (!PGSSLCERT) {
-                Logger.error("PGSSLCERT is not set.  It should point to the client certificate, i.e. /path/to/client-certificates/postgresql.crt. Run with PGNOSSL set to attempt connecting without SSL.")
-                process.exit(-1)
-            }
-
-            // connect via SSL socket
-            const config = {
-                connectionString: PGURL,
-                ssl: {
-                    rejectUnauthorized: false,
-                    ca: fs.readFileSync(PGSSLCA).toString(),
-                    key: fs.readFileSync(PGSSLKEY).toString(),
-                    cert: fs.readFileSync(PGSSLCERT).toString()
-                }
-            }
-
-            client = new pg.Client(config)
-        }
-
-        await client.connect()
-
-        const COCKROACH = process.env.COCKROACH
-        let usersQuery
-        if (COCKROACH) {
-            usersQuery = `CREATE TABLE IF NOT EXISTS users (
-                                userid VARCHAR(255) NOT NULL,
-                                issuer VARCHAR(255) NOT NULL,
-                                roomid VARCHAR(255) NOT NULL,
-                                action VARCHAR(255) NOT NULL,
-                                teacher BOOL NOT NULL DEFAULT false,
-                                "timestamp" TIMESTAMP NOT NULL DEFAULT now():::TIMESTAMP,
-                                CONSTRAINT users_pk PRIMARY KEY (userid ASC, "timestamp" ASC),
-                                FAMILY "primary" (userid, issuer, roomid, action, teacher, "timestamp")
-                            );`
-        } else {
-            usersQuery = `CREATE TABLE IF NOT EXISTS users (
-                            userid varchar(255) not null,
-                            issuer varchar(255) not null,
-                            roomid varchar(255) not null,
-                            action varchar(255) not null,
-                            teacher boolean default false,
-                            timestamp timestamp default now(),
-                            constraint users_pk
-                            primary key (userid, timestamp)
-                        );`
-        }
-
-        try {
-            Logger.info("Creating users table")
-            await client.query(usersQuery)
-        } catch (e) {
-            Logger.error(e)
-            process.exit(-1)
-        }
-
-        let roomsQuery
-        if (COCKROACH) {
-            roomsQuery = `CREATE TABLE IF NOT EXISTS rooms (
-                                roomid VARCHAR(255) NOT NULL,
-                                action VARCHAR(255) NULL,
-                                "timestamp" TIMESTAMP NOT NULL DEFAULT now():::TIMESTAMP,
-                                CONSTRAINT rooms_pk PRIMARY KEY (roomid ASC, "timestamp" ASC),
-                                FAMILY "primary" (roomid, action, "timestamp")
-                            );`
-        } else {
-            roomsQuery = `CREATE TABLE IF NOT EXISTS rooms (
-                                roomid VARCHAR(255) NOT NULL,
-                                action VARCHAR(255) NULL,
-                                "timestamp" TIMESTAMP NOT NULL DEFAULT now(),
-                                CONSTRAINT rooms_pk 
-                                PRIMARY KEY (roomid, "timestamp")
-                            );`
-        }
-
-
-        try {
-            Logger.info("Creating rooms table")
-            await client.query(roomsQuery)
-        } catch (e) {
-            Logger.error(e)
-            process.exit(-1)
-        }
-
-        Logger.info("🐘 POSTGRES database connected")
 
         Logger.info("Creating SFU")
-        return new SFU(ip, uri, id, redis, worker, router, client)
+        return new SFU(ip, uri, id, redis, worker, router)
     }
 
     public connect(sessionId: string) {
@@ -186,7 +72,6 @@ export class SFU {
     }
 
     public async shutdown() {
-        await this.db.end()
         await this.redis.disconnect()
         process.exit(-1)
     }
@@ -334,10 +219,9 @@ export class SFU {
     private redis: Redis.Redis
     private worker: MediaSoup.Worker
     private readonly router: MediaSoup.Router
-    private db: pg.Client
     private roomStatusMap = new Map<string, boolean>()
 
-    private constructor(ip: string, uri: string, id: string, redis: Redis.Redis, worker: MediaSoup.Worker, router: MediaSoup.Router, db: pg.Client) {
+    private constructor(ip: string, uri: string, id: string, redis: Redis.Redis, worker: MediaSoup.Worker, router: MediaSoup.Router) {
         this.externalIp = ip
         this.listenIps = [{ip: "0.0.0.0", announcedIp: process.env.PUBLIC_ADDRESS || ip}]
         this.address = uri
@@ -345,7 +229,6 @@ export class SFU {
         this.redis = redis
         this.worker = worker
         this.router = router
-        this.db = db
         this.claimRoom()
     }
 
@@ -399,35 +282,15 @@ export class SFU {
     }
 
     private async recordUserJoin(clientid: string, issuer: string, roomId: string, teacher: boolean) {
-        Logger.info(`Recording client: ${clientid} joining room ${roomId} teacher: ${teacher}`)
-        const query = `INSERT INTO users (userid, issuer, roomid, action, teacher) 
-                       VALUES ($1, $2, $3, $4, $5)`
-        const keys = [clientid, issuer, roomId, UserAction.Join, teacher]
-        return this.db.query(query, keys)
     }
 
     private async recordUserLeave(clientid: string, issuer: string, roomId: string, teacher: boolean) {
-        Logger.info(`Recording client: ${clientid} leaving room ${roomId} teacher: ${teacher}`)
-        const query = `INSERT INTO users (userid, issuer, roomid, action, teacher)
-                       VALUES ($1, $2, $3, $4, $5)`
-        const keys = [clientid, issuer, roomId, UserAction.Leave, teacher]
-        return this.db.query(query, keys)
     }
 
     public async recordRoomStart(roomId: string) {
-        Logger.info(`Recording room: ${roomId} starting`)
-        const query = `INSERT INTO rooms (roomid, action)
-                       VALUES ($1, $2)`
-        const keys = [roomId, RoomAction.Start]
-        return this.db.query(query, keys)
     }
 
     public async recordRoomEnd(roomId: string) {
-        Logger.info(`Recording room: ${roomId} ending`)
-        const query = `INSERT INTO rooms (roomid, action)
-                       VALUES ($1, $2)`
-        const keys = [roomId, RoomAction.End]
-        return this.db.query(query, keys)
     }
 
     private async getOrCreateClient(id: string, token?: JWT): Promise<Client> {
