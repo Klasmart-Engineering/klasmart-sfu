@@ -225,7 +225,7 @@ async function main() {
         })
 
         setAvailable(true)
-        const uri = `${ip}:${listener.port}${listener.subscriptionsPath}`
+        const uri = `${process.env.HOSTNAME || ip}:${listener.port}${listener.subscriptionsPath}`
         console.log(`Anouncing address for webRTC signaling: ${uri}`)
         await sfu.claimRoom(uri)
     } catch (e) {
