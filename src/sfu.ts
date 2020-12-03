@@ -44,6 +44,7 @@ export class SFU {
             port: Number(process.env.REDIS_PORT) || undefined,
             password: process.env.REDIS_PASS || undefined,
             lazyConnect: true,
+            reconnectOnError: (err) => err.message.includes("READONLY"),
         });
         await redis.connect();
         Logger.info("🔴 Redis database connected")
