@@ -89,11 +89,6 @@ export class SFU {
         const client = await this.getOrCreateClient(sessionId, token)
         if (!this.roomStatusMap.get(token.roomid)) {
             this.roomStatusMap.set(token.roomid, true)
-            try {
-                await this.recordRoomStart(token.roomid)
-            } catch (e) {
-                Logger.error(e)
-            }
         }
         return client.subscribe()
     }
@@ -269,30 +264,10 @@ export class SFU {
     private async checkRoomStatus() {
         if (this.clients.size === 0 && this.roomId && this.roomStatusMap.get(this.roomId)) {
             this.roomStatusMap.set(this.roomId, false)
-            try {
-                await this.recordRoomEnd(this.roomId)
-            } catch (e) {
-                Logger.error(e)
-            }
         }
         setTimeout(() => this.checkRoomStatus(), 60 * 1000)
     }
 
-    private async recordUserJoin(clientid: string, issuer: string, roomId: string, teacher: boolean) {
-        Logger.info(`Recording client: ${clientid} joining room ${roomId} teacher: ${teacher}`)
-    }
-
-    private async recordUserLeave(clientid: string, issuer: string, roomId: string, teacher: boolean) {
-        Logger.info(`Recording client: ${clientid} leaving room ${roomId} teacher: ${teacher}`)
-    }
-
-    public async recordRoomStart(roomId: string) {
-        Logger.info(`Recording room: ${roomId} starting`)
-    }
-
-    public async recordRoomEnd(roomId: string) {
-        Logger.info(`Recording room: ${roomId} ending`)
-    }
 
     private async getOrCreateClient(id: string, token?: JWT): Promise<Client> {
         let client = this.clients.get(id)
@@ -301,21 +276,11 @@ export class SFU {
                 Logger.error("Token must be supplied to create a client")
                 throw new Error("Token must be supplied to create a client")
             }
-            try {
-                await this.recordUserJoin(token.userid, token.iss, token.roomid, token.teacher)
-            } catch (e) {
-                Logger.error(e)
-            }
             client = await Client.create(
                 id,
                 this.router,
                 this.listenIps,
                 () => {
-                    try {
-                        this.recordUserLeave(token.userid, token.iss, token.roomid, token.teacher)
-                    } catch (e) {
-                        Logger.error(e)
-                    }
                     this.clients.delete(id)
                 },
                 token
