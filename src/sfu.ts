@@ -73,7 +73,7 @@ export class SFU {
 
     public async shutdown() {
         await this.redis.disconnect()
-        process.exit(-1)
+        process.exit(0)
     }
 
     public async subscribe({sessionId, token}: Context) {
@@ -279,15 +279,19 @@ export class SFU {
     }
 
     private async recordUserJoin(clientid: string, issuer: string, roomId: string, teacher: boolean) {
+        Logger.info(`Recording client: ${clientid} joining room ${roomId} teacher: ${teacher}`)
     }
 
     private async recordUserLeave(clientid: string, issuer: string, roomId: string, teacher: boolean) {
+        Logger.info(`Recording client: ${clientid} leaving room ${roomId} teacher: ${teacher}`)
     }
 
     public async recordRoomStart(roomId: string) {
+        Logger.info(`Recording room: ${roomId} starting`)
     }
 
     public async recordRoomEnd(roomId: string) {
+        Logger.info(`Recording room: ${roomId} ending`)
     }
 
     private async getOrCreateClient(id: string, token?: JWT): Promise<Client> {
