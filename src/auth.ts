@@ -92,13 +92,11 @@ export type JWT = {
     Data: string,
     name: string,
     roomid: string,
-    userid: string,
     teacher: boolean
 }
 
 export async function checkToken(token?: string): Promise<JWT> {
     try {
-
         if (!token) {
             Logger.error("Missing JWT Token")
             throw new Error("Missing JWT token")
@@ -117,11 +115,6 @@ export async function checkToken(token?: string): Promise<JWT> {
         if (!issuerOptions) {
             Logger.error("JWT IssuerOptions are incorrect")
             throw new Error("JWT IssuerOptions are incorrect")
-        }
-        const userid = payload["userid"]
-        if (!userid) {
-            Logger.error("JWT is missing userid")
-            throw new Error("JWT is missing userid")
         }
         const {options, secretOrPublicKey} = issuerOptions
         return await new Promise((resolve, reject) => {
