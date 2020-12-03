@@ -1,3 +1,4 @@
+import {hostname} from "os" 
 import {createLogger, format, transports} from "winston"
 import {ApolloServer} from "apollo-server";
 import {SFU} from "./sfu"
@@ -225,7 +226,8 @@ async function main() {
         })
 
         setAvailable(true)
-        const uri = `${process.env.HOSTNAME || ip}:${listener.port}${listener.subscriptionsPath}`
+        const host = process.env.USE_IP ? ip : (process.env.HOSTNAME_OVERRIDE || hostname())
+        const uri = `${host}:${listener.port}${listener.subscriptionsPath}`
         console.log(`Anouncing address for webRTC signaling: ${uri}`)
         await sfu.claimRoom(uri)
     } catch (e) {
