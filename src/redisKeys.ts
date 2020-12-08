@@ -12,4 +12,7 @@ export class RedisKeys {
         return { key: `${RedisKeys.room(roomId)}:sfu`, ttl: 10 };
     }
 
+    public static sfuStatus(sfuId: string) {
+        return { key: `sfu:${sfuId}:status`, ttl: 5 };
+    }
 }

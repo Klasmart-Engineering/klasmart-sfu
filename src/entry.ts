@@ -1,6 +1,7 @@
 import {hostname} from "os" 
 import {createLogger, format, transports} from "winston"
-import {ApolloServer} from "apollo-server";
+import express from "express"
+import {ApolloServer} from "apollo-server-express";
 import {SFU} from "./sfu"
 import {MuteNotification, schema} from "./schema";
 import {checkToken, JWT} from "./auth";
@@ -11,7 +12,10 @@ import EC2 from "aws-sdk/clients/ec2"
 import ECS from "aws-sdk/clients/ecs"
 // @ts-ignore
 import checkIp = require("check-ip")
-import {setDockerId, setAvailable, setGraphQLConnections, setClusterId, reportConferenceStats} from "./reporting";
+import {setDockerId, setGraphQLConnections, setClusterId, reportConferenceStats} from "./reporting";
+import { register, collectDefaultMetrics, Gauge } from "prom-client"
+
+collectDefaultMetrics({})
 
 const logFormat = format.printf(({level, message, label, timestamp}) => {
     return `${timestamp} [${level}]: ${message} service: ${label}`
@@ -221,13 +225,49 @@ async function main() {
                 return {}
             }
         });
-        const listener = await server.listen({port: process.env.PORT}, () => {
-            Logger.info(`🌎 Server available`);
-        })
 
-        setAvailable(true)
+        new Gauge({
+            name: 'sfuCount',
+            help: 'Number of SFUs currently connected to the same redis db (shard?)',
+            labelNames: ["type"],
+            async collect() {
+                try {
+                    const {
+                        availableCount,
+                        otherCount,
+                    } = await sfu.sfuStats()
+                    this.labels("available").set(availableCount);
+                    this.labels("unavailable").set(otherCount);
+                    this.labels("total").set(availableCount+otherCount);
+                } catch(e) {
+                    this.labels("available").set(-1);
+                    this.labels("unavailable").set(-1);
+                    this.labels("total").set(-1);
+                    console.log(e)
+                }
+            },
+        });
+
+        const app = express();
+        server.applyMiddleware({app})
+        app.get('/metrics', async (_req, res) => {
+            try {
+                res.set('Content-Type', register.contentType);
+                const metrics = await register.metrics()
+                res.end(metrics);
+            } catch (ex) {
+                console.error(ex)
+                res.status(500).end(ex.toString());
+            }
+        });
+
+        const address = app
+            .listen({port: process.env.PORT}, () => { Logger.info(`🌎 Server available`); })
+            .address()
+        if(!address || typeof address === "string") { throw new Error("Unexpected address format") }
+
         const host = process.env.USE_IP ? ip : (process.env.HOSTNAME_OVERRIDE || hostname())
-        const uri = `${host}:${listener.port}${listener.subscriptionsPath}`
+        const uri = `${host}:${address.port}${server.subscriptionsPath}`
         console.log(`Anouncing address for webRTC signaling: ${uri}`)
         await sfu.claimRoom(uri)
     } catch (e) {

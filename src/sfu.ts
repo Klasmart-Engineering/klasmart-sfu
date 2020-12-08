@@ -214,6 +214,7 @@ export class SFU {
     private worker: MediaSoup.Worker
     private readonly router: MediaSoup.Router
     private roomStatusMap = new Map<string, boolean>()
+    private available = false
 
     private constructor(ip: string, id: string, redis: Redis.Redis, worker: MediaSoup.Worker, router: MediaSoup.Router) {
         this.externalIp = ip
@@ -222,21 +223,75 @@ export class SFU {
         this.redis = redis
         this.worker = worker
         this.router = router
+        this.reportSFUState()
+    }
+
+    private reporting = false
+    private async reportSFUState() {
+        if(this.reporting) { return }
+        try {
+            this.reporting = true
+            while(true) {
+                const status = RedisKeys.sfuStatus(this.id)
+                await this.redis.set(status.key, this.available?1:0, "EX", status.ttl).catch((e) => console)
+                await new Promise((resolve) => setTimeout(resolve, 1000 * status.ttl / 2))
+            }
+        } finally {
+            this.reporting = false
+        }
+    }
+
+    public async sfuStats() {
+        let availableCount = 0
+        let otherCount = 0
+        
+        const statusSearch = RedisKeys.sfuStatus("*");
+        let statusSearchCursor = "0";
+        do {
+            const [newCursor, keys] = await this.redis.scan(statusSearchCursor, "MATCH", statusSearch.key);
+            statusSearchCursor = newCursor;
+            for (const key of keys) {
+                try {
+                    const value = await this.redis.get(key)
+                    if(value !== null) {
+                        if(Boolean(value)) { availableCount++ } else { otherCount++ }
+                    }
+                } catch(e) {
+                    console.error(e)
+                }
+            }
+        } while (statusSearchCursor !== "0");
+
+        return {
+            availableCount,
+            otherCount,
+        }
     }
 
     public async claimRoom(announceURI: string) {
+        this.available = true
+        setAvailable(true)
         let roomId: string
         let claimed: "OK" | null = null
         let sfu = {key: "", ttl: 0}
-        do {
-            [, roomId] = await this.redis.blpop("sfu:request", 0)
-            if (!roomId) {
-                continue
+        {
+            //Duplicate redis as we will block
+            const redis = this.redis.duplicate()
+            try {
+                do {
+                    [, roomId] = await redis.blpop("sfu:request", 0)
+                    if (!roomId) {
+                        continue
+                    }
+                    sfu = RedisKeys.roomSfu(roomId)
+                    claimed = await this.redis.set(sfu.key, announceURI, "EX", sfu.ttl, "NX")
+                } while (claimed !== "OK")
+            } finally {
+                redis.disconnect()
             }
-            sfu = RedisKeys.roomSfu(roomId)
-            claimed = await this.redis.set(sfu.key, announceURI, "EX", sfu.ttl, "NX")
-        } while (claimed !== "OK")
+        }
         this.roomId = roomId
+        this.available = false
         setAvailable(false)
 
         Logger.info(`Assigned to Room(${roomId})`)

@@ -2,7 +2,7 @@ import {
     types as MediaSoup
 } from "mediasoup";
 import {Resolver} from "./resolver";
-import {PubSub} from "apollo-server";
+import {PubSub} from "apollo-server-express";
 import {EventEmitter} from "events";
 import {Logger} from "./entry";
 import {JWT} from "./auth";
