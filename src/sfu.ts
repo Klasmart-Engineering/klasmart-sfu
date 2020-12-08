@@ -253,7 +253,7 @@ export class SFU {
         let value: string | null
         do {
             await this.redis.set(sfu.key, announceURI, "EX", sfu.ttl, "XX")
-            await new Promise((resolve) => setTimeout(resolve, sfu.ttl / 2))
+            await new Promise((resolve) => setTimeout(resolve, 1000 * sfu.ttl / 2))
             value = await this.redis.get(sfu.key)
         } while (value === announceURI)
 
