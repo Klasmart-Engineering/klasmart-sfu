@@ -1,5 +1,6 @@
 import {hostname} from "os" 
 import {createLogger, format, transports} from "winston"
+import { createServer } from "http"
 import express from "express"
 import {ApolloServer} from "apollo-server-express";
 import {SFU} from "./sfu"
@@ -249,7 +250,6 @@ async function main() {
         });
 
         const app = express();
-        server.applyMiddleware({app})
         app.get('/metrics', async (_req, res) => {
             try {
                 res.set('Content-Type', register.contentType);
@@ -260,10 +260,12 @@ async function main() {
                 res.status(500).end(ex.toString());
             }
         });
-
-        const address = app
-            .listen({port: process.env.PORT}, () => { Logger.info(`🌎 Server available`); })
-            .address()
+        server.applyMiddleware({app})
+        const httpServer = createServer(app)
+        server.installSubscriptionHandlers(httpServer)
+        
+        httpServer.listen({port: process.env.PORT}, () => { Logger.info(`🌎 Server available`); })
+        const address = httpServer.address()
         if(!address || typeof address === "string") { throw new Error("Unexpected address format") }
 
         const host = process.env.USE_IP ? ip : (process.env.HOSTNAME_OVERRIDE || hostname())
