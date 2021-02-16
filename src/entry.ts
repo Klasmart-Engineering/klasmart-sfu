@@ -270,7 +270,7 @@ async function main() {
 
         const host = process.env.USE_IP ? ip : (process.env.HOSTNAME_OVERRIDE || hostname())
         const uri = `${host}:${address.port}${server.subscriptionsPath}`
-        console.log(`Anouncing address for webRTC signaling: ${uri}`)
+        console.log(`Announcing address for webRTC signaling: ${uri}`)
         await sfu.claimRoom(uri)
     } catch (e) {
         Logger.error(e)
@@ -288,7 +288,7 @@ export function startServerTimeout(sfu: SFU) {
     let serverTimeout = !isNaN(serverTimeoutEnvVar) ? serverTimeoutEnvVar : 5
     timeout = setTimeout(() => {
         Logger.error(`There have been no new connections after ${serverTimeout} minutes, shutting down`)
-        sfu.shutdown()
+        sfu.shutdown().catch(e => Logger.error(e))
     }, 1000 * 60 * serverTimeout)
 }
 
@@ -299,4 +299,4 @@ function stopServerTimeout() {
     }
 }
 
-main()
+main().catch(e => Logger.error(e))

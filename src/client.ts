@@ -62,7 +62,7 @@ export class Client {
                     producerTransport: transportParams(this.producerTransport),
                     consumerTransport: transportParams(this.consumerTransport),
                 }
-            })
+            }).catch(e => Logger.error(e))
         })
         return this.channel.asyncIterator([
             "initial",
@@ -77,9 +77,9 @@ export class Client {
         return this.streams.values()
     }
 
-    public async forwardStream(stream: Stream) {
+    public async forwardStream(stream: Stream, roomId: string) {
         Logger.info(`forward Stream(${stream.sessionId}_${stream.id})(${stream.producers.length}) to Client(${this.id})`)
-        const forwardPromises = stream.producers.map((p) => this.forward(p).catch((e) => Logger.error(e)))
+        const forwardPromises = stream.producers.map((p) => this.forward(p, roomId, stream.sessionId).catch((e) => Logger.error(e)))
         Logger.info(`forward Stream - wait`)
         await Promise.all(forwardPromises)
         const producerIds = stream.producers.map((p) => p.id)
@@ -92,10 +92,10 @@ export class Client {
                     producerIds,
                 }
             }
-        })
+        }).catch(e => Logger.error(e))
     }
 
-    public async forward(producer: MediaSoup.Producer) {
+    public async forward(producer: MediaSoup.Producer, roomId: string, sessionId: string) {
         try {
             Logger.info(`forward rtp caps`)
             const rtpCapabilities = await this.rtpCapabilities()
@@ -115,6 +115,7 @@ export class Client {
             })
             this.destructors.set(consumer.id, () => consumer.close())
             this.consumers.set(consumer.id, consumer)
+            this.consumerMute.set(consumer.id, false)
             consumer.on("transportclose", () => {
                 this.consumers.delete(consumer.id)
                 this.channel.publish("close", {media: {close: consumer.id}})
@@ -123,6 +124,27 @@ export class Client {
             consumer.on("producerclose", () => {
                 this.consumers.delete(consumer.id)
                 this.channel.publish("close", {media: {close: consumer.id}})
+            })
+            consumer.on("producerpause", () => {
+                consumer.pause()
+                this.channel.publish("mute", {
+                    media: {
+                        mute: {
+                            roomId,
+                            sessionId,
+                            producerId: producer.id,
+                            consumerId: consumer.id,
+                            audio: consumer.kind === "audio" ? true : undefined,
+                            video: consumer.kind === "video" ? true : undefined
+                        }
+                    }
+                })
+            })
+            consumer.on("producerresume", () => {
+                if (this.consumerMute.get(consumer.id)) {
+                    return
+                }
+                consumer.resume()
             })
 
             this.channel.publish("consumer", {
@@ -135,7 +157,7 @@ export class Client {
                         appData: undefined
                     })
                 }
-            })
+            }).catch(e => Logger.error(e))
         } catch (e) {
             Logger.error(e)
         }
@@ -189,9 +211,9 @@ export class Client {
             return;
         }
         if (pause) {
-            consumer.pause()
+            consumer.pause().catch(e => Logger.error(e))
         } else {
-            consumer.resume()
+            consumer.resume().catch(e => Logger.error(e))
         }
         return true
     }
@@ -241,64 +263,13 @@ export class Client {
                              video?: boolean,
                              teacher?: boolean) {
         Logger.info(`muteMessage: ${this.id}`)
-        let consumer
         if (consumerId && sessionId === this.id && teacher) {
             return await this.teacherMute(audio, video, producerId, roomId, sessionId, consumerId);
         }
         if (producerId && sessionId === this.id) {
             return await this.selfMute(producerId, audio, video, roomId, sessionId, consumerId);
         }
-        if (producerId && sessionId !== this.id) {
-            // Someone else's mute message
-            consumer = Array.from(this.consumers.values()).find((c) => c.producerId === producerId)
-        }
-        if ((consumerId || consumer) && sessionId !== this.id) {
-            // A teacher's mute message
-            if (!consumer && consumerId) {
-                consumer = this.consumers.get(consumerId)
-            }
-            if (!consumer) {
-                Logger.error(`Failed to find consumer with id: ${consumerId}`)
-                return false
-            }
-            Logger.info(`muteMessage: consumer ${consumer.id}`)
-            switch (consumer.kind) {
-                case "audio":
-                    if (audio) {
-                        await consumer.resume()
-                    } else if (audio === false) {
-                        await consumer.pause()
-                    }
-                    break;
-                case "video":
-                    if (video) {
-                        await consumer.resume()
-                    } else if (video === false) {
-                        await consumer.pause()
-                    }
-                    break;
-                default:
-                    Logger.warn(`muteMessage: unknown consumer kind`)
-                    break;
-            }
-
-            await this.channel.publish("mute", {
-                media: {
-                    mute: {
-                        roomId,
-                        sessionId,
-                        producerId,
-                        consumerId,
-                        audio,
-                        video
-                    }
-                }
-            })
-            return true
-        }
-
-        Logger.error(`Failed to find producer or consumer`)
-        return false
+        return true
     }
 
     private async selfMute(producerId: string | undefined, audio: undefined | boolean, video: undefined | boolean, roomId: string, sessionId: string, consumerId: string | undefined) {
@@ -433,6 +404,7 @@ export class Client {
     public selfVideoMuted: boolean = false
     public teacherAudioMuted: boolean = false
     public teacherVideoMuted: boolean = false
+    private consumerMute: Map<string, boolean>
 
     private constructor(
         id: string,
@@ -447,17 +419,18 @@ export class Client {
 
         this.producerTransport = producerTransport
         producerTransport.on("routerclose", () => {
-            this.channel.publish("close", {media: {close: producerTransport.id}})
+            this.channel.publish("close", {media: {close: producerTransport.id}}).catch(e => Logger.error(e))
         })
         this.destructors.set(producerTransport.id, () => producerTransport.close())
 
         this.consumerTransport = consumerTransport
         consumerTransport.on("routerclose", () => {
-            this.channel.publish("close", {media: {close: consumerTransport.id}})
+            this.channel.publish("close", {media: {close: consumerTransport.id}}).catch(e => Logger.error(e))
         })
         this.destructors.set(consumerTransport.id, () => consumerTransport.close())
         this.jwt = jwt
         this.closeCallback = closeCallback
+        this.consumerMute = new Map()
     }
 
     private _rtpCapabilities?: MediaSoup.RtpCapabilities

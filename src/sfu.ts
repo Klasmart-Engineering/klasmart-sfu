@@ -14,20 +14,10 @@ import {
     decrementConsumerCount,
     incrementProducerCount,
     decrementProducerCount,
-} from "./reporting";
+} from "./reporting"
 import {JWT} from "./auth"
 import {mediaCodecs} from "./config"
 import {MuteNotification} from "./schema"
-
-enum UserAction {
-    Join = "JOIN",
-    Leave = "LEAVE"
-}
-
-enum RoomAction {
-    Start = "START",
-    End = "END"
-}
 
 export class SFU {
     public static async create(ip: string): Promise<SFU> {
@@ -41,8 +31,8 @@ export class SFU {
 
         const redis = new Redis({
             host: process.env.REDIS_HOST,
-            port: Number(process.env.REDIS_PORT) || undefined,
-            password: process.env.REDIS_PASS || undefined,
+            port: Number(process.env.REDIS_PORT) ?? undefined,
+            password: process.env.REDIS_PASS ?? undefined,
             lazyConnect: true,
             reconnectOnError: (err) => err.message.includes("READONLY"),
         });
@@ -160,14 +150,17 @@ export class SFU {
         let teacher = sourceClient.jwt.teacher
         let clientMessages: Promise<boolean>[] = []
         if (teacher && !self) {
-                for (const client of this.clients.values()) {
-                    if (audio !== undefined) {
-                        producerId = Array.from(targetClient.producers.values()).find((p) => p.kind === "audio")?.id
-                    } else if (video !== undefined) {
-                        producerId = Array.from(targetClient.producers.values()).find((p) => p.kind === "video")?.id
-                    }
-                    clientMessages.push(client.muteMessage(roomId, sessionId, producerId, consumerId, audio, video, teacher))
+            // Find the producer id the teacher is trying to mute
+            for (const client of this.clients.values()) {
+                if (audio !== undefined) {
+                    producerId = Array.from(targetClient.producers.values()).find((p) => p.kind === "audio")?.id
+                } else if (video !== undefined) {
+                    producerId = Array.from(targetClient.producers.values()).find((p) => p.kind === "video")?.id
                 }
+                if (producerId) {
+                    return client.muteMessage(roomId, sessionId, producerId, consumerId, audio, video, teacher)
+                }
+            }
         } else if (self) {
             if ((!targetClient.teacherAudioMuted && audio !== undefined) ||
                 (!targetClient.teacherVideoMuted && video !== undefined)) {
@@ -218,12 +211,12 @@ export class SFU {
 
     private constructor(ip: string, id: string, redis: Redis.Redis, worker: MediaSoup.Worker, router: MediaSoup.Router) {
         this.externalIp = ip
-        this.listenIps = [{ip: "0.0.0.0", announcedIp: process.env.PUBLIC_ADDRESS || ip}]
+        this.listenIps = [{ip: "0.0.0.0", announcedIp: process.env.PUBLIC_ADDRESS ?? ip}]
         this.id = id
         this.redis = redis
         this.worker = worker
         this.router = router
-        this.reportSFUState()
+        this.reportSFUState().catch(e => Logger.error(e))
     }
 
     private reporting = false
@@ -343,7 +336,7 @@ export class SFU {
             Logger.info(`New Client(${id})`)
             for (const [otherId, otherClient] of this.clients) {
                 for (const stream of otherClient.getStreams()) {
-                    client.forwardStream(stream).then(() => {
+                    client.forwardStream(stream, this.roomId!).then(() => {
                         Logger.info(`Forwarding Stream(${stream.sessionId}_${stream.id}) from Client(${otherId}) to Client(${id})`)
                     })
                 }
@@ -361,7 +354,7 @@ export class SFU {
             if (id === stream.sessionId) {
                 continue
             }
-            const forwardPromise = client.forwardStream(stream)
+            const forwardPromise = client.forwardStream(stream, this.roomId!)
             forwardPromise.then(() => {
                 Logger.info(`Forwarding new Stream(${stream.sessionId}_${stream.id}) to Client(${id})`)
             })
