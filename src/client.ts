@@ -15,21 +15,79 @@ export interface Stream {
 
 // noinspection DuplicatedCode
 export class Client {
-    public static async create(id: string, router: MediaSoup.Router, listenIps: MediaSoup.TransportListenIp[], closeCallback: () => unknown, jwt: JWT) {
+    public id: string
+    public emitter = new EventEmitter()
+    private destructors = new Map<string, () => unknown>()
+    private streams = new Map<string, Stream>()
+    public producers = new Map<string, MediaSoup.Producer>()
+    private consumers = new Map<string, MediaSoup.Consumer>()
+    private channel = new PubSub()
+    private producerRouter: MediaSoup.Router
+    private consumerRouter: MediaSoup.Router
+    public producerTransport: MediaSoup.WebRtcTransport
+    public consumerTransport: MediaSoup.WebRtcTransport
+    private timeout?: NodeJS.Timeout
+    private readonly closeCallback: () => unknown
+    public jwt: JWT
+    public selfAudioMuted: boolean = false
+    public selfVideoMuted: boolean = false
+    public teacherAudioMuted: boolean = false
+    public teacherVideoMuted: boolean = false
+    private consumerMute: Map<string, boolean>
+
+    private constructor(
+        id: string,
+        producerRouter: MediaSoup.Router,
+        consumerRouter: MediaSoup.Router,
+        producerTransport: MediaSoup.WebRtcTransport,
+        consumerTransport: MediaSoup.WebRtcTransport,
+        closeCallback: () => unknown,
+        jwt: JWT
+    ) {
+        this.id = id
+        this.producerRouter = producerRouter
+        this.consumerRouter = consumerRouter
+
+        this.producerTransport = producerTransport
+        producerTransport.on("routerclose", () => {
+            this.channel.publish("close", {media: {close: producerTransport.id}}).catch(e => Logger.error(e))
+        })
+        this.destructors.set(producerTransport.id, () => producerTransport.close())
+
+        this.consumerTransport = consumerTransport
+        consumerTransport.on("routerclose", () => {
+            this.channel.publish("close", {media: {close: consumerTransport.id}}).catch(e => Logger.error(e))
+        })
+        this.destructors.set(consumerTransport.id, () => consumerTransport.close())
+        this.jwt = jwt
+        this.closeCallback = closeCallback
+        this.consumerMute = new Map()
+    }
+
+    private _rtpCapabilities?: MediaSoup.RtpCapabilities
+    private rtpCapabilitiesPrePromise = Resolver<MediaSoup.RtpCapabilities>()
+
+    public static async create(
+        id: string,
+        producerRouter: MediaSoup.Router,
+        consumerRouter: MediaSoup.Router,
+        listenIps: MediaSoup.TransportListenIp[],
+        closeCallback: () => unknown,
+        jwt: JWT) {
         try {
-            const producerTransport = await router.createWebRtcTransport({
+            const producerTransport = await producerRouter.createWebRtcTransport({
                 listenIps,
                 enableTcp: true,
                 enableUdp: true,
                 preferUdp: true,
             })
-            const consumerTransport = await router.createWebRtcTransport({
+            const consumerTransport = await consumerRouter.createWebRtcTransport({
                 listenIps,
                 enableTcp: true,
                 enableUdp: true,
                 preferUdp: true,
             })
-            return new Client(id, router, producerTransport, consumerTransport, closeCallback, jwt)
+            return new Client(id, producerRouter, consumerRouter, producerTransport, consumerTransport, closeCallback, jwt)
         } catch (e) {
             Logger.error(e)
             throw e
@@ -59,7 +117,7 @@ export class Client {
             Logger.info("initial")
             this.channel.publish("initial", {
                 media: {
-                    rtpCapabilities: JSON.stringify(this.router.rtpCapabilities),
+                    rtpCapabilities: JSON.stringify(this.producerRouter.rtpCapabilities),
                     producerTransport: transportParams(this.producerTransport),
                     consumerTransport: transportParams(this.consumerTransport),
                 }
@@ -105,7 +163,7 @@ export class Client {
                 rtpCapabilities
             }
             Logger.info(`forward can consume`)
-            if (!this.router.canConsume(producerParams)) {
+            if (!this.consumerRouter.canConsume(producerParams)) {
                 Logger.error(`Client(${this.id}) could not consume producer(${producer.kind},${producer.id})`, producer.consumableRtpParameters)
                 return
             }
@@ -399,55 +457,6 @@ export class Client {
         })
         return true
     }
-
-    public id: string
-    public emitter = new EventEmitter()
-    private destructors = new Map<string, () => unknown>()
-    private streams = new Map<string, Stream>()
-    public producers = new Map<string, MediaSoup.Producer>()
-    private consumers = new Map<string, MediaSoup.Consumer>()
-    private channel = new PubSub()
-    private router: MediaSoup.Router
-    public producerTransport: MediaSoup.WebRtcTransport
-    public consumerTransport: MediaSoup.WebRtcTransport
-    private timeout?: NodeJS.Timeout
-    private readonly closeCallback: () => unknown
-    public jwt: JWT
-    public selfAudioMuted: boolean = false
-    public selfVideoMuted: boolean = false
-    public teacherAudioMuted: boolean = false
-    public teacherVideoMuted: boolean = false
-    private consumerMute: Map<string, boolean>
-
-    private constructor(
-        id: string,
-        router: MediaSoup.Router,
-        producerTransport: MediaSoup.WebRtcTransport,
-        consumerTransport: MediaSoup.WebRtcTransport,
-        closeCallback: () => unknown,
-        jwt: JWT
-    ) {
-        this.id = id
-        this.router = router
-
-        this.producerTransport = producerTransport
-        producerTransport.on("routerclose", () => {
-            this.channel.publish("close", {media: {close: producerTransport.id}}).catch(e => Logger.error(e))
-        })
-        this.destructors.set(producerTransport.id, () => producerTransport.close())
-
-        this.consumerTransport = consumerTransport
-        consumerTransport.on("routerclose", () => {
-            this.channel.publish("close", {media: {close: consumerTransport.id}}).catch(e => Logger.error(e))
-        })
-        this.destructors.set(consumerTransport.id, () => consumerTransport.close())
-        this.jwt = jwt
-        this.closeCallback = closeCallback
-        this.consumerMute = new Map()
-    }
-
-    private _rtpCapabilities?: MediaSoup.RtpCapabilities
-    private rtpCapabilitiesPrePromise = Resolver<MediaSoup.RtpCapabilities>()
 
     private async rtpCapabilities() {
         if (this._rtpCapabilities) {

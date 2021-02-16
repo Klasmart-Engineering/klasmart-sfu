@@ -4,7 +4,6 @@ import {
     createWorker,
     types as MediaSoup,
 } from "mediasoup"
-import {Client, Stream} from "./client"
 import {Context, Logger, startServerTimeout} from "./entry"
 import Redis = require("ioredis")
 import {RedisKeys} from "./redisKeys"
@@ -15,19 +14,87 @@ import {
     incrementProducerCount,
     decrementProducerCount,
 } from "./reporting"
-import {JWT} from "./auth"
 import {mediaCodecs} from "./config"
-import {MuteNotification} from "./schema"
+import {WorkerType, Worker} from "./worker"
 
 export class SFU {
-    public static async create(ip: string): Promise<SFU> {
-        const worker = await createWorker({
-            logLevel: "warn",
-        })
-        Logger.info("🎥 Mediasoup worker initialized")
+    private readonly id: string;
+    private readonly externalIp: string
+    private readonly listenIps: MediaSoup.TransportListenIp[]
+    public roomId?: string
+    private redis: Redis.Redis
+    private roomStatusMap = new Map<string, boolean>()
+    private available = false
+    private producerWorkers = new Map<string, Worker>()
+    private consumerWorkers = new Map<string, Worker>()
+    private mixedWorkers = new Map<string, Worker>()
 
-        const router = await worker.createRouter({mediaCodecs})
-        Logger.info("💠 Mediasoup router created")
+    private constructor(
+        ip: string,
+        id: string,
+        redis: Redis.Redis,
+        producerWorkers: Worker[],
+        consumerWorkers: Worker[],
+        mixedWorkers: Worker[]) {
+
+        this.externalIp = ip
+        this.listenIps = [{ip: "0.0.0.0", announcedIp: process.env.PUBLIC_ADDRESS ?? ip}]
+        this.id = id
+        this.redis = redis
+        for (const worker of producerWorkers) {
+            this.producerWorkers.set(worker.id, worker)
+        }
+
+        for (const worker of consumerWorkers) {
+            this.consumerWorkers.set(worker.id, worker)
+        }
+
+        for (const worker of mixedWorkers) {
+            this.mixedWorkers.set(worker.id, worker)
+        }
+
+        this.reportSFUState().catch(e => Logger.error(e))
+    }
+
+    public static async create(ip: string): Promise<SFU> {
+        const numWorkers = parseInt(process.env.NUM_CPU_CORES ?? "1")
+        const producerWorkers: Worker[] = []
+        const consumerWorkers: Worker[] = []
+        const mixedWorkers: Worker[] = []
+
+        for (let i = 0; i < numWorkers; i++) {
+            let workerType
+            if (numWorkers === 1) {
+                workerType = WorkerType.MIXED
+            } else if (i === 0) {
+                workerType = WorkerType.PRODUCER
+            } else {
+                workerType = WorkerType.CONSUMER
+            }
+
+            const worker = await createWorker({
+                logLevel: "warn",
+            })
+
+            const router = await worker.createRouter({mediaCodecs})
+            const newWorker = new Worker(worker, workerType, router)
+            switch (workerType) {
+                case WorkerType.PRODUCER:
+                    producerWorkers.push(newWorker)
+                    break
+                case WorkerType.CONSUMER:
+                    consumerWorkers.push(newWorker)
+                    break
+                case WorkerType.MIXED:
+                    mixedWorkers.push(newWorker)
+                    break
+                default:
+                    throw new Error("Unsupported worker type")
+            }
+        }
+
+        Logger.info("🎥 Mediasoup workers initialized")
+        Logger.info("💠 Mediasoup routers created")
 
         const redis = new Redis({
             host: process.env.REDIS_HOST,
@@ -42,181 +109,12 @@ export class SFU {
         const id = uuid()
 
         Logger.info("Creating SFU")
-        return new SFU(ip, id, redis, worker, router)
-    }
-
-    public connect(sessionId: string) {
-        const client = this.clients.get(sessionId)
-        if (!client) {
-            return
-        }
-        client.connect()
-    }
-
-    public disconnect(sessionId: string) {
-        const client = this.clients.get(sessionId)
-        if (!client) {
-            return
-        }
-        client.disconnect()
+        return new SFU(ip, id, redis, producerWorkers, consumerWorkers, mixedWorkers)
     }
 
     public async shutdown() {
         await this.redis.disconnect()
         process.exit(0)
-    }
-
-    public async subscribe({sessionId, token}: Context) {
-        if (!sessionId) {
-            Logger.error("Can not initiate subscription without sessionId");
-            return
-        }
-        if (!token) {
-            Logger.error("Can not initiate subscription without token");
-            return
-        }
-        Logger.info(`Subscription from ${sessionId}`)
-        const client = await this.getOrCreateClient(sessionId, token)
-        if (!this.roomStatusMap.get(token.roomid)) {
-            this.roomStatusMap.set(token.roomid, true)
-        }
-        return client.subscribe()
-    }
-
-    public async rtpCapabilitiesMessage(context: Context, rtpCapabilities: string) {
-        Logger.info(`rtpCapabilitiesMessage from ${context.sessionId}`)
-        if (!context.sessionId) {
-            return false
-        }
-        const client = await this.getOrCreateClient(context.sessionId)
-        return client.rtpCapabilitiesMessage(rtpCapabilities)
-    }
-
-    public async transportMessage(context: Context, producer: boolean, params: string) {
-        Logger.info(`transportMessage(${producer}) from ${context.sessionId}`)
-        if (!context.sessionId) {
-            return false
-        }
-        const client = await this.getOrCreateClient(context.sessionId)
-        return client.transportMessage(producer, params)
-    }
-
-    public async producerMessage(context: Context, params: string) {
-        Logger.info(`producerMessage from ${context.sessionId}`)
-        if (!context.sessionId) {
-            return false
-        }
-        const client = await this.getOrCreateClient(context.sessionId)
-        return client.producerMessage(params)
-    }
-
-    public async consumerMessage(context: Context, id: string, pause?: boolean) {
-        Logger.info(`consumerMessage from ${context.sessionId}`)
-        if (!context.sessionId) {
-            return false
-        }
-        const client = await this.getOrCreateClient(context.sessionId)
-        return client.consumerMessage(id, pause)
-    }
-
-    public async streamMessage(context: Context, id: string, producerIds: string[]) {
-        Logger.info(`streamMessage from ${context.sessionId}`)
-        if (!context.sessionId) {
-            return false
-        }
-        const client = await this.getOrCreateClient(context.sessionId)
-        return client.streamMessage(id, producerIds)
-    }
-
-    public async closeMessage(context: Context, id: string) {
-        Logger.info(`closeMessage from ${context.sessionId}`)
-        if (!context.sessionId) {
-            return false
-        }
-        const client = await this.getOrCreateClient(context.sessionId)
-        return client.closeMessage(id)
-    }
-
-    public async muteMessage(context: Context, muteNotification: MuteNotification): Promise<boolean> {
-        Logger.info(`muteMessage from ${context.sessionId}`)
-        let {roomId, sessionId, producerId, consumerId, audio, video} = muteNotification
-        if (!context.sessionId) {
-            Logger.warn("No sessionId in context")
-            return false
-        }
-        const sourceClient = await this.getOrCreateClient(context.sessionId)
-        const targetClient = await this.getOrCreateClient(sessionId)
-        let self = sessionId === context.sessionId
-        let teacher = sourceClient.jwt.teacher
-        let clientMessages: Promise<boolean>[] = []
-        if (teacher && !self) {
-            // Find the producer id the teacher is trying to mute
-            for (const client of this.clients.values()) {
-                if (audio !== undefined) {
-                    producerId = Array.from(targetClient.producers.values()).find((p) => p.kind === "audio")?.id
-                } else if (video !== undefined) {
-                    producerId = Array.from(targetClient.producers.values()).find((p) => p.kind === "video")?.id
-                }
-                if (producerId) {
-                    return client.muteMessage(roomId, sessionId, producerId, consumerId, audio, video, teacher)
-                }
-            }
-        } else if (self) {
-            if ((!targetClient.teacherAudioMuted && audio !== undefined) ||
-                (!targetClient.teacherVideoMuted && video !== undefined)) {
-                for (const client of this.clients.values()) {
-                    clientMessages.push(client.muteMessage(roomId, sessionId, producerId, consumerId, audio, video, teacher))
-                }
-            } else {
-                return sourceClient.muteMessage(roomId, sessionId, producerId, consumerId, audio, video, teacher)
-            }
-        } else {
-            return sourceClient.muteMessage(roomId, sessionId, producerId, consumerId, audio, video)
-        }
-
-        return (await Promise.all(clientMessages)).reduce((p, c) => c && p)
-    }
-
-    public async endClassMessage(context: Context, roomId?: string): Promise<boolean> {
-        Logger.info(`endClassMessage from: ${context.sessionId}`)
-        if (!context.sessionId) {
-            Logger.warn("No sessionId in context")
-            return false
-        }
-        const sourceClient = await this.getOrCreateClient(context.sessionId)
-        let teacher = sourceClient.jwt.teacher
-
-        if (!teacher) {
-            Logger.warn(`SessionId: ${context.sessionId} attempted to end the class!`)
-            return false
-        }
-
-        for (const client of this.clients.values()) {
-            await client.endClassMessage(roomId)
-        }
-
-        return true
-    }
-
-    private readonly id: string;
-    private readonly externalIp: string
-    private readonly listenIps: MediaSoup.TransportListenIp[]
-    public clients = new Map<string, Client>()
-    public roomId?: string
-    private redis: Redis.Redis
-    private worker: MediaSoup.Worker
-    private readonly router: MediaSoup.Router
-    private roomStatusMap = new Map<string, boolean>()
-    private available = false
-
-    private constructor(ip: string, id: string, redis: Redis.Redis, worker: MediaSoup.Worker, router: MediaSoup.Router) {
-        this.externalIp = ip
-        this.listenIps = [{ip: "0.0.0.0", announcedIp: process.env.PUBLIC_ADDRESS ?? ip}]
-        this.id = id
-        this.redis = redis
-        this.worker = worker
-        this.router = router
-        this.reportSFUState().catch(e => Logger.error(e))
     }
 
     private reporting = false
@@ -314,53 +212,6 @@ export class SFU {
             this.roomStatusMap.set(this.roomId, false)
         }
         setTimeout(() => this.checkRoomStatus(), 60 * 1000)
-    }
-
-
-    private async getOrCreateClient(id: string, token?: JWT): Promise<Client> {
-        let client = this.clients.get(id)
-        if (!client) {
-            if (!token) {
-                Logger.error("Token must be supplied to create a client")
-                throw new Error("Token must be supplied to create a client")
-            }
-            client = await Client.create(
-                id,
-                this.router,
-                this.listenIps,
-                () => {
-                    this.clients.delete(id)
-                },
-                token
-            )
-            Logger.info(`New Client(${id})`)
-            for (const [otherId, otherClient] of this.clients) {
-                for (const stream of otherClient.getStreams()) {
-                    client.forwardStream(stream, this.roomId!).then(() => {
-                        Logger.info(`Forwarding Stream(${stream.sessionId}_${stream.id}) from Client(${otherId}) to Client(${id})`)
-                    })
-                }
-            }
-            this.clients.set(id, client)
-            client.emitter.on("stream", (s: Stream) => this.newStream(s))
-        }
-        return client
-    }
-
-    private async newStream(stream: Stream) {
-        Logger.info(`New Stream(${stream.sessionId}_${stream.id})`)
-        const forwardPromises = []
-        for (const [id, client] of this.clients) {
-            if (id === stream.sessionId) {
-                continue
-            }
-            const forwardPromise = client.forwardStream(stream, this.roomId!)
-            forwardPromise.then(() => {
-                Logger.info(`Forwarding new Stream(${stream.sessionId}_${stream.id}) to Client(${id})`)
-            })
-            forwardPromises.push(forwardPromise)
-        }
-        await Promise.all(forwardPromises)
     }
 }
 
