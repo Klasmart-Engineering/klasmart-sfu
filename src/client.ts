@@ -134,8 +134,8 @@ export class Client {
                             sessionId,
                             producerId: producer.id,
                             consumerId: consumer.id,
-                            audio: consumer.kind === "audio" ? true : undefined,
-                            video: consumer.kind === "video" ? true : undefined
+                            audio: consumer.kind === "audio" ? false : undefined,
+                            video: consumer.kind === "video" ? false : undefined
                         }
                     }
                 })
@@ -145,6 +145,18 @@ export class Client {
                     return
                 }
                 consumer.resume()
+                this.channel.publish("mute", {
+                    media: {
+                        mute: {
+                            roomId,
+                            sessionId,
+                            producerId: producer.id,
+                            consumerId: consumer.id,
+                            audio: consumer.kind === "audio" ? true : undefined,
+                            video: consumer.kind === "video" ? true : undefined
+                        }
+                    }
+                })
             })
 
             this.channel.publish("consumer", {
