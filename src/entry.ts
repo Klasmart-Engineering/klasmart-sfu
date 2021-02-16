@@ -2,18 +2,18 @@ import {hostname} from "os"
 import {createLogger, format, transports} from "winston"
 import { createServer } from "http"
 import express from "express"
-import {ApolloServer} from "apollo-server-express";
+import {ApolloServer} from "apollo-server-express"
 import {SFU} from "./sfu"
-import {MuteNotification, schema} from "./schema";
-import {checkToken, JWT} from "./auth";
-import {getNetworkInterfaceInfo} from "./networkInterfaces";
-import {NetworkInterfaceInfo} from "os";
+import {MuteNotification, schema} from "./schema"
+import {checkToken, JWT} from "./auth"
+import {getNetworkInterfaceInfo} from "./networkInterfaces"
+import {NetworkInterfaceInfo} from "os"
 import fetch from "node-fetch"
 import EC2 from "aws-sdk/clients/ec2"
 import ECS from "aws-sdk/clients/ecs"
 // @ts-ignore
 import checkIp = require("check-ip")
-import {setDockerId, setGraphQLConnections, setClusterId, reportConferenceStats} from "./reporting";
+import {setDockerId, setGraphQLConnections, setClusterId, reportConferenceStats} from "./reporting"
 import { register, collectDefaultMetrics, Gauge } from "prom-client"
 
 collectDefaultMetrics({})
@@ -152,130 +152,124 @@ function getIPAddress() {
     return interfaces[0].address
 }
 
-
 export const connectionCount = new Map<string, number>()
 
 async function main() {
-    try {
-        const ip = (await getECSTaskENIPublicIP()) || getIPAddress()
-        if (!ip) {
-            Logger.error("No network interface found");
-            process.exit(-4)
-        }
-        Logger.info(`ip address ${ip}`)
-        const sfu = await SFU.create(ip)
-        setTimeout(() => {
-            reportConferenceStats(sfu)
-        }, 10000)
-        let connectionCount = 0
-
-        const server = new ApolloServer({
-            typeDefs: schema,
-            subscriptions: {
-                keepAlive: 1000,
-                onConnect: async ({roomId, sessionId, authToken}: any, _webSocket, connectionData: any) => {
-                    const token = await checkToken(authToken);
-                    connectionCount++
-                    setGraphQLConnections(connectionCount)
-                    stopServerTimeout()
-                    Logger.info(`Connection(${connectionCount}) from ${sessionId}`)
-                    connectionData.counted = true
-                    connectionData.sessionId = sessionId;
-                    connectionData.roomId = roomId;
-                    return {roomId, sessionId, token} as Context;
-                },
-                onDisconnect: (websocket, connectionData) => {
-                    if (!(connectionData as any).counted) {
-                        return
-                    }
-                    connectionCount--
-                    setGraphQLConnections(connectionCount)
-                    if (connectionCount <= 0) {
-                        startServerTimeout(sfu)
-                    }
-                    const {sessionId} = connectionData as any
-                    Logger.info(`Disconnection(${connectionCount}) from ${sessionId}`)
-                    sfu.disconnect(sessionId)
-                }
-            },
-            resolvers: {
-                Query: {
-                    ready: () => true,
-                },
-                Mutation: {
-                    rtpCapabilities: (_parent, {rtpCapabilities}, context: Context) => sfu.rtpCapabilitiesMessage(context, rtpCapabilities),
-                    transport: (_parent, {producer, params}, context: Context) => sfu.transportMessage(context, producer, params),
-                    producer: (_parent, {params}, context: Context) => sfu.producerMessage(context, params),
-                    consumer: (_parent, {id, pause}, context: Context) => sfu.consumerMessage(context, id, pause),
-                    stream: (_parent, {id, producerIds}, context: Context) => sfu.streamMessage(context, id, producerIds),
-                    close: (_parent, {id}, context: Context) => sfu.closeMessage(context, id),
-                    mute: (_parent, muteNotification: MuteNotification, context: Context) => sfu.muteMessage(context, muteNotification),
-                    endClass: (_parent, {roomId}, context: Context) => sfu.endClassMessage(context, roomId)
-                },
-                Subscription: {
-                    media: {
-                        subscribe: (_parent, {}, context: Context) => sfu.subscribe(context)
-                    },
-                }
-            },
-            context: async ({req, connection}) => {
-                if (connection) {
-                    return connection.context;
-                }
-                const token = await checkToken(req.headers.authorization)
-                return {}
-            }
-        });
-
-        new Gauge({
-            name: 'sfuCount',
-            help: 'Number of SFUs currently connected to the same redis db (shard?)',
-            labelNames: ["type"],
-            async collect() {
-                try {
-                    const {
-                        availableCount,
-                        otherCount,
-                    } = await sfu.sfuStats()
-                    this.labels("available").set(availableCount);
-                    this.labels("unavailable").set(otherCount);
-                    this.labels("total").set(availableCount+otherCount);
-                } catch(e) {
-                    this.labels("available").set(-1);
-                    this.labels("unavailable").set(-1);
-                    this.labels("total").set(-1);
-                    console.log(e)
-                }
-            },
-        });
-
-        const app = express();
-        app.get('/metrics', async (_req, res) => {
-            try {
-                res.set('Content-Type', register.contentType);
-                const metrics = await register.metrics()
-                res.end(metrics);
-            } catch (ex) {
-                console.error(ex)
-                res.status(500).end(ex.toString());
-            }
-        });
-        server.applyMiddleware({app})
-        const httpServer = createServer(app)
-        server.installSubscriptionHandlers(httpServer)
-        
-        httpServer.listen({port: process.env.PORT}, () => { Logger.info(`🌎 Server available`); })
-        const address = httpServer.address()
-        if(!address || typeof address === "string") { throw new Error("Unexpected address format") }
-
-        const host = process.env.USE_IP ? ip : (process.env.HOSTNAME_OVERRIDE || hostname())
-        const uri = `${host}:${address.port}${server.subscriptionsPath}`
-        console.log(`Announcing address for webRTC signaling: ${uri}`)
-        await sfu.claimRoom(uri)
-    } catch (e) {
-        Logger.error(e)
-        process.exit(-1)
+    const ip = (await getECSTaskENIPublicIP()) || getIPAddress()
+    if (!ip) {
+        Logger.error("No network interface found");
+        process.exit(-4)
     }
+    Logger.info(`ip address ${ip}`)
+    const sfu = await SFU.create(ip)
+    setTimeout(() => {
+        reportConferenceStats(sfu)
+    }, 10000)
+    let connectionCount = 0
+
+    const server = new ApolloServer({
+        typeDefs: schema,
+        subscriptions: {
+            keepAlive: 1000,
+            onConnect: async ({roomId, sessionId, authToken}: any, _webSocket, connectionData: any) => {
+                const token = await checkToken(authToken);
+                connectionCount++
+                setGraphQLConnections(connectionCount)
+                stopServerTimeout()
+                Logger.info(`Connection(${connectionCount}) from ${sessionId}`)
+                connectionData.counted = true
+                connectionData.sessionId = sessionId;
+                connectionData.roomId = roomId;
+                return {roomId, sessionId, token} as Context;
+            },
+            onDisconnect: (websocket, connectionData) => {
+                if (!(connectionData as any).counted) {
+                    return
+                }
+                connectionCount--
+                setGraphQLConnections(connectionCount)
+                if (connectionCount <= 0) {
+                    startServerTimeout(sfu)
+                }
+                const {sessionId} = connectionData as any
+                Logger.info(`Disconnection(${connectionCount}) from ${sessionId}`)
+                sfu.disconnect(sessionId)
+            }
+        },
+        resolvers: {
+            Query: {
+                ready: () => true,
+            },
+            Mutation: {
+                rtpCapabilities: (_parent, {rtpCapabilities}, context: Context) => sfu.rtpCapabilitiesMessage(context, rtpCapabilities),
+                transport: (_parent, {producer, params}, context: Context) => sfu.transportMessage(context, producer, params),
+                producer: (_parent, {params}, context: Context) => sfu.producerMessage(context, params),
+                consumer: (_parent, {id, pause}, context: Context) => sfu.consumerMessage(context, id, pause),
+                stream: (_parent, {id, producerIds}, context: Context) => sfu.streamMessage(context, id, producerIds),
+                close: (_parent, {id}, context: Context) => sfu.closeMessage(context, id),
+                mute: (_parent, muteNotification: MuteNotification, context: Context) => sfu.muteMessage(context, muteNotification),
+                endClass: (_parent, {roomId}, context: Context) => sfu.endClassMessage(context, roomId)
+            },
+            Subscription: {
+                media: {
+                    subscribe: (_parent, {}, context: Context) => sfu.subscribe(context)
+                },
+            }
+        },
+        context: async ({req, connection}) => {
+            if (connection) {
+                return connection.context;
+            }
+            const token = await checkToken(req.headers.authorization)
+            return {}
+        }
+    });
+
+    new Gauge({
+        name: 'sfuCount',
+        help: 'Number of SFUs currently connected to the same redis db (shard?)',
+        labelNames: ["type"],
+        async collect() {
+            try {
+                const {
+                    availableCount,
+                    otherCount,
+                } = await sfu.sfuStats()
+                this.labels("available").set(availableCount);
+                this.labels("unavailable").set(otherCount);
+                this.labels("total").set(availableCount+otherCount);
+            } catch(e) {
+                this.labels("available").set(-1);
+                this.labels("unavailable").set(-1);
+                this.labels("total").set(-1);
+                console.log(e)
+            }
+        },
+    });
+
+    const app = express();
+    app.get('/metrics', async (_req, res) => {
+        try {
+            res.set('Content-Type', register.contentType);
+            const metrics = await register.metrics()
+            res.end(metrics);
+        } catch (ex) {
+            console.error(ex)
+            res.status(500).end(ex.toString());
+        }
+    });
+    server.applyMiddleware({app})
+    const httpServer = createServer(app)
+    server.installSubscriptionHandlers(httpServer)
+
+    httpServer.listen({port: process.env.PORT}, () => { Logger.info(`🌎 Server available`); })
+    const address = httpServer.address()
+    if(!address || typeof address === "string") { throw new Error("Unexpected address format") }
+
+    const host = process.env.USE_IP ? ip : (process.env.HOSTNAME_OVERRIDE || hostname())
+    const uri = `${host}:${address.port}${server.subscriptionsPath}`
+    console.log(`Announcing address for webRTC signaling: ${uri}`)
+    await sfu.claimRoom(uri)
 }
 
 let timeout: NodeJS.Timeout | undefined
@@ -299,4 +293,7 @@ function stopServerTimeout() {
     }
 }
 
-main().catch(e => Logger.error(e))
+main().catch(e => {
+    Logger.error(e)
+    process.exit(-1)
+})

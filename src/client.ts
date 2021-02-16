@@ -1,11 +1,11 @@
 import {
     types as MediaSoup
-} from "mediasoup";
-import {Resolver} from "./resolver";
-import {PubSub} from "apollo-server-express";
-import {EventEmitter} from "events";
-import {Logger} from "./entry";
-import {JWT} from "./auth";
+} from "mediasoup"
+import {Resolver} from "./resolver"
+import {PubSub} from "apollo-server-express"
+import {EventEmitter} from "events"
+import {Logger} from "./entry"
+import {JWT} from "./auth"
 
 export interface Stream {
     id: string
@@ -13,6 +13,7 @@ export interface Stream {
     producers: MediaSoup.Producer[]
 }
 
+// noinspection DuplicatedCode
 export class Client {
     public static async create(id: string, router: MediaSoup.Router, listenIps: MediaSoup.TransportListenIp[], closeCallback: () => unknown, jwt: JWT) {
         try {
@@ -178,7 +179,7 @@ export class Client {
     public async rtpCapabilitiesMessage(message: string) {
         const rtpCapabilities = JSON.parse(message)
         if (this._rtpCapabilities) {
-            Logger.error("rtpCapabilities is already set... overiding")
+            Logger.warn("rtpCapabilities is already set... overriding")
         }
         const {resolver} = await this.rtpCapabilitiesPrePromise
         this._rtpCapabilities = rtpCapabilities
@@ -410,7 +411,7 @@ export class Client {
     public producerTransport: MediaSoup.WebRtcTransport
     public consumerTransport: MediaSoup.WebRtcTransport
     private timeout?: NodeJS.Timeout
-    private closeCallback: () => unknown
+    private readonly closeCallback: () => unknown
     public jwt: JWT
     public selfAudioMuted: boolean = false
     public selfVideoMuted: boolean = false
