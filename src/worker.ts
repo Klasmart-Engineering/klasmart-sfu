@@ -3,8 +3,7 @@ import {
 } from "mediasoup"
 import {v4 as uuid} from "uuid"
 import {Client, Stream} from "./client"
-import {Context, Logger} from "./entry"
-import {JWT} from "./auth"
+import {Logger} from "./entry"
 import {MuteNotification} from "./schema"
 import {EventEmitter} from "events"
 
@@ -18,12 +17,12 @@ export class Worker {
     public readonly id: string
     public numProducers: number = 0
     public numConsumers: number = 0
-    public workerType: WorkerType
-    public emitter = new EventEmitter()
+    public readonly workerType: WorkerType
+    public readonly emitter = new EventEmitter()
 
-    private worker: MediaSoup.Worker
-    private router: MediaSoup.Router
-    private clients: Map<string, Client> = new Map<string, Client>()
+    private readonly worker: MediaSoup.Worker
+    private readonly router: MediaSoup.Router
+    public clients: Map<string, Client> = new Map<string, Client>()
 
     constructor(worker: MediaSoup.Worker, workerType: WorkerType, router: MediaSoup.Router) {
         this.id = uuid()
@@ -48,70 +47,61 @@ export class Worker {
         client.disconnect()
     }
 
-    public async rtpCapabilitiesMessage(context: Context, rtpCapabilities: string) {
-        Logger.info(`rtpCapabilitiesMessage from ${context.sessionId}`)
-        if (!context.sessionId) {
-            return false
-        }
-        const client = await this.getOrCreateClient(context.sessionId)
+    public async rtpCapabilitiesMessage(sessionId: string, rtpCapabilities: string) {
+        Logger.info(`rtpCapabilitiesMessage from ${sessionId}`)
+        const client = this.getClient(sessionId);
         return client.rtpCapabilitiesMessage(rtpCapabilities)
     }
 
-    public async transportMessage(context: Context, producer: boolean, params: string) {
-        Logger.info(`transportMessage(${producer}) from ${context.sessionId}`)
-        if (!context.sessionId) {
-            return false
+    private getClient(sessionId: string) {
+        const client = this.clients.get(sessionId)
+        if (!client) {
+            throw new Error(`SessionId: ${sessionId} has not yet been registered as a client on worker ${this.id}!`)
         }
-        const client = await this.getOrCreateClient(context.sessionId)
-        return client.transportMessage(producer, params)
+        return client;
     }
 
-    public async producerMessage(context: Context, params: string) {
-        Logger.info(`producerMessage from ${context.sessionId}`)
-        if (!context.sessionId) {
-            return false
-        }
-        const client = await this.getOrCreateClient(context.sessionId)
-        return client.producerMessage(params)
+    public async transportMessage(sessionId: string, producer: boolean, params: string) {
+        Logger.info(`transportMessage(${producer}) from ${sessionId}`)
+        const client = this.getClient(sessionId)
+        return await client.transportMessage(producer, params)
     }
 
-    public async consumerMessage(context: Context, id: string, pause?: boolean) {
-        Logger.info(`consumerMessage from ${context.sessionId}`)
-        if (!context.sessionId) {
-            return false
-        }
-        const client = await this.getOrCreateClient(context.sessionId)
+    public async producerMessage(sessionId: string, params: string) {
+        Logger.info(`producerMessage from ${sessionId}`)
+        const client = this.getClient(sessionId)
+        return await client.producerMessage(params)
+    }
+
+    public consumerMessage(sessionId: string, id: string, pause?: boolean) {
+        Logger.info(`consumerMessage from ${sessionId}`)
+        const client = this.getClient(sessionId)
         return client.consumerMessage(id, pause)
     }
 
-    public async streamMessage(context: Context, id: string, producerIds: string[]) {
-        Logger.info(`streamMessage from ${context.sessionId}`)
-        if (!context.sessionId) {
-            return false
-        }
-        const client = await this.getOrCreateClient(context.sessionId)
+    public streamMessage(sessionId: string, id: string, producerIds: string[]) {
+        Logger.info(`streamMessage from ${sessionId}`)
+        const client = this.getClient(sessionId)
         return client.streamMessage(id, producerIds)
     }
 
-    public async closeMessage(context: Context, id: string) {
-        Logger.info(`closeMessage from ${context.sessionId}`)
-        if (!context.sessionId) {
-            return false
-        }
-        const client = await this.getOrCreateClient(context.sessionId)
-        return client.closeMessage(id)
+    public async closeMessage(sessionId: string, id: string) {
+        Logger.info(`closeMessage from ${sessionId}`)
+        const client = this.getClient(sessionId)
+        return await client.closeMessage(id)
     }
 
-    public async muteMessage(context: Context, muteNotification: MuteNotification): Promise<boolean> {
-        Logger.info(`muteMessage from ${context.sessionId}`)
+    public async muteMessage(sourceSessionId: string, muteNotification: MuteNotification): Promise<boolean> {
+        Logger.info(`muteMessage from ${sourceSessionId}`)
         let {roomId, sessionId, producerId, consumerId, audio, video} = muteNotification
-        if (!context.sessionId) {
-            Logger.warn("No sessionId in context")
-            return false
+
+        const sourceClient = this.getClient(sourceSessionId)
+        const targetClient = this.getClient(sessionId)
+        if (!targetClient) {
+            throw new Error("Target client ")
         }
-        const sourceClient = await this.getOrCreateClient(context.sessionId)
-        const targetClient = await this.getOrCreateClient(sessionId)
-        let self = sessionId === context.sessionId
+
+        let self = sessionId === sourceSessionId
         let teacher = sourceClient.jwt.teacher
         let clientMessages: Promise<boolean>[] = []
         if (teacher && !self) {
@@ -142,14 +132,14 @@ export class Worker {
         return (await Promise.all(clientMessages)).reduce((p, c) => c && p)
     }
 
-    private async newStream(stream: Stream) {
+    public async newStream(stream: Stream, roomId: string) {
         Logger.info(`New Stream(${stream.sessionId}_${stream.id})`)
         const forwardPromises = []
         for (const [id, client] of this.clients) {
             if (id === stream.sessionId) {
                 continue
             }
-            const forwardPromise = client.forwardStream(stream, this.roomId!)
+            const forwardPromise = client.forwardStream(stream, roomId)
             forwardPromise.then(() => {
                 Logger.info(`Forwarding new Stream(${stream.sessionId}_${stream.id}) to Client(${id})`)
             })
@@ -158,75 +148,11 @@ export class Worker {
         await Promise.all(forwardPromises)
     }
 
-    public async subscribe({sessionId, token}: Context) {
-        if (!sessionId) {
-            Logger.error("Can not initiate subscription without sessionId");
-            return
-        }
-        if (!token) {
-            Logger.error("Can not initiate subscription without token");
-            return
-        }
-        Logger.info(`Subscription from ${sessionId}`)
-        const client = await this.getOrCreateClient(sessionId, token)
-        if (!this.roomStatusMap.get(token.roomid)) {
-            this.roomStatusMap.set(token.roomid, true)
-        }
+    public async subscribe(client: Client) {
         return client.subscribe()
     }
 
-    public async endClassMessage(context: Context, roomId?: string): Promise<boolean> {
-        Logger.info(`endClassMessage from: ${context.sessionId}`)
-        if (!context.sessionId) {
-            Logger.warn("No sessionId in context")
-            return false
-        }
-        const sourceClient = await this.getOrCreateClient(context.sessionId)
-        let teacher = sourceClient.jwt.teacher
-
-        if (!teacher) {
-            Logger.warn(`SessionId: ${context.sessionId} attempted to end the class!`)
-            return false
-        }
-
-        for (const client of this.clients.values()) {
-            await client.endClassMessage(roomId)
-        }
-
-        return true
-    }
-
-    private async getOrCreateClient(id: string, token?: JWT): Promise<Client> {
-        let client = this.clients.get(id)
-        if (!client) {
-            if (!token) {
-                Logger.error("Token must be supplied to create a client")
-                throw new Error("Token must be supplied to create a client")
-            }
-
-            // TODO: Select a worker to assign the client to
-
-
-            client = await Client.create(
-                id,
-
-                this.listenIps,
-                () => {
-                    this.clients.delete(id)
-                },
-                token
-            )
-            Logger.info(`New Client(${id})`)
-            for (const [otherId, otherClient] of this.clients) {
-                for (const stream of otherClient.getStreams()) {
-                    client.forwardStream(stream, this.roomId!).then(() => {
-                        Logger.info(`Forwarding Stream(${stream.sessionId}_${stream.id}) from Client(${otherId}) to Client(${id})`)
-                    })
-                }
-            }
-            this.clients.set(id, client)
-            client.emitter.on("stream", (s: Stream) => this.newStream(s))
-        }
-        return client
+    public getRouter(): MediaSoup.Router {
+        return this.router
     }
 }

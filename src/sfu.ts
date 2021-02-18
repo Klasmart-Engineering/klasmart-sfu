@@ -16,6 +16,8 @@ import {
 } from "./reporting"
 import {mediaCodecs} from "./config"
 import {WorkerType, Worker} from "./worker"
+import {Client, Stream} from "./client";
+import {JWT} from "./auth";
 
 export class SFU {
     private readonly id: string;
@@ -28,6 +30,9 @@ export class SFU {
     private producerWorkers = new Map<string, Worker>()
     private consumerWorkers = new Map<string, Worker>()
     private mixedWorkers = new Map<string, Worker>()
+    private producerClientWorkerMap = new Map<string, Worker>()
+    private consumerClientWorkerMap = new Map<string, Worker>()
+    private clients: Map<string, Client> = new Map<string, Client>()
 
     private constructor(
         ip: string,
@@ -208,10 +213,129 @@ export class SFU {
     }
 
     private async checkRoomStatus() {
-        if (this.clients.size === 0 && this.roomId && this.roomStatusMap.get(this.roomId)) {
+        if (this.producerClientWorkerMap.size === 0 && this.consumerClientWorkerMap.size === 0 && this.roomId && this.roomStatusMap.get(this.roomId)) {
             this.roomStatusMap.set(this.roomId, false)
         }
         setTimeout(() => this.checkRoomStatus(), 60 * 1000)
+    }
+
+    public async subscribe(context: Context) {
+        if (!context.sessionId) {
+            throw new Error("Context missing sessionId")
+        }
+        if (!context.token) {
+            throw new Error("Context missing token")
+        }
+
+        const client = await this.getOrCreateClient(context.sessionId, context.token)
+        if (!this.roomStatusMap.get(context.token.roomid)) {
+            this.roomStatusMap.set(context.token.roomid, true)
+        }
+
+        const producerWorker = this.producerClientWorkerMap.get(client.id)
+        const consumerWorker = this.consumerClientWorkerMap.get(client.id)
+
+        if (!producerWorker || !consumerWorker) {
+            throw new Error("Client is not assigned to any workers!")
+        }
+
+        return await producerWorker.subscribe(client)
+    }
+
+    private async getOrCreateClient(id: string, token?: JWT): Promise<Client> {
+        let client = this.clients.get(id)
+        if (!client) {
+            if (!token) {
+                Logger.error("Token must be supplied to create a client")
+                throw new Error("Token must be supplied to create a client")
+            }
+
+            // Select a worker to assign the client to
+            let minProducers = Infinity
+            let minConsumers = Infinity
+            let lowestLoadProducer: Worker | undefined
+            let lowestLoadConsumer: Worker | undefined
+            for (const producerWorker of this.producerWorkers.values()) {
+                if (producerWorker.numProducers < minProducers) {
+                    lowestLoadProducer = producerWorker
+                    minProducers = lowestLoadProducer.numProducers
+                }
+            }
+
+            for (const consumerWorker of this.consumerWorkers.values()) {
+                if (consumerWorker.numConsumers < minConsumers) {
+                    lowestLoadConsumer = consumerWorker
+                    minConsumers = lowestLoadConsumer.numConsumers
+                }
+            }
+
+            for (const mixedWorker of this.mixedWorkers.values()) {
+                if (mixedWorker.numProducers < minProducers) {
+                    lowestLoadProducer = mixedWorker
+                    minProducers = lowestLoadProducer.numProducers
+                }
+                if (mixedWorker.numConsumers < minConsumers) {
+                    lowestLoadConsumer = mixedWorker
+                    minConsumers = lowestLoadConsumer.numConsumers
+                }
+            }
+
+            if (!lowestLoadProducer) {
+                throw new Error("No available worker for producer!")
+            }
+            if (!lowestLoadConsumer) {
+                throw new Error("No available worker for consumer!")
+            }
+
+            client = await Client.create(
+                id,
+                lowestLoadProducer.getRouter(),
+                lowestLoadConsumer.getRouter(),
+                this.listenIps,
+                () => {
+                    this.clients.delete(id)
+                },
+                token
+            )
+            this.clients.set(client.id, client)
+            lowestLoadProducer.clients.set(client.id, client)
+            lowestLoadConsumer.clients.set(client.id, client)
+
+            this.producerClientWorkerMap.set(client.id, lowestLoadProducer)
+            this.consumerClientWorkerMap.set(client.id, lowestLoadConsumer)
+
+            Logger.info(`New Client(${id})`)
+            for (const [otherId, otherClient] of this.clients) {
+                for (const stream of otherClient.getStreams()) {
+                    client.forwardStream(stream, this.roomId!).then(() => {
+                        Logger.info(`Forwarding Stream(${stream.sessionId}_${stream.id}) from Client(${otherId}) to Client(${id})`)
+                    })
+                }
+            }
+            client.emitter.on("stream", (s: Stream) => lowestLoadProducer!.newStream(s, this.roomId!))
+        }
+        return client
+    }
+
+    public async endClassMessage(context: Context, roomId?: string): Promise<boolean> {
+        Logger.info(`endClassMessage from: ${context.sessionId}`)
+        if (!context.sessionId) {
+            Logger.warn("No sessionId in context")
+            return false
+        }
+        const sourceClient = await this.getOrCreateClient(context.sessionId)
+        let teacher = sourceClient.jwt.teacher
+
+        if (!teacher) {
+            Logger.warn(`SessionId: ${context.sessionId} attempted to end the class!`)
+            return false
+        }
+
+        for (const client of this.clients.values()) {
+            await client.endClassMessage(roomId)
+        }
+
+        return true
     }
 }
 
