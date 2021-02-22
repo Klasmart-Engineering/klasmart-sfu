@@ -96,40 +96,35 @@ export type JWT = {
 }
 
 export async function checkToken(token?: string): Promise<JWT> {
-    try {
-        if (!token) {
-            Logger.error("Missing JWT Token")
-            throw new Error("Missing JWT token")
-        }
-        const payload = decode(token)
-        if (!payload || typeof payload === "string") {
-            Logger.error("JWT Payload is incorrect")
-            throw new Error("JWT Payload is incorrect")
-        }
-        const issuer = payload["iss"]
-        if (!issuer || typeof issuer !== "string") {
-            Logger.error("JWT Issuer is incorrect")
-            throw new Error("JWT Issuer is incorrect")
-        }
-        const issuerOptions = issuers.get(issuer)
-        if (!issuerOptions) {
-            Logger.error("JWT IssuerOptions are incorrect")
-            throw new Error("JWT IssuerOptions are incorrect")
-        }
-        const {options, secretOrPublicKey} = issuerOptions
-        return await new Promise((resolve, reject) => {
-            verify(token, secretOrPublicKey, options, (err, decoded) => {
-                if (err) {
-                    reject(err)
-                }
-                if (decoded) {
-                    resolve(<JWT>decoded)
-                }
-                reject(new Error("Unexpected authorization error"))
-            })
-        })
-    } catch (e) {
-        Logger.error(e)
-        throw e
+    if (!token) {
+        Logger.error("Missing JWT Token")
+        throw new Error("Missing JWT token")
     }
+    const payload = decode(token)
+    if (!payload || typeof payload === "string") {
+        Logger.error("JWT Payload is incorrect")
+        throw new Error("JWT Payload is incorrect")
+    }
+    const issuer = payload["iss"]
+    if (!issuer || typeof issuer !== "string") {
+        Logger.error("JWT Issuer is incorrect")
+        throw new Error("JWT Issuer is incorrect")
+    }
+    const issuerOptions = issuers.get(issuer)
+    if (!issuerOptions) {
+        Logger.error("JWT IssuerOptions are incorrect")
+        throw new Error("JWT IssuerOptions are incorrect")
+    }
+    const {options, secretOrPublicKey} = issuerOptions
+    return await new Promise((resolve, reject) => {
+        verify(token, secretOrPublicKey, options, (err, decoded) => {
+            if (err) {
+                reject(err)
+            }
+            if (decoded) {
+                resolve(<JWT>decoded)
+            }
+            reject(new Error("Unexpected authorization error"))
+        })
+    })
 }

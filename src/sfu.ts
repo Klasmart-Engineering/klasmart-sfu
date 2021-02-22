@@ -18,6 +18,7 @@ import {mediaCodecs} from "./config"
 import {WorkerType, Worker} from "./worker"
 import {Client, Stream} from "./client";
 import {JWT} from "./auth";
+import {MuteNotification} from "./schema";
 
 export class SFU {
     private readonly id: string;
@@ -32,7 +33,8 @@ export class SFU {
     private mixedWorkers = new Map<string, Worker>()
     private producerClientWorkerMap = new Map<string, Worker>()
     private consumerClientWorkerMap = new Map<string, Worker>()
-    private clients: Map<string, Client> = new Map<string, Client>()
+    private mixedClientWorkerMap = new Map<string, Worker>()
+    public clients: Map<string, Client> = new Map<string, Client>()
 
     private constructor(
         ip: string,
@@ -67,6 +69,7 @@ export class SFU {
         const consumerWorkers: Worker[] = []
         const mixedWorkers: Worker[] = []
 
+        // Create worker threads
         for (let i = 0; i < numWorkers; i++) {
             let workerType
             if (numWorkers === 1) {
@@ -129,7 +132,7 @@ export class SFU {
             this.reporting = true
             while(true) {
                 const status = RedisKeys.sfuStatus(this.id)
-                await this.redis.set(status.key, this.available?1:0, "EX", status.ttl).catch((e) => console)
+                await this.redis.set(status.key, this.available ? 1 : 0, "EX", status.ttl).catch((e) => console)
                 await new Promise((resolve) => setTimeout(resolve, 1000 * status.ttl / 2))
             }
         } finally {
@@ -256,27 +259,27 @@ export class SFU {
             let lowestLoadProducer: Worker | undefined
             let lowestLoadConsumer: Worker | undefined
             for (const producerWorker of this.producerWorkers.values()) {
-                if (producerWorker.numProducers < minProducers) {
+                if (producerWorker.numProducers() < minProducers) {
                     lowestLoadProducer = producerWorker
-                    minProducers = lowestLoadProducer.numProducers
+                    minProducers = lowestLoadProducer.numProducers()
                 }
             }
 
             for (const consumerWorker of this.consumerWorkers.values()) {
-                if (consumerWorker.numConsumers < minConsumers) {
+                if (consumerWorker.numConsumers() < minConsumers) {
                     lowestLoadConsumer = consumerWorker
-                    minConsumers = lowestLoadConsumer.numConsumers
+                    minConsumers = lowestLoadConsumer.numConsumers()
                 }
             }
 
             for (const mixedWorker of this.mixedWorkers.values()) {
-                if (mixedWorker.numProducers < minProducers) {
+                if (mixedWorker.numProducers() < minProducers) {
                     lowestLoadProducer = mixedWorker
-                    minProducers = lowestLoadProducer.numProducers
+                    minProducers = lowestLoadProducer.numProducers()
                 }
-                if (mixedWorker.numConsumers < minConsumers) {
+                if (mixedWorker.numConsumers() < minConsumers) {
                     lowestLoadConsumer = mixedWorker
-                    minConsumers = lowestLoadConsumer.numConsumers
+                    minConsumers = lowestLoadConsumer.numConsumers()
                 }
             }
 
@@ -317,17 +320,28 @@ export class SFU {
         return client
     }
 
+    private static verifyContext(context: Context): {sessionId: string, token: JWT, roomId: string} {
+        if (!context.sessionId) {
+            throw new Error("Context missing sessionId")
+        }
+        if (!context.token) {
+            throw new Error("Context missing JWT")
+        }
+        if (!context.roomId) {
+            throw new Error("Context missing roomId")
+        }
+        return {sessionId: context.sessionId, token: context.token, roomId: context.roomId}
+    }
+
+
     public async endClassMessage(context: Context, roomId?: string): Promise<boolean> {
         Logger.info(`endClassMessage from: ${context.sessionId}`)
-        if (!context.sessionId) {
-            Logger.warn("No sessionId in context")
-            return false
-        }
-        const sourceClient = await this.getOrCreateClient(context.sessionId)
+        const {sessionId} = SFU.verifyContext(context)
+        const sourceClient = await this.getOrCreateClient(sessionId)
         let teacher = sourceClient.jwt.teacher
 
         if (!teacher) {
-            Logger.warn(`SessionId: ${context.sessionId} attempted to end the class!`)
+            Logger.warn(`SessionId: ${sessionId} attempted to end the class!`)
             return false
         }
 
@@ -336,6 +350,90 @@ export class SFU {
         }
 
         return true
+    }
+
+    public async rtpCapabilitiesMessage(context: Context, rtpCapabilities: string) {
+        const {sessionId, token} = SFU.verifyContext(context)
+        const client = await this.getOrCreateClient(sessionId, token)
+        return await client.rtpCapabilitiesMessage(rtpCapabilities)
+    }
+
+    public async transportMessage(context: Context, isProducer: boolean, params: string) {
+        const {sessionId, token} = SFU.verifyContext(context)
+        const client = await this.getOrCreateClient(sessionId, token)
+        return await client.transportMessage(isProducer, params)
+    }
+
+    public async producerMessage(context: Context, params: string) {
+        const {sessionId, token} = SFU.verifyContext(context)
+        const client = await this.getOrCreateClient(sessionId, token)
+        const producer = await client.producerMessage(params)
+        const producerWorker = this.producerClientWorkerMap.get(client.id)
+
+        if (!producerWorker) {
+            Logger.info("No dedicated producer workers, checking for mixed worker")
+            const mixedWorker = this.mixedClientWorkerMap.get(client.id)
+            if (!mixedWorker) {
+                throw new Error("No producer or mixed worker in which to place producer")
+            }
+            mixedWorker.producers.set(producer.id, producer)
+            return true
+        }
+        // Create/connect pipe transports to consumer workers
+        for (const consumerWorker of this.consumerWorkers.values()) {
+            const { pipeConsumer, pipeProducer } = await producerWorker
+                .getRouter()
+                .pipeToRouter({
+                producerId: producer.id,
+                router: consumerWorker.getRouter()
+            })
+            if (!pipeProducer) {
+                throw new Error("Failed to create piped producer")
+            }
+            if (!pipeConsumer) {
+                throw new Error("Failed to create piped consumer")
+            }
+            consumerWorker.producers.set(pipeProducer.id, pipeProducer)
+            producerWorker.consumers.set(pipeConsumer.id, pipeConsumer)
+        }
+        return true
+    }
+
+    public async consumerMessage(context: Context, producerId: string, pause?: boolean) {
+        const {sessionId} = SFU.verifyContext(context)
+        const client = await this.getOrCreateClient(sessionId)
+        return client.consumerMessage(producerId, pause)
+    }
+
+    public async streamMessage(context: Context, streamId: string, producerIds: string[]) {
+        const {sessionId} = SFU.verifyContext(context)
+        const client = await this.getOrCreateClient(sessionId)
+        return client.streamMessage(streamId, producerIds)
+    }
+
+    public async closeMessage(context: Context, id: string) {
+        const {sessionId} = SFU.verifyContext(context)
+        const client = await this.getOrCreateClient(sessionId)
+        return await client.closeMessage(id)
+    }
+
+    public async muteMessage(context: Context, muteNotification: MuteNotification) {
+        const {sessionId, token} = SFU.verifyContext(context)
+        const client = await this.getOrCreateClient(sessionId)
+        throw new Error("Not implemented")
+    }
+
+    public async disconnect(sessionId: string) {
+        const client = await this.getOrCreateClient(sessionId)
+        this.clients.delete(client.id)
+        const producerWorker = this.producerClientWorkerMap.get(client.id)
+        const consumerWorker = this.consumerClientWorkerMap.get(client.id)
+        if (producerWorker) {
+            producerWorker.disconnect(sessionId)
+        }
+        if (consumerWorker) {
+            consumerWorker.disconnect(sessionId)
+        }
     }
 }
 

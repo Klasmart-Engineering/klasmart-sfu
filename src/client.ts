@@ -268,7 +268,7 @@ export class Client {
         })
         this.producers.set(producer.id, producer)
         Logger.info("producer message - ret")
-        return producer.id
+        return producer
     }
 
     public consumerMessage(id: string, pause?: boolean) {

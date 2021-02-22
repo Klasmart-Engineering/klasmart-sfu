@@ -15,20 +15,28 @@ export enum WorkerType {
 
 export class Worker {
     public readonly id: string
-    public numProducers: number = 0
-    public numConsumers: number = 0
     public readonly workerType: WorkerType
     public readonly emitter = new EventEmitter()
 
     private readonly worker: MediaSoup.Worker
     private readonly router: MediaSoup.Router
-    public clients: Map<string, Client> = new Map<string, Client>()
+    public clients: Map<string, Client> = new Map()
+    public consumers: Map<string, MediaSoup.Consumer> = new Map()
+    public producers: Map<string, MediaSoup.Producer> = new Map()
 
     constructor(worker: MediaSoup.Worker, workerType: WorkerType, router: MediaSoup.Router) {
         this.id = uuid()
         this.worker = worker
         this.workerType = workerType
         this.router = router
+    }
+
+    public numProducers(): number {
+        return this.producers.size
+    }
+
+    public numConsumers(): number {
+        return this.consumers.size
     }
 
     public connect(sessionId: string) {
@@ -47,48 +55,12 @@ export class Worker {
         client.disconnect()
     }
 
-    public async rtpCapabilitiesMessage(sessionId: string, rtpCapabilities: string) {
-        Logger.info(`rtpCapabilitiesMessage from ${sessionId}`)
-        const client = this.getClient(sessionId);
-        return client.rtpCapabilitiesMessage(rtpCapabilities)
-    }
-
     private getClient(sessionId: string) {
         const client = this.clients.get(sessionId)
         if (!client) {
             throw new Error(`SessionId: ${sessionId} has not yet been registered as a client on worker ${this.id}!`)
         }
         return client;
-    }
-
-    public async transportMessage(sessionId: string, producer: boolean, params: string) {
-        Logger.info(`transportMessage(${producer}) from ${sessionId}`)
-        const client = this.getClient(sessionId)
-        return await client.transportMessage(producer, params)
-    }
-
-    public async producerMessage(sessionId: string, params: string) {
-        Logger.info(`producerMessage from ${sessionId}`)
-        const client = this.getClient(sessionId)
-        return await client.producerMessage(params)
-    }
-
-    public consumerMessage(sessionId: string, id: string, pause?: boolean) {
-        Logger.info(`consumerMessage from ${sessionId}`)
-        const client = this.getClient(sessionId)
-        return client.consumerMessage(id, pause)
-    }
-
-    public streamMessage(sessionId: string, id: string, producerIds: string[]) {
-        Logger.info(`streamMessage from ${sessionId}`)
-        const client = this.getClient(sessionId)
-        return client.streamMessage(id, producerIds)
-    }
-
-    public async closeMessage(sessionId: string, id: string) {
-        Logger.info(`closeMessage from ${sessionId}`)
-        const client = this.getClient(sessionId)
-        return await client.closeMessage(id)
     }
 
     public async muteMessage(sourceSessionId: string, muteNotification: MuteNotification): Promise<boolean> {
