@@ -193,7 +193,7 @@ async function main() {
                 }
                 const {sessionId} = connectionData as any
                 Logger.info(`Disconnection(${connectionCount}) from ${sessionId}`)
-                sfu.disconnect(sessionId)
+                sfu.disconnect(sessionId).catch(e => Logger.error(e))
             }
         },
         resolvers: {
@@ -201,18 +201,18 @@ async function main() {
                 ready: () => true,
             },
             Mutation: {
-                rtpCapabilities: (_parent, {rtpCapabilities}, context: Context) => sfu.rtpCapabilitiesMessage(context, rtpCapabilities),
-                transport: (_parent, {producer, params}, context: Context) => sfu.transportMessage(context, producer, params),
-                producer: (_parent, {params}, context: Context) => sfu.producerMessage(context, params),
-                consumer: (_parent, {id, pause}, context: Context) => sfu.consumerMessage(context, id, pause),
-                stream: (_parent, {id, producerIds}, context: Context) => sfu.streamMessage(context, id, producerIds),
-                close: (_parent, {id}, context: Context) => sfu.closeMessage(context, id),
-                mute: (_parent, muteNotification: MuteNotification, context: Context) => sfu.muteMessage(context, muteNotification),
-                endClass: (_parent, {roomId}, context: Context) => sfu.endClassMessage(context, roomId)
+                rtpCapabilities: (_parent, {rtpCapabilities}, context: Context) => sfu.rtpCapabilitiesMessage(context, rtpCapabilities).catch(e => Logger.error(e)),
+                transport: (_parent, {producer, params}, context: Context) => sfu.transportMessage(context, producer, params).catch(e => Logger.error(e)),
+                producer: (_parent, {params}, context: Context) => sfu.producerMessage(context, params).catch(e => Logger.error(e)),
+                consumer: (_parent, {id, pause}, context: Context) => sfu.consumerMessage(context, id, pause).catch(e => Logger.error(e)),
+                stream: (_parent, {id, producerIds}, context: Context) => sfu.streamMessage(context, id, producerIds).catch(e => Logger.error(e)),
+                close: (_parent, {id}, context: Context) => sfu.closeMessage(context, id).catch(e => Logger.error(e)),
+                mute: (_parent, muteNotification: MuteNotification, context: Context) => sfu.muteMessage(context, muteNotification).catch(e => Logger.error(e)),
+                endClass: (_parent, {roomId}, context: Context) => sfu.endClassMessage(context, roomId).catch(e => Logger.error(e))
             },
             Subscription: {
                 media: {
-                    subscribe: (_parent, {}, context: Context) => sfu.subscribe(context)
+                    subscribe: (_parent, {}, context: Context) => sfu.subscribe(context).catch(e => Logger.error(e))
                 },
             }
         },

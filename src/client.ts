@@ -155,83 +155,79 @@ export class Client {
     }
 
     public async forward(producer: MediaSoup.Producer, roomId: string, sessionId: string) {
-        try {
-            Logger.info(`forward rtp caps`)
-            const rtpCapabilities = await this.rtpCapabilities()
-            const producerParams = {
-                producerId: producer.id,
-                rtpCapabilities
-            }
-            Logger.info(`forward can consume`)
-            if (!this.consumerRouter.canConsume(producerParams)) {
-                Logger.error(`Client(${this.id}) could not consume producer(${producer.kind},${producer.id})`, producer.consumableRtpParameters)
+        Logger.info(`forward rtp caps`)
+        const rtpCapabilities = await this.rtpCapabilities()
+        const producerParams = {
+            producerId: producer.id,
+            rtpCapabilities
+        }
+        Logger.info(`forward can consume`)
+        if (!this.consumerRouter.canConsume(producerParams)) {
+            Logger.error(`Client(${this.id}) could not consume producer(${producer.kind},${producer.id})`, producer.consumableRtpParameters)
+            return
+        }
+        Logger.info(`forward wait consumer`)
+        const consumer = await this.consumerTransport.consume({
+            ...producerParams,
+            paused: true
+        })
+        this.destructors.set(consumer.id, () => consumer.close())
+        this.consumers.set(consumer.id, consumer)
+        this.consumerMute.set(consumer.id, false)
+        consumer.on("transportclose", () => {
+            this.consumers.delete(consumer.id)
+            this.channel.publish("close", {media: {close: consumer.id}})
+
+        })
+        consumer.on("producerclose", () => {
+            this.consumers.delete(consumer.id)
+            this.channel.publish("close", {media: {close: consumer.id}})
+        })
+        consumer.on("producerpause", () => {
+            consumer.pause()
+            this.channel.publish("mute", {
+                media: {
+                    mute: {
+                        roomId,
+                        sessionId,
+                        producerId: producer.id,
+                        consumerId: consumer.id,
+                        audio: consumer.kind === "audio" ? false : undefined,
+                        video: consumer.kind === "video" ? false : undefined
+                    }
+                }
+            })
+        })
+        consumer.on("producerresume", () => {
+            if (this.consumerMute.get(consumer.id)) {
                 return
             }
-            Logger.info(`forward wait consumer`)
-            const consumer = await this.consumerTransport.consume({
-                ...producerParams,
-                paused: true
-            })
-            this.destructors.set(consumer.id, () => consumer.close())
-            this.consumers.set(consumer.id, consumer)
-            this.consumerMute.set(consumer.id, false)
-            consumer.on("transportclose", () => {
-                this.consumers.delete(consumer.id)
-                this.channel.publish("close", {media: {close: consumer.id}})
-
-            })
-            consumer.on("producerclose", () => {
-                this.consumers.delete(consumer.id)
-                this.channel.publish("close", {media: {close: consumer.id}})
-            })
-            consumer.on("producerpause", () => {
-                consumer.pause()
-                this.channel.publish("mute", {
-                    media: {
-                        mute: {
-                            roomId,
-                            sessionId,
-                            producerId: producer.id,
-                            consumerId: consumer.id,
-                            audio: consumer.kind === "audio" ? false : undefined,
-                            video: consumer.kind === "video" ? false : undefined
-                        }
-                    }
-                })
-            })
-            consumer.on("producerresume", () => {
-                if (this.consumerMute.get(consumer.id)) {
-                    return
-                }
-                consumer.resume()
-                this.channel.publish("mute", {
-                    media: {
-                        mute: {
-                            roomId,
-                            sessionId,
-                            producerId: producer.id,
-                            consumerId: consumer.id,
-                            audio: consumer.kind === "audio" ? true : undefined,
-                            video: consumer.kind === "video" ? true : undefined
-                        }
-                    }
-                })
-            })
-
-            this.channel.publish("consumer", {
+            consumer.resume()
+            this.channel.publish("mute", {
                 media: {
-                    consumer: JSON.stringify({
-                        id: consumer.id,
-                        producerId: consumer.producerId,
-                        kind: consumer.kind,
-                        rtpParameters: consumer.rtpParameters,
-                        appData: undefined
-                    })
+                    mute: {
+                        roomId,
+                        sessionId,
+                        producerId: producer.id,
+                        consumerId: consumer.id,
+                        audio: consumer.kind === "audio" ? true : undefined,
+                        video: consumer.kind === "video" ? true : undefined
+                    }
                 }
-            }).catch(e => Logger.error(e))
-        } catch (e) {
-            Logger.error(e)
-        }
+            })
+        })
+
+        this.channel.publish("consumer", {
+            media: {
+                consumer: JSON.stringify({
+                    id: consumer.id,
+                    producerId: consumer.producerId,
+                    kind: consumer.kind,
+                    rtpParameters: consumer.rtpParameters,
+                    appData: undefined
+                })
+            }
+        }).catch(e => Logger.error(e))
     }
 
     public async rtpCapabilitiesMessage(message: string) {

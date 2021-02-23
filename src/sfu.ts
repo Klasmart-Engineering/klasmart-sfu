@@ -106,7 +106,7 @@ export class SFU {
 
         const redis = new Redis({
             host: process.env.REDIS_HOST,
-            port: Number(process.env.REDIS_PORT) ?? undefined,
+            port: Number(process.env.REDIS_PORT ?? 6379),
             password: process.env.REDIS_PASS ?? undefined,
             lazyConnect: true,
             reconnectOnError: (err) => err.message.includes("READONLY"),
@@ -237,12 +237,18 @@ export class SFU {
 
         const producerWorker = this.producerClientWorkerMap.get(client.id)
         const consumerWorker = this.consumerClientWorkerMap.get(client.id)
+        const mixedWorker = this.mixedClientWorkerMap.get(client.id)
 
-        if (!producerWorker || !consumerWorker) {
+        if (!producerWorker && !consumerWorker && !mixedWorker) {
             throw new Error("Client is not assigned to any workers!")
         }
 
-        return await producerWorker.subscribe(client)
+        if (producerWorker) {
+            return await producerWorker.subscribe(client)
+        }
+        if (mixedWorker) {
+            return await mixedWorker.subscribe(client)
+        }
     }
 
     private async getOrCreateClient(id: string, token?: JWT): Promise<Client> {
@@ -320,17 +326,15 @@ export class SFU {
         return client
     }
 
-    private static verifyContext(context: Context): {sessionId: string, token: JWT, roomId: string} {
+    private static verifyContext(context: Context): {sessionId: string, token: JWT } {
         if (!context.sessionId) {
             throw new Error("Context missing sessionId")
         }
         if (!context.token) {
             throw new Error("Context missing JWT")
         }
-        if (!context.roomId) {
-            throw new Error("Context missing roomId")
-        }
-        return {sessionId: context.sessionId, token: context.token, roomId: context.roomId}
+
+        return {sessionId: context.sessionId, token: context.token }
     }
 
 
@@ -366,6 +370,7 @@ export class SFU {
 
     public async producerMessage(context: Context, params: string) {
         const {sessionId, token} = SFU.verifyContext(context)
+        Logger.info(`ProducerMessage from ${sessionId}`)
         const client = await this.getOrCreateClient(sessionId, token)
         const producer = await client.producerMessage(params)
         const producerWorker = this.producerClientWorkerMap.get(client.id)
@@ -377,7 +382,7 @@ export class SFU {
                 throw new Error("No producer or mixed worker in which to place producer")
             }
             mixedWorker.producers.set(producer.id, producer)
-            return true
+            return producer.id
         }
         // Create/connect pipe transports to consumer workers
         for (const consumerWorker of this.consumerWorkers.values()) {
@@ -396,7 +401,7 @@ export class SFU {
             consumerWorker.producers.set(pipeProducer.id, pipeProducer)
             producerWorker.consumers.set(pipeConsumer.id, pipeConsumer)
         }
-        return true
+        return producer.id
     }
 
     public async consumerMessage(context: Context, producerId: string, pause?: boolean) {
@@ -406,6 +411,7 @@ export class SFU {
     }
 
     public async streamMessage(context: Context, streamId: string, producerIds: string[]) {
+        Logger.info(`Stream message: ${streamId}`)
         const {sessionId} = SFU.verifyContext(context)
         const client = await this.getOrCreateClient(sessionId)
         return client.streamMessage(streamId, producerIds)
