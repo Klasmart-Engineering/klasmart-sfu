@@ -64,6 +64,7 @@ export class SFU {
     }
 
     public static async create(ip: string): Promise<SFU> {
+        Logger.warn(`NUM_CPU_CORES: ${process.env.NUM_CPU_CORES}`)
         const numWorkers = parseInt(process.env.NUM_CPU_CORES ?? "1")
         const producerWorkers: Worker[] = []
         const consumerWorkers: Worker[] = []
@@ -101,7 +102,7 @@ export class SFU {
             }
         }
 
-        Logger.info("🎥 Mediasoup workers initialized")
+        Logger.info(`🎥 Mediasoup workers initialized: Producer Workers(${producerWorkers.length}), Consumer Workers(${consumerWorkers.length}), Mixed Workers(${mixedWorkers.length})`)
         Logger.info("💠 Mediasoup routers created")
 
         const redis = new Redis({
@@ -313,7 +314,7 @@ export class SFU {
             this.producerClientWorkerMap.set(client.id, lowestLoadProducer)
             this.consumerClientWorkerMap.set(client.id, lowestLoadConsumer)
 
-            Logger.info(`New Client(${id})`)
+            Logger.info(`New Client(${id}) assigned to producer worker(${lowestLoadProducer.id}) and consumer worker (${lowestLoadConsumer.id})`)
             for (const [otherId, otherClient] of this.clients) {
                 for (const stream of otherClient.getStreams()) {
                     client.forwardStream(stream, this.roomId!).then(() => {
@@ -424,9 +425,47 @@ export class SFU {
     }
 
     public async muteMessage(context: Context, muteNotification: MuteNotification) {
-        const {sessionId, token} = SFU.verifyContext(context)
-        const client = await this.getOrCreateClient(sessionId)
-        throw new Error("Not implemented")
+        const {sessionId: sourceSessionId} = SFU.verifyContext(context)
+        Logger.debug(`muteMessage from ${sourceSessionId}`)
+        const sourceClient = await this.getOrCreateClient(sourceSessionId)
+
+
+        let {roomId, sessionId: targetSessionId, producerId, consumerId, audio, video} = muteNotification
+        const targetClient = this.clients.get(targetSessionId)
+
+        if (!targetClient) {
+            throw new Error("Cannot find target client for mute message")
+        }
+
+        let self = targetSessionId === sourceSessionId
+        let teacher = sourceClient.jwt.teacher
+        let clientMessages: Promise<boolean>[] = []
+        if (teacher && !self) {
+            // Find the producer id the teacher is trying to mute
+            for (const client of this.clients.values()) {
+                if (audio !== undefined) {
+                    producerId = Array.from(targetClient.producers.values()).find((p) => p.kind === "audio")?.id
+                } else if (video !== undefined) {
+                    producerId = Array.from(targetClient.producers.values()).find((p) => p.kind === "video")?.id
+                }
+                if (producerId) {
+                    return client.muteMessage(roomId, targetSessionId, producerId, consumerId, audio, video, teacher)
+                }
+            }
+        } else if (self) {
+            if ((!targetClient.teacherAudioMuted && audio !== undefined) ||
+                (!targetClient.teacherVideoMuted && video !== undefined)) {
+                for (const client of this.clients.values()) {
+                    clientMessages.push(client.muteMessage(roomId, targetSessionId, producerId, consumerId, audio, video, teacher))
+                }
+            } else {
+                return sourceClient.muteMessage(roomId, targetSessionId, producerId, consumerId, audio, video, teacher)
+            }
+        } else {
+            return sourceClient.muteMessage(roomId, targetSessionId, producerId, consumerId, audio, video)
+        }
+
+        return (await Promise.all(clientMessages)).reduce((p, c) => c && p)
     }
 
     public async disconnect(sessionId: string) {

@@ -329,7 +329,7 @@ export class Client {
                              audio?: boolean,
                              video?: boolean,
                              teacher?: boolean) {
-        Logger.info(`muteMessage: ${this.id}`)
+        Logger.debug(`muteMessage: ${this.id}`)
         if (consumerId && sessionId === this.id && teacher) {
             return await this.teacherMute(audio, video, producerId, roomId, sessionId, consumerId);
         }
@@ -340,17 +340,17 @@ export class Client {
     }
 
     private async selfMute(producerId: string | undefined, audio: undefined | boolean, video: undefined | boolean, roomId: string, sessionId: string, consumerId: string | undefined) {
-        Logger.info("Self mute")
+        Logger.debug("Self mute")
         let producer
         this.selfAudioMuted = audio !== undefined ? !audio : this.selfAudioMuted
         this.selfVideoMuted = video !== undefined ? !video : this.selfVideoMuted
 
         if (audio !== undefined && this.teacherAudioMuted) {
-            Logger.info("Self is teacherAudioMuted, returning")
+            Logger.debug("Self is teacherAudioMuted, returning")
             return true
         }
         if (video !== undefined && this.teacherVideoMuted) {
-            Logger.info("Self is teacherVideoMuted, returning")
+            Logger.debug("Self is teacherVideoMuted, returning")
             return true
         }
         // A self mute message
@@ -362,7 +362,7 @@ export class Client {
             Logger.error(`Failed to find producer with id: ${producerId}`)
             return false
         }
-        Logger.info(`muteMessage: producer ${producerId}`)
+        Logger.debug(`muteMessage: producer ${producerId}`)
         switch (producer.kind) {
             case "audio":
                 if (audio && !this.teacherAudioMuted) {
@@ -379,7 +379,7 @@ export class Client {
                 }
                 break;
             default:
-                Logger.info(`muteMessage: default`)
+                Logger.debug(`muteMessage: default`)
                 break;
         }
 
@@ -400,7 +400,7 @@ export class Client {
 
     private async teacherMute(audio: undefined | boolean, video: undefined | boolean, producerId: string | undefined, roomId: string, sessionId: string, consumerId: string) {
         let producer
-        Logger.info("Teacher muting producer")
+        Logger.debug("Teacher muting producer")
         this.teacherAudioMuted = audio !== undefined ? !audio : this.teacherAudioMuted
         this.teacherVideoMuted = video !== undefined ? !video : this.teacherVideoMuted
         this.selfVideoMuted = video !== undefined ? true : this.selfVideoMuted
@@ -418,7 +418,7 @@ export class Client {
             Logger.error(`Failed to find producer with id: ${producerId}`)
             return false
         }
-        Logger.info(`muteMessage: producer ${producer.id}`)
+        Logger.debug(`muteMessage: producer ${producer.id}`)
         switch (producer.kind) {
             case "audio":
                 if (audio && !this.selfAudioMuted) {
