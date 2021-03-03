@@ -66,7 +66,7 @@ const issuers = new Map<
         ]
     ]);
 
-if (process.env.NODE_ENV !== "production") {
+if (process.env.NODE_ENV !== "production" && process.env.DEV_SECRET) {
     issuers.set("calmid-debug",
         {
             options: {
@@ -77,9 +77,9 @@ if (process.env.NODE_ENV !== "production") {
                     "HS256",
                 ],
             },
-            secretOrPublicKey: "iXtZx1D5AqEB0B9pfn+hRQ==",
+            secretOrPublicKey: process.env.DEV_SECRET,
         }
-    );
+    )
 }
 
 export type JWT = {
