@@ -449,7 +449,7 @@ export class SFU {
                     producerId = Array.from(targetClient.producers.values()).find((p) => p.kind === "video")?.id
                 }
                 if (producerId) {
-                    return client.muteMessage(roomId, targetSessionId, producerId, consumerId, audio, video, teacher)
+                    clientMessages.push(client.muteMessage(roomId, targetSessionId, producerId, consumerId, audio, video, teacher))
                 }
             }
         } else if (self) {
