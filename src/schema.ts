@@ -43,6 +43,8 @@ export const schema = gql`
         consumerId: String,
         audio: Boolean,
         video: Boolean,
+        audioGloballyMuted: Boolean,
+        videoGloballyDisabled: Boolean,
     }
 `;
 

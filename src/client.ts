@@ -193,7 +193,9 @@ export class Client {
                         producerId: producer.id,
                         consumerId: consumer.id,
                         audio: consumer.kind === "audio" ? false : undefined,
-                        video: consumer.kind === "video" ? false : undefined
+                        video: consumer.kind === "video" ? false : undefined,
+                        audioGloballyMuted: this.teacherAudioMuted,
+                        videoGloballyDisabled: this.teacherVideoMuted,
                     }
                 }
             })
@@ -211,7 +213,9 @@ export class Client {
                         producerId: producer.id,
                         consumerId: consumer.id,
                         audio: consumer.kind === "audio" ? true : undefined,
-                        video: consumer.kind === "video" ? true : undefined
+                        video: consumer.kind === "video" ? true : undefined,
+                        audioGloballyMuted: this.teacherAudioMuted,
+                        videoGloballyDisabled: this.teacherVideoMuted,
                     }
                 }
             })
@@ -391,7 +395,9 @@ export class Client {
                     producerId,
                     consumerId,
                     audio: audio && !this.teacherAudioMuted && !this.selfAudioMuted,
-                    video: video && !this.teacherVideoMuted && !this.selfVideoMuted
+                    video: video && !this.teacherVideoMuted && !this.selfVideoMuted,
+                    audioGloballyMuted: this.teacherAudioMuted,
+                    videoGloballyDisabled: this.teacherVideoMuted,
                 }
             }
         })
@@ -447,7 +453,9 @@ export class Client {
                     producerId,
                     consumerId,
                     audio: audio && !this.selfAudioMuted,
-                    video: video && !this.selfVideoMuted
+                    video: video && !this.selfVideoMuted,
+                    audioGloballyMuted: this.teacherAudioMuted,
+                    videoGloballyDisabled: this.teacherVideoMuted,
                 }
             }
         })
