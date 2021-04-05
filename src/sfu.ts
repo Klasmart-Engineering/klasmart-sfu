@@ -430,26 +430,27 @@ export class SFU {
         const sourceClient = await this.getOrCreateClient(sourceSessionId)
 
 
-        let {roomId, sessionId: targetSessionId, producerId, consumerId, audio, video} = muteNotification
+        const { roomId, sessionId: targetSessionId, producerId, consumerId, audio, video } = muteNotification
         const targetClient = this.clients.get(targetSessionId)
 
         if (!targetClient) {
             throw new Error("Cannot find target client for mute message")
         }
 
-        let self = targetSessionId === sourceSessionId
-        let teacher = sourceClient.jwt.teacher
-        let clientMessages: Promise<boolean>[] = []
+        const self = targetSessionId === sourceSessionId
+        const teacher = sourceClient.jwt.teacher
+        const clientMessages: Promise<boolean>[] = []
         if (teacher && !self) {
             // Find the producer id the teacher is trying to mute
+            let targetProducerId: string | undefined = "";
+            if (audio !== undefined) {
+                targetProducerId = Array.from(targetClient.producers.values()).find((p) => p.kind === "audio")?.id
+            } else if (video !== undefined) {
+                targetProducerId = Array.from(targetClient.producers.values()).find((p) => p.kind === "video")?.id
+            }
             for (const client of this.clients.values()) {
-                if (audio !== undefined) {
-                    producerId = Array.from(targetClient.producers.values()).find((p) => p.kind === "audio")?.id
-                } else if (video !== undefined) {
-                    producerId = Array.from(targetClient.producers.values()).find((p) => p.kind === "video")?.id
-                }
-                if (producerId && consumerId && targetSessionId === client.id && teacher) {
-                    clientMessages.push(client.teacherMute(audio, video, producerId, roomId, targetSessionId, consumerId));
+                if (targetProducerId && consumerId && targetSessionId === client.id && teacher) {
+                    clientMessages.push(client.teacherMute(audio, video, targetProducerId, roomId, targetSessionId, consumerId));
                 }
             }
         } else if (self) {
