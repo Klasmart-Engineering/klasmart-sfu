@@ -31,8 +31,8 @@ export class Client {
     public jwt: JWT
     public selfAudioMuted: boolean = false
     public selfVideoMuted: boolean = false
-    public teacherAudioMuted: boolean = false
-    public teacherVideoMuted: boolean = false
+    public audioGloballyMuted: boolean = false
+    public videoGloballyDisabled: boolean = false
     private consumerMute: Map<string, boolean>
 
     private constructor(
@@ -194,8 +194,8 @@ export class Client {
                         consumerId: consumer.id,
                         audio: consumer.kind === "audio" ? false : undefined,
                         video: consumer.kind === "video" ? false : undefined,
-                        audioGloballyMuted: this.teacherAudioMuted,
-                        videoGloballyDisabled: this.teacherVideoMuted,
+                        audioGloballyMuted: this.audioGloballyMuted,
+                        videoGloballyDisabled: this.videoGloballyDisabled,
                     }
                 }
             })
@@ -214,8 +214,8 @@ export class Client {
                         consumerId: consumer.id,
                         audio: consumer.kind === "audio" ? true : undefined,
                         video: consumer.kind === "video" ? true : undefined,
-                        audioGloballyMuted: this.teacherAudioMuted,
-                        videoGloballyDisabled: this.teacherVideoMuted,
+                        audioGloballyMuted: this.audioGloballyMuted,
+                        videoGloballyDisabled: this.videoGloballyDisabled,
                     }
                 }
             })
@@ -326,35 +326,21 @@ export class Client {
         return true
     }
 
-    public async muteMessage(roomId: string,
-                             sessionId: string,
-                             producerId?: string,
-                             consumerId?: string,
-                             audio?: boolean,
-                             video?: boolean,
-                             teacher?: boolean) {
-        Logger.debug(`muteMessage: ${this.id}`)
-        if (consumerId && sessionId === this.id && teacher) {
-            return await this.teacherMute(audio, video, producerId, roomId, sessionId, consumerId);
-        }
-        if (producerId && sessionId === this.id) {
-            return await this.selfMute(producerId, audio, video, roomId, sessionId, consumerId);
-        }
-        return true
-    }
-
-    private async selfMute(producerId: string | undefined, audio: undefined | boolean, video: undefined | boolean, roomId: string, sessionId: string, consumerId: string | undefined) {
+    public async selfMute(producerId: string | undefined, audio: undefined | boolean, video: undefined | boolean, roomId: string, sessionId: string, consumerId: string | undefined) {
         Logger.debug("Self mute")
         let producer
         this.selfAudioMuted = audio !== undefined ? !audio : this.selfAudioMuted
         this.selfVideoMuted = video !== undefined ? !video : this.selfVideoMuted
-
-        if (audio !== undefined && this.teacherAudioMuted) {
-            Logger.debug("Self is teacherAudioMuted, returning")
+        if (sessionId !== this.id) {
+            Logger.error("client id and target session id did not match")
+            return false
+        }
+        if (audio !== undefined && this.audioGloballyMuted) {
+            Logger.debug("Self: audioGloballyMuted, returning")
             return true
         }
-        if (video !== undefined && this.teacherVideoMuted) {
-            Logger.debug("Self is teacherVideoMuted, returning")
+        if (video !== undefined && this.videoGloballyDisabled) {
+            Logger.debug("Self: videoGloballyDisabled, returning")
             return true
         }
         // A self mute message
@@ -369,14 +355,14 @@ export class Client {
         Logger.debug(`muteMessage: producer ${producerId}`)
         switch (producer.kind) {
             case "audio":
-                if (audio && !this.teacherAudioMuted) {
+                if (audio && !this.audioGloballyMuted) {
                     await producer.resume()
                 } else if (audio !== undefined && this.selfAudioMuted) {
                     await producer.pause()
                 }
                 break;
             case "video":
-                if (video && !this.teacherVideoMuted) {
+                if (video && !this.videoGloballyDisabled) {
                     await producer.resume()
                 } else if (video !== undefined && this.selfVideoMuted) {
                     await producer.pause()
@@ -394,21 +380,21 @@ export class Client {
                     sessionId,
                     producerId,
                     consumerId,
-                    audio: audio && !this.teacherAudioMuted && !this.selfAudioMuted,
-                    video: video && !this.teacherVideoMuted && !this.selfVideoMuted,
-                    audioGloballyMuted: this.teacherAudioMuted,
-                    videoGloballyDisabled: this.teacherVideoMuted,
+                    audio: audio && !this.audioGloballyMuted && !this.selfAudioMuted,
+                    video: video && !this.videoGloballyDisabled && !this.selfVideoMuted,
+                    audioGloballyMuted: this.audioGloballyMuted,
+                    videoGloballyDisabled: this.videoGloballyDisabled,
                 }
             }
         })
         return true
     }
 
-    private async teacherMute(audio: undefined | boolean, video: undefined | boolean, producerId: string | undefined, roomId: string, sessionId: string, consumerId: string) {
+    public async teacherMute(audio: undefined | boolean, video: undefined | boolean, producerId: string | undefined, roomId: string, sessionId: string, consumerId: string) {
         let producer
         Logger.debug("Teacher muting producer")
-        this.teacherAudioMuted = audio !== undefined ? !audio : this.teacherAudioMuted
-        this.teacherVideoMuted = video !== undefined ? !video : this.teacherVideoMuted
+        this.audioGloballyMuted = audio !== undefined ? !audio : this.audioGloballyMuted
+        this.videoGloballyDisabled = video !== undefined ? !video : this.videoGloballyDisabled
         this.selfVideoMuted = video !== undefined ? true : this.selfVideoMuted
         // A teacher has muted a producer
         if (audio !== undefined) {
@@ -454,8 +440,8 @@ export class Client {
                     consumerId,
                     audio: audio && !this.selfAudioMuted,
                     video: video && !this.selfVideoMuted,
-                    audioGloballyMuted: this.teacherAudioMuted,
-                    videoGloballyDisabled: this.teacherVideoMuted,
+                    audioGloballyMuted: this.audioGloballyMuted,
+                    videoGloballyDisabled: this.videoGloballyDisabled,
                 }
             }
         })

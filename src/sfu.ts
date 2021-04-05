@@ -448,21 +448,14 @@ export class SFU {
                 } else if (video !== undefined) {
                     producerId = Array.from(targetClient.producers.values()).find((p) => p.kind === "video")?.id
                 }
-                if (producerId) {
-                    clientMessages.push(client.muteMessage(roomId, targetSessionId, producerId, consumerId, audio, video, teacher))
+                if (producerId && consumerId && targetSessionId === client.id && teacher) {
+                    clientMessages.push(client.teacherMute(audio, video, producerId, roomId, targetSessionId, consumerId));
                 }
             }
         } else if (self) {
-            if ((!targetClient.teacherAudioMuted && audio !== undefined) ||
-                (!targetClient.teacherVideoMuted && video !== undefined)) {
-                for (const client of this.clients.values()) {
-                    clientMessages.push(client.muteMessage(roomId, targetSessionId, producerId, consumerId, audio, video, teacher))
-                }
-            } else {
-                return sourceClient.muteMessage(roomId, targetSessionId, producerId, consumerId, audio, video, teacher)
+            if (!targetClient.audioGloballyMuted || !targetClient.videoGloballyDisabled && targetSessionId === sourceClient.id) {
+                return await sourceClient.selfMute(producerId, audio, video, roomId, targetSessionId, consumerId)
             }
-        } else {
-            return sourceClient.muteMessage(roomId, targetSessionId, producerId, consumerId, audio, video)
         }
 
         return (await Promise.all(clientMessages)).reduce((p, c) => c && p)
