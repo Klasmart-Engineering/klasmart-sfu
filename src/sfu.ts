@@ -18,7 +18,7 @@ import {mediaCodecs} from "./config"
 import {WorkerType, Worker} from "./worker"
 import {Client, Stream} from "./client";
 import {JWT} from "./auth";
-import {MuteNotification} from "./schema";
+import {GlobalMuteNotification, MuteNotification} from "./interfaces";
 
 export class SFU {
     private readonly id: string;
@@ -429,38 +429,85 @@ export class SFU {
         Logger.debug(`muteMessage from ${sourceSessionId}`)
         const sourceClient = await this.getOrCreateClient(sourceSessionId)
 
-
-        const { roomId, sessionId: targetSessionId, producerId, consumerId, audio, video } = muteNotification
+        const { roomId, sessionId: targetSessionId, audio, video } = muteNotification
+        const { audioGloballyMuted, videoGloballyDisabled } = await this.getGlobalMuteStates(roomId);
         const targetClient = this.clients.get(targetSessionId)
 
         if (!targetClient) {
             throw new Error("Cannot find target client for mute message")
         }
 
-        const self = targetSessionId === sourceSessionId
-        const teacher = sourceClient.jwt.teacher
-        const clientMessages: Promise<boolean>[] = []
-        if (teacher && !self) {
-            // Find the producer id the teacher is trying to mute
-            let targetProducerId: string | undefined = "";
-            if (audio !== undefined) {
-                targetProducerId = Array.from(targetClient.producers.values()).find((p) => p.kind === "audio")?.id
-            } else if (video !== undefined) {
-                targetProducerId = Array.from(targetClient.producers.values()).find((p) => p.kind === "video")?.id
-            }
-            for (const client of this.clients.values()) {
-                if (targetProducerId && consumerId && targetSessionId === client.id && teacher) {
-                    clientMessages.push(client.teacherMute(audio, video, targetProducerId, roomId, targetSessionId, consumerId));
-                }
-            }
-        } else if (self) {
-            if (!targetClient.audioGloballyMuted || !targetClient.videoGloballyDisabled && targetSessionId === sourceClient.id) {
-                return await sourceClient.selfMute(producerId, audio, video, roomId, targetSessionId, consumerId)
-            }
+        if (!sourceClient.jwt.teacher &&
+            (audio !== undefined && sourceClient.teacherAudioMuted) ||
+            (audio !== undefined && audioGloballyMuted) ||
+            (video !== undefined && sourceClient.teacherVideoDisabled) ||
+            (video !== undefined && videoGloballyDisabled)) {
+            return false;
         }
 
-        return (await Promise.all(clientMessages)).reduce((p, c) => c && p)
+        if (targetClient.id === sourceClient.id) {
+            return await sourceClient.selfMute(roomId, audio, video)
+        } else if (sourceClient.jwt.teacher) {
+            return await targetClient.teacherMute(roomId, audio, video);
+        }
+        return false
     }
+
+    public async globalMuteMessage(context: Context, globalMuteNotification: GlobalMuteNotification) {
+        const { roomId, audioGloballyMuted, videoGloballyDisabled } = globalMuteNotification;
+        const {sessionId } = SFU.verifyContext(context)
+        Logger.debug(`globalMuteMessage requested by ${sessionId}`)
+        const sourceClient = await this.getOrCreateClient(sessionId)
+        // TODO check if the source client is the host teacher.
+        if (!sourceClient.jwt.teacher) {
+            throw new Error("globalMuteMessage: only teachers can enforce this");
+        }
+
+        const students = Array.from(this.clients.values()).filter(client => !client.jwt.teacher);
+        const clientMessages: Promise<boolean>[] = []
+        if (audioGloballyMuted === undefined && videoGloballyDisabled === undefined) {
+            // TODO turn this logic into a query and return false under this condition.
+            const {audioGloballyMuted, videoGloballyDisabled} = await this.getGlobalMuteStates(roomId);
+            sourceClient.publishGlobalMuteState(roomId, audioGloballyMuted, videoGloballyDisabled);
+            return true;
+        }
+
+        if (audioGloballyMuted !== undefined) {
+            const roomAudioMuted = RedisKeys.roomAudioMuted(roomId);
+            await this.redis.set(roomAudioMuted.key, audioGloballyMuted.toString());
+            for (const student of students) {
+                clientMessages.push(
+                    student.teacherMute(roomId, !audioGloballyMuted, undefined)
+                )
+                student.publishGlobalMuteState(roomId, audioGloballyMuted, undefined);
+            }
+            sourceClient.publishGlobalMuteState(roomId, audioGloballyMuted, undefined);
+        }
+        if (videoGloballyDisabled !== undefined) {
+            const roomVideoDisabled = RedisKeys.roomVideoDisabled(roomId);
+            await this.redis.set(roomVideoDisabled.key, videoGloballyDisabled.toString());
+            for (const student of students) {
+                clientMessages.push(
+                    student.teacherMute(roomId, undefined, !videoGloballyDisabled)
+                )
+                student.publishGlobalMuteState(roomId, undefined, videoGloballyDisabled);
+            }
+            sourceClient.publishGlobalMuteState(roomId, undefined, videoGloballyDisabled);
+        }
+        return (await Promise.all(clientMessages)).every(Boolean);
+    }
+
+    private async getGlobalMuteStates(roomId: string) {
+        const roomAudioMuted = RedisKeys.roomAudioMuted(roomId);
+        const roomVideoDisabled = RedisKeys.roomVideoDisabled(roomId);
+        const audioGloballyMuted = await this.redis.get(roomAudioMuted.key) === 'true';
+        const videoGloballyDisabled = await this.redis.get(roomVideoDisabled.key) === 'true';
+        return {
+            audioGloballyMuted,
+            videoGloballyDisabled,
+        }
+    }
+
 
     public async disconnect(sessionId: string) {
         const client = await this.getOrCreateClient(sessionId)

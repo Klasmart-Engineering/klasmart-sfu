@@ -12,7 +12,8 @@ export const schema = gql`
         consumer(id: String!, pause: Boolean): Boolean,
         stream(id: String!, producerIds: [String]!): Boolean,
         close(id: String!): Boolean,
-        mute(roomId: String!, sessionId: String!, producerId: String, consumerId: String, audio: Boolean, video: Boolean): Boolean,
+        mute(roomId: String!, sessionId: String!, audio: Boolean, video: Boolean): Boolean,
+        globalMute(roomId: String!, audioGloballyMuted: Boolean, videoGloballyDisabled: Boolean): Boolean,
         endClass(roomId: String): Boolean
     }
 
@@ -28,6 +29,7 @@ export const schema = gql`
         stream: Stream,
         close: String,
         mute: MuteNotification,
+        globalMute: GlobalMuteNotification,
     }
 
     type Stream {
@@ -39,20 +41,13 @@ export const schema = gql`
     type MuteNotification {
         roomId: String!,
         sessionId: String!,
-        producerId: String,
-        consumerId: String,
         audio: Boolean,
         video: Boolean,
+    }
+
+    type GlobalMuteNotification {
+        roomId: String!,
         audioGloballyMuted: Boolean,
         videoGloballyDisabled: Boolean,
     }
 `;
-
-export interface MuteNotification {
-    roomId: string
-    sessionId: string
-    producerId?: string
-    consumerId?: string
-    audio?: boolean
-    video?: boolean
-}

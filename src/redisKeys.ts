@@ -8,6 +8,14 @@ export class RedisKeys {
         return { key: `${RedisKeys.room(roomId)}:notify`, ttl: 3600 };
     }
 
+    public static roomAudioMuted(roomId: string) {
+        return { key: `${RedisKeys.room(roomId)}:audio:muted`, ttl: 3600 };
+    }
+
+    public static roomVideoDisabled(roomId: string) {
+        return { key: `${RedisKeys.room(roomId)}:video:disabled`, ttl: 3600 };
+    }
+
     public static roomSfu(roomId: string) {
         return { key: `${RedisKeys.room(roomId)}:sfu`, ttl: 10 };
     }

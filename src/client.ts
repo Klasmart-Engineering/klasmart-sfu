@@ -19,7 +19,7 @@ export class Client {
     public emitter = new EventEmitter()
     private destructors = new Map<string, () => unknown>()
     private streams = new Map<string, Stream>()
-    public producers = new Map<string, MediaSoup.Producer>()
+    private producers = new Map<string, MediaSoup.Producer>()
     private consumers = new Map<string, MediaSoup.Consumer>()
     private channel = new PubSub()
     private producerRouter: MediaSoup.Router
@@ -31,8 +31,8 @@ export class Client {
     public jwt: JWT
     public selfAudioMuted: boolean = false
     public selfVideoMuted: boolean = false
-    public audioGloballyMuted: boolean = false
-    public videoGloballyDisabled: boolean = false
+    public teacherAudioMuted: boolean = false
+    public teacherVideoDisabled: boolean = false
     private consumerMute: Map<string, boolean>
 
     private constructor(
@@ -128,7 +128,8 @@ export class Client {
             "consumer",
             "stream",
             "close",
-            "mute"
+            "mute",
+            "globalMute"
         ])
     }
 
@@ -194,8 +195,6 @@ export class Client {
                         consumerId: consumer.id,
                         audio: consumer.kind === "audio" ? false : undefined,
                         video: consumer.kind === "video" ? false : undefined,
-                        audioGloballyMuted: this.audioGloballyMuted,
-                        videoGloballyDisabled: this.videoGloballyDisabled,
                     }
                 }
             })
@@ -214,8 +213,6 @@ export class Client {
                         consumerId: consumer.id,
                         audio: consumer.kind === "audio" ? true : undefined,
                         video: consumer.kind === "video" ? true : undefined,
-                        audioGloballyMuted: this.audioGloballyMuted,
-                        videoGloballyDisabled: this.videoGloballyDisabled,
                     }
                 }
             })
@@ -326,46 +323,25 @@ export class Client {
         return true
     }
 
-    public async selfMute(producerId: string | undefined, audio: undefined | boolean, video: undefined | boolean, roomId: string, sessionId: string, consumerId: string | undefined) {
+    public async selfMute(roomId: string, audio?:boolean, video?:boolean): Promise<boolean> {
         Logger.debug("Self mute")
-        let producer
-        this.selfAudioMuted = audio !== undefined ? !audio : this.selfAudioMuted
-        this.selfVideoMuted = video !== undefined ? !video : this.selfVideoMuted
-        if (sessionId !== this.id) {
-            Logger.error("client id and target session id did not match")
-            return false
-        }
-        if (audio !== undefined && this.audioGloballyMuted) {
-            Logger.debug("Self: audioGloballyMuted, returning")
-            return true
-        }
-        if (video !== undefined && this.videoGloballyDisabled) {
-            Logger.debug("Self: videoGloballyDisabled, returning")
-            return true
-        }
-        // A self mute message
-        if (producerId) {
-            producer = this.producers.get(producerId)
-        }
-
-        if (!producer) {
-            Logger.error(`Failed to find producer with id: ${producerId}`)
-            return false
-        }
-        Logger.debug(`muteMessage: producer ${producerId}`)
+        const producer = this.getProducer(audio, video);
+        Logger.debug(`muteMessage: producer ${producer.id}`)
         switch (producer.kind) {
             case "audio":
-                if (audio && !this.audioGloballyMuted) {
-                    await producer.resume()
-                } else if (audio !== undefined && this.selfAudioMuted) {
+                this.selfAudioMuted = audio !== undefined ? !audio : this.selfAudioMuted
+                if (this.selfAudioMuted) {
                     await producer.pause()
+                } else {
+                    await producer.resume()
                 }
                 break;
             case "video":
-                if (video && !this.videoGloballyDisabled) {
-                    await producer.resume()
-                } else if (video !== undefined && this.selfVideoMuted) {
+                this.selfVideoMuted = audio !== undefined ? !audio : this.selfVideoMuted
+                if (this.selfVideoMuted) {
                     await producer.pause()
+                } else{
+                    await producer.resume()
                 }
                 break;
             default:
@@ -377,53 +353,36 @@ export class Client {
             media: {
                 mute: {
                     roomId,
-                    sessionId,
-                    producerId,
-                    consumerId,
-                    audio: audio && !this.audioGloballyMuted && !this.selfAudioMuted,
-                    video: video && !this.videoGloballyDisabled && !this.selfVideoMuted,
-                    audioGloballyMuted: this.audioGloballyMuted,
-                    videoGloballyDisabled: this.videoGloballyDisabled,
+                    sessionId: this.id,
+                    audio,
+                    video,
                 }
             }
         })
         return true
     }
 
-    public async teacherMute(audio: undefined | boolean, video: undefined | boolean, producerId: string | undefined, roomId: string, sessionId: string, consumerId: string) {
-        let producer
+    public async teacherMute(roomId: string, audio?: boolean, video?: boolean): Promise<boolean> {
         Logger.debug("Teacher muting producer")
-        this.audioGloballyMuted = audio !== undefined ? !audio : this.audioGloballyMuted
-        this.videoGloballyDisabled = video !== undefined ? !video : this.videoGloballyDisabled
-        this.selfVideoMuted = video !== undefined ? true : this.selfVideoMuted
         // A teacher has muted a producer
-        if (audio !== undefined) {
-            producer = Array.from(this.producers.values()).find((p) => p.kind === "audio")
-        } else if (video !== undefined) {
-            producer = Array.from(this.producers.values()).find((p) => p.kind === "video")
-        }
+        const producer = this.getProducer(audio, video);
 
-        if (!producer && producerId) {
-            producer = this.producers.get(producerId)
-        }
-        if (!producer) {
-            Logger.error(`Failed to find producer with id: ${producerId}`)
-            return false
-        }
         Logger.debug(`muteMessage: producer ${producer.id}`)
         switch (producer.kind) {
             case "audio":
-                if (audio && !this.selfAudioMuted) {
-                    await producer.resume()
-                } else if (audio !== undefined && this.selfAudioMuted) {
+                this.teacherAudioMuted = audio !== undefined ? !audio : this.teacherAudioMuted
+                if (this.teacherAudioMuted) {
                     await producer.pause()
+                } else {
+                    await producer.resume()
                 }
                 break;
             case "video":
-                if (video && !this.selfVideoMuted) {
-                    await producer.resume()
-                } else if (video !== undefined && this.selfVideoMuted) {
+                this.teacherVideoDisabled = video !== undefined ? !video : this.teacherVideoDisabled
+                if (this.teacherVideoDisabled) {
                     await producer.pause()
+                } else {
+                    await producer.resume()
                 }
                 break;
             default:
@@ -435,13 +394,35 @@ export class Client {
             media: {
                 mute: {
                     roomId,
-                    sessionId,
-                    producerId,
-                    consumerId,
-                    audio: audio && !this.selfAudioMuted,
-                    video: video && !this.selfVideoMuted,
-                    audioGloballyMuted: this.audioGloballyMuted,
-                    videoGloballyDisabled: this.videoGloballyDisabled,
+                    sessionId: this.id,
+                    audio,
+                    video,
+                }
+            }
+        })
+        return true
+    }
+
+    public getProducer(audio?: boolean, video?: boolean): MediaSoup.Producer {
+        let producer: MediaSoup.Producer | undefined;
+        if (audio !== undefined) {
+            producer = Array.from(this.producers.values()).find((p) => p.kind === "audio");
+        } else if (video !== undefined) {
+            producer = Array.from(this.producers.values()).find((p) => p.kind === "video");
+        }
+        if (!producer) {
+            throw new Error("getProducer: no producerId found");
+        }
+        return producer;
+    }
+
+    public async publishGlobalMuteState(roomId: string, audioGloballyMuted?: boolean, videoGloballyDisabled?: boolean): Promise<boolean> {
+        await this.channel.publish("globalMute", {
+            media: {
+                globalMute: {
+                    roomId,
+                    audioGloballyMuted,
+                    videoGloballyDisabled,
                 }
             }
         })

@@ -4,7 +4,7 @@ import { createServer } from "http"
 import express from "express"
 import {ApolloServer} from "apollo-server-express"
 import {SFU} from "./sfu"
-import {MuteNotification, schema} from "./schema"
+import {schema} from "./schema"
 import {checkToken, JWT} from "./auth"
 import {getNetworkInterfaceInfo} from "./networkInterfaces"
 import {NetworkInterfaceInfo} from "os"
@@ -15,6 +15,7 @@ import ECS from "aws-sdk/clients/ecs"
 import checkIp = require("check-ip")
 import {setDockerId, setGraphQLConnections, setClusterId, reportConferenceStats} from "./reporting"
 import { register, collectDefaultMetrics, Gauge } from "prom-client"
+import { GlobalMuteNotification, MuteNotification } from "./interfaces"
 
 collectDefaultMetrics({})
 
@@ -208,6 +209,7 @@ async function main() {
                 stream: (_parent, {id, producerIds}, context: Context) => sfu.streamMessage(context, id, producerIds).catch(e => Logger.error(e)),
                 close: (_parent, {id}, context: Context) => sfu.closeMessage(context, id).catch(e => Logger.error(e)),
                 mute: (_parent, muteNotification: MuteNotification, context: Context) => sfu.muteMessage(context, muteNotification).catch(e => Logger.error(e)),
+                globalMute: (_parent, globalMuteNotification: GlobalMuteNotification, context: Context) => sfu.globalMuteMessage(context, globalMuteNotification).catch(e => Logger.error(e)),
                 endClass: (_parent, {roomId}, context: Context) => sfu.endClassMessage(context, roomId).catch(e => Logger.error(e))
             },
             Subscription: {
