@@ -13,7 +13,7 @@ export const schema = gql`
         stream(id: String!, producerIds: [String]!): Boolean,
         close(id: String!): Boolean,
         mute(roomId: String!, sessionId: String!, audio: Boolean, video: Boolean): Boolean,
-        globalMute(roomId: String!, audioGloballyMuted: Boolean, videoGloballyDisabled: Boolean): Boolean,
+        globalMute(roomId: String!, audioGloballyMuted: Boolean, videoGloballyDisabled: Boolean): GlobalMuteNotification,
         endClass(roomId: String): Boolean
     }
 

@@ -487,7 +487,11 @@ export class SFU {
             student.publishGlobalMuteState(roomId, audioGloballyMuted, videoGloballyDisabled);
         }
         sourceClient.publishGlobalMuteState(roomId, audioGloballyMuted, videoGloballyDisabled);
-        return true;
+        return {
+            roomId,
+            audioGloballyMuted,
+            videoGloballyDisabled,
+        };
     }
 
     private async getGlobalMuteStates(roomId: string) {
