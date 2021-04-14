@@ -438,25 +438,27 @@ export class SFU {
         }
 
         const tryingToOverrideTeacherMute = !sourceClient.jwt.teacher &&
-            (audio !== undefined && sourceClient.teacherAudioMuted) ||
-            (audio !== undefined && audioGloballyMuted) ||
-            (video !== undefined && sourceClient.teacherVideoDisabled) ||
-            (video !== undefined && videoGloballyDisabled)
+            ((audio && targetClient.teacherAudioMuted) || (audio && audioGloballyMuted) ||
+            (video && targetClient.teacherVideoDisabled) || (video && videoGloballyDisabled))
         
-        const tryingToOverrideSelfMute = sourceClient.jwt.teacher && 
-            (audio !== undefined && sourceClient.selfAudioMuted) ||
-            (video !== undefined && sourceClient.selfVideoMuted)
+        const tryingToOverrideSelfMute = (targetClient.id !== sourceClient.id && sourceClient.jwt.teacher) && 
+            ((audio && targetClient.selfAudioMuted) || (video && targetClient.selfVideoMuted))
 
         if (tryingToOverrideSelfMute || tryingToOverrideTeacherMute) {
-            return false;
+            return {
+                roomId,
+                sessionId: sourceSessionId,
+                audio: undefined,
+                video: undefined,
+            }
         }
 
         if (targetClient.id === sourceClient.id) {
-            return await sourceClient.selfMute(roomId, audio, video)
+            await sourceClient.selfMute(roomId, audio, video)
         } else if (sourceClient.jwt.teacher) {
-            return await targetClient.teacherMute(roomId, audio, video);
+            await targetClient.teacherMute(roomId, audio, video);
         }
-        return false
+        return muteNotification; 
     }
 
     public async globalMuteMutation(context: Context, globalMuteNotification: GlobalMuteNotification) {
