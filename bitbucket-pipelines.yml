@@ -11,7 +11,7 @@ pipelines:
         - aws configure set aws_secret_access_key "${AWS_SECRET}"
         - eval $(aws ecr get-login --no-include-email --region eu-west-2 | sed 's;https://;;g')
 
-        - docker build -t kidsloop-sfu deploy/
+        - docker build -t kidsloop-sfu .
         - docker tag kidsloop-sfu:latest 942095822719.dkr.ecr.eu-west-2.amazonaws.com/kidsloop-sfu:latest
         - docker tag kidsloop-sfu:latest 942095822719.dkr.ecr.eu-west-2.amazonaws.com/kidsloop-sfu:latest-$BITBUCKET_BUILD_NUMBER
         - docker push 942095822719.dkr.ecr.eu-west-2.amazonaws.com/kidsloop-sfu:latest
