@@ -324,9 +324,8 @@ export class Client {
     }
 
     public async selfMute(roomId: string, audio?:boolean, video?:boolean): Promise<boolean> {
-        Logger.debug("Self mute")
         const producer = this.getProducer(audio, video);
-        Logger.debug(`muteMessage: producer ${producer.id}`)
+        Logger.debug(`selfMute: muting producer ${producer.id}`)
         switch (producer.kind) {
             case "audio":
                 this.selfAudioMuted = audio !== undefined ? !audio : this.selfAudioMuted
@@ -337,7 +336,7 @@ export class Client {
                 }
                 break;
             case "video":
-                this.selfVideoMuted = audio !== undefined ? !audio : this.selfVideoMuted
+                this.selfVideoMuted = video !== undefined ? !video: this.selfVideoMuted
                 if (this.selfVideoMuted) {
                     await producer.pause()
                 } else{
@@ -363,11 +362,8 @@ export class Client {
     }
 
     public async teacherMute(roomId: string, audio?: boolean, video?: boolean): Promise<boolean> {
-        Logger.debug("Teacher muting producer")
-        // A teacher has muted a producer
         const producer = this.getProducer(audio, video);
-
-        Logger.debug(`muteMessage: producer ${producer.id}`)
+        Logger.debug(`teacherMute: muting producer: ${producer.id}`)
         switch (producer.kind) {
             case "audio":
                 this.teacherAudioMuted = audio !== undefined ? !audio : this.teacherAudioMuted
@@ -416,7 +412,7 @@ export class Client {
         return producer;
     }
 
-    public async publishGlobalMuteState(roomId: string, audioGloballyMuted?: boolean, videoGloballyDisabled?: boolean): Promise<boolean> {
+    public async publishGlobalMuteState(roomId: string, audioGloballyMuted?: boolean, videoGloballyDisabled?: boolean): Promise<void> {
         await this.channel.publish("globalMute", {
             media: {
                 globalMute: {
@@ -426,7 +422,6 @@ export class Client {
                 }
             }
         })
-        return true
     }
 
     private async rtpCapabilities() {

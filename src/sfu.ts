@@ -437,11 +437,17 @@ export class SFU {
             throw new Error("Cannot find target client for mute message")
         }
 
-        if (!sourceClient.jwt.teacher &&
+        const tryingToOverrideTeacherMute = !sourceClient.jwt.teacher &&
             (audio !== undefined && sourceClient.teacherAudioMuted) ||
             (audio !== undefined && audioGloballyMuted) ||
             (video !== undefined && sourceClient.teacherVideoDisabled) ||
-            (video !== undefined && videoGloballyDisabled)) {
+            (video !== undefined && videoGloballyDisabled)
+        
+        const tryingToOverrideSelfMute = sourceClient.jwt.teacher && 
+            (audio !== undefined && sourceClient.selfAudioMuted) ||
+            (video !== undefined && sourceClient.selfVideoMuted)
+
+        if (tryingToOverrideSelfMute || tryingToOverrideTeacherMute) {
             return false;
         }
 
@@ -458,43 +464,30 @@ export class SFU {
         const {sessionId } = SFU.verifyContext(context)
         Logger.debug(`globalMuteMessage requested by ${sessionId}`)
         const sourceClient = await this.getOrCreateClient(sessionId)
-        // TODO check if the source client is the host teacher.
         if (!sourceClient.jwt.teacher) {
             throw new Error("globalMuteMessage: only teachers can enforce this");
         }
 
-        const students = Array.from(this.clients.values()).filter(client => !client.jwt.teacher);
-        const clientMessages: Promise<boolean>[] = []
         if (audioGloballyMuted === undefined && videoGloballyDisabled === undefined) {
-            // TODO turn this logic into a query and return false under this condition.
-            const {audioGloballyMuted, videoGloballyDisabled} = await this.getGlobalMuteStates(roomId);
-            sourceClient.publishGlobalMuteState(roomId, audioGloballyMuted, videoGloballyDisabled);
-            return true;
-        }
-
-        if (audioGloballyMuted !== undefined) {
+            Logger.debug("globalMuteMessage: audioGloballyMuted and videoGloballyDisabled are both undefined");
+            return false;
+        } else if (audioGloballyMuted !== undefined) {
             const roomAudioMuted = RedisKeys.roomAudioMuted(roomId);
             await this.redis.set(roomAudioMuted.key, audioGloballyMuted.toString());
-            for (const student of students) {
-                clientMessages.push(
-                    student.teacherMute(roomId, !audioGloballyMuted, undefined)
-                )
-                student.publishGlobalMuteState(roomId, audioGloballyMuted, undefined);
-            }
-            sourceClient.publishGlobalMuteState(roomId, audioGloballyMuted, undefined);
-        }
-        if (videoGloballyDisabled !== undefined) {
+        } else if (videoGloballyDisabled !== undefined) {
             const roomVideoDisabled = RedisKeys.roomVideoDisabled(roomId);
             await this.redis.set(roomVideoDisabled.key, videoGloballyDisabled.toString());
-            for (const student of students) {
-                clientMessages.push(
-                    student.teacherMute(roomId, undefined, !videoGloballyDisabled)
-                )
-                student.publishGlobalMuteState(roomId, undefined, videoGloballyDisabled);
-            }
-            sourceClient.publishGlobalMuteState(roomId, undefined, videoGloballyDisabled);
+        } 
+
+        const students = Array.from(this.clients.values()).filter(client => !client.jwt.teacher);
+        const audio = audioGloballyMuted === undefined ? undefined : !audioGloballyMuted;
+        const video = videoGloballyDisabled === undefined ? undefined : !videoGloballyDisabled;
+        for (const student of students) {
+            student.teacherMute(roomId, audio, video);
+            student.publishGlobalMuteState(roomId, audioGloballyMuted, videoGloballyDisabled);
         }
-        return (await Promise.all(clientMessages)).every(Boolean);
+        sourceClient.publishGlobalMuteState(roomId, audioGloballyMuted, videoGloballyDisabled);
+        return true;
     }
 
     private async getGlobalMuteStates(roomId: string) {
