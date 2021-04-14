@@ -200,6 +200,7 @@ async function main() {
         resolvers: {
             Query: {
                 ready: () => true,
+                retrieveGlobalMute: (_parent, {roomId}, context: Context) => sfu.globalMuteQuery(context, roomId).catch(e => Logger.error(e)),
             },
             Mutation: {
                 rtpCapabilities: (_parent, {rtpCapabilities}, context: Context) => sfu.rtpCapabilitiesMessage(context, rtpCapabilities).catch(e => Logger.error(e)),
@@ -209,7 +210,7 @@ async function main() {
                 stream: (_parent, {id, producerIds}, context: Context) => sfu.streamMessage(context, id, producerIds).catch(e => Logger.error(e)),
                 close: (_parent, {id}, context: Context) => sfu.closeMessage(context, id).catch(e => Logger.error(e)),
                 mute: (_parent, muteNotification: MuteNotification, context: Context) => sfu.muteMessage(context, muteNotification).catch(e => Logger.error(e)),
-                globalMute: (_parent, globalMuteNotification: GlobalMuteNotification, context: Context) => sfu.globalMuteMessage(context, globalMuteNotification).catch(e => Logger.error(e)),
+                updateGlobalMute: (_parent, globalMuteNotification: GlobalMuteNotification, context: Context) => sfu.globalMuteMutation(context, globalMuteNotification).catch(e => Logger.error(e)),
                 endClass: (_parent, {roomId}, context: Context) => sfu.endClassMessage(context, roomId).catch(e => Logger.error(e))
             },
             Subscription: {

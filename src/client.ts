@@ -325,6 +325,10 @@ export class Client {
 
     public async selfMute(roomId: string, audio?:boolean, video?:boolean): Promise<boolean> {
         const producer = this.getProducer(audio, video);
+        if (!producer) {
+            Logger.debug(`selfMute: no producer found`)
+            return false;
+        }
         Logger.debug(`selfMute: muting producer ${producer.id}`)
         switch (producer.kind) {
             case "audio":
@@ -363,6 +367,10 @@ export class Client {
 
     public async teacherMute(roomId: string, audio?: boolean, video?: boolean): Promise<boolean> {
         const producer = this.getProducer(audio, video);
+        if (!producer) {
+            Logger.debug(`teacherMute: no producer found`)
+            return false;
+        }
         Logger.debug(`teacherMute: muting producer: ${producer.id}`)
         switch (producer.kind) {
             case "audio":
@@ -399,15 +407,12 @@ export class Client {
         return true
     }
 
-    public getProducer(audio?: boolean, video?: boolean): MediaSoup.Producer {
+    public getProducer(audio?: boolean, video?: boolean): MediaSoup.Producer | undefined {
         let producer: MediaSoup.Producer | undefined;
         if (audio !== undefined) {
             producer = Array.from(this.producers.values()).find((p) => p.kind === "audio");
         } else if (video !== undefined) {
             producer = Array.from(this.producers.values()).find((p) => p.kind === "video");
-        }
-        if (!producer) {
-            throw new Error("getProducer: no producerId found");
         }
         return producer;
     }

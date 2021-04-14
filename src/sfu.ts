@@ -459,18 +459,17 @@ export class SFU {
         return false
     }
 
-    public async globalMuteMessage(context: Context, globalMuteNotification: GlobalMuteNotification) {
+    public async globalMuteMutation(context: Context, globalMuteNotification: GlobalMuteNotification) {
         const { roomId, audioGloballyMuted, videoGloballyDisabled } = globalMuteNotification;
         const {sessionId } = SFU.verifyContext(context)
-        Logger.debug(`globalMuteMessage requested by ${sessionId}`)
+        Logger.debug(`globalMuteMutation requested by ${sessionId}`)
         const sourceClient = await this.getOrCreateClient(sessionId)
         if (!sourceClient.jwt.teacher) {
-            throw new Error("globalMuteMessage: only teachers can enforce this");
+            throw new Error("globalMuteMutation: only teachers can enforce this");
         }
 
         if (audioGloballyMuted === undefined && videoGloballyDisabled === undefined) {
-            Logger.debug("globalMuteMessage: audioGloballyMuted and videoGloballyDisabled are both undefined");
-            return false;
+            throw new Error("globalMuteMutation: audioGloballyMuted and videoGloballyDisabled are both undefined");
         } else if (audioGloballyMuted !== undefined) {
             const roomAudioMuted = RedisKeys.roomAudioMuted(roomId);
             await this.redis.set(roomAudioMuted.key, audioGloballyMuted.toString());
@@ -505,6 +504,14 @@ export class SFU {
         }
     }
 
+    public async globalMuteQuery(context: Context, roomId: string) {
+        const { audioGloballyMuted, videoGloballyDisabled } = await this.getGlobalMuteStates(roomId);
+        return {
+            roomId,
+            audioGloballyMuted,
+            videoGloballyDisabled,
+        }
+    }
 
     public async disconnect(sessionId: string) {
         const client = await this.getOrCreateClient(sessionId)
