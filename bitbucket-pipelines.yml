@@ -13,7 +13,7 @@ pipelines:
           - node_modules/**
     - step:
         name: 'Docker build'
-        image: python:3.7.4-alpine3.10
+        image: python:3.9-alpine
         script:
           - pip3 install -U awscli
 
@@ -21,7 +21,8 @@ pipelines:
           - aws configure set aws_secret_access_key "${AWS_SECRET}"
           - eval $(aws ecr get-login --no-include-email --region eu-west-2 | sed 's;https://;;g')
 
-          - docker build -t kidsloop-sfu .
+          - cp deploy/Dockerfile.bitbucket-pipeline .
+          - docker build -t kidsloop-sfu -f Dockerfile.bitbucket-pipeline .
           - docker tag kidsloop-sfu:latest 942095822719.dkr.ecr.eu-west-2.amazonaws.com/kidsloop-sfu:latest
           - docker tag kidsloop-sfu:latest 942095822719.dkr.ecr.eu-west-2.amazonaws.com/kidsloop-sfu:latest-$BITBUCKET_BUILD_NUMBER
           - docker push 942095822719.dkr.ecr.eu-west-2.amazonaws.com/kidsloop-sfu:latest
