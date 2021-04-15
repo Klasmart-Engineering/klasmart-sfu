@@ -375,6 +375,7 @@ export class Client {
         switch (producer.kind) {
             case "audio":
                 this.teacherAudioMuted = audio !== undefined ? !audio : this.teacherAudioMuted
+                this.selfAudioMuted = this.teacherAudioMuted ? true : this.selfAudioMuted
                 if (this.teacherAudioMuted) {
                     await producer.pause()
                 } else {
@@ -383,6 +384,7 @@ export class Client {
                 break;
             case "video":
                 this.teacherVideoDisabled = video !== undefined ? !video : this.teacherVideoDisabled
+                this.selfVideoMuted = this.teacherVideoDisabled ? true : this.selfVideoMuted
                 if (this.teacherVideoDisabled) {
                     await producer.pause()
                 } else {
@@ -399,8 +401,8 @@ export class Client {
                 mute: {
                     roomId,
                     sessionId: this.id,
-                    audio: audio && !this.selfAudioMuted,
-                    video: video && !this.selfVideoMuted,
+                    audio: !this.selfAudioMuted,
+                    video: !this.selfVideoMuted,
                 }
             }
         })
