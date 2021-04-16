@@ -376,7 +376,7 @@ export class Client {
             case "audio":
                 this.teacherAudioMuted = audio !== undefined ? !audio : this.teacherAudioMuted
                 this.selfAudioMuted = this.teacherAudioMuted ? true : this.selfAudioMuted
-                if (this.teacherAudioMuted) {
+                if (this.selfAudioMuted) {
                     await producer.pause()
                 } else {
                     await producer.resume()
@@ -385,7 +385,7 @@ export class Client {
             case "video":
                 this.teacherVideoDisabled = video !== undefined ? !video : this.teacherVideoDisabled
                 this.selfVideoMuted = this.teacherVideoDisabled ? true : this.selfVideoMuted
-                if (this.teacherVideoDisabled) {
+                if (this.selfVideoMuted) {
                     await producer.pause()
                 } else {
                     await producer.resume()

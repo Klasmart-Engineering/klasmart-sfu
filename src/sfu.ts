@@ -442,7 +442,7 @@ export class SFU {
             (video && targetClient.teacherVideoDisabled) || (video && videoGloballyDisabled))
         
         const tryingToOverrideSelfMute = (targetClient.id !== sourceClient.id && sourceClient.jwt.teacher) && 
-            ((audio !== undefined && targetClient.selfAudioMuted) || (video !== undefined && targetClient.selfVideoMuted))
+            ((audio === false && targetClient.selfAudioMuted) || (video === false && targetClient.selfVideoMuted))
 
         if (tryingToOverrideSelfMute || tryingToOverrideTeacherMute) {
             return {
