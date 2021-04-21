@@ -30,7 +30,6 @@ export const schema = gql`
         stream: Stream,
         close: String,
         mute: MuteNotification,
-        globalMute: GlobalMuteNotification,
     }
 
     type Stream {

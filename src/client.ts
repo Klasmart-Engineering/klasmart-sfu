@@ -129,7 +129,6 @@ export class Client {
             "stream",
             "close",
             "mute",
-            "globalMute"
         ])
     }
 
@@ -417,18 +416,6 @@ export class Client {
             producer = Array.from(this.producers.values()).find((p) => p.kind === "video");
         }
         return producer;
-    }
-
-    public async publishGlobalMuteState(roomId: string, audioGloballyMuted?: boolean, videoGloballyDisabled?: boolean): Promise<void> {
-        await this.channel.publish("globalMute", {
-            media: {
-                globalMute: {
-                    roomId,
-                    audioGloballyMuted,
-                    videoGloballyDisabled,
-                }
-            }
-        })
     }
 
     private async rtpCapabilities() {

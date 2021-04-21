@@ -485,9 +485,7 @@ export class SFU {
         const video = videoGloballyDisabled === undefined ? undefined : !videoGloballyDisabled;
         for (const student of students) {
             student.teacherMute(roomId, audio, video);
-            student.publishGlobalMuteState(roomId, audioGloballyMuted, videoGloballyDisabled);
         }
-        sourceClient.publishGlobalMuteState(roomId, audioGloballyMuted, videoGloballyDisabled);
         return {
             roomId,
             audioGloballyMuted,
