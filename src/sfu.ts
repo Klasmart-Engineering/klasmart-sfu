@@ -430,7 +430,6 @@ export class SFU {
         const sourceClient = await this.getOrCreateClient(sourceSessionId)
 
         const { roomId, sessionId: targetSessionId, audio, video } = muteNotification
-        const { audioGloballyMuted, videoGloballyDisabled } = await this.getGlobalMuteStates(roomId);
         const targetClient = this.clients.get(targetSessionId)
 
         if (!targetClient) {
@@ -438,8 +437,7 @@ export class SFU {
         }
 
         const tryingToOverrideTeacherMute = !sourceClient.jwt.teacher &&
-            ((audio && targetClient.teacherAudioMuted) || (audio && audioGloballyMuted) ||
-            (video && targetClient.teacherVideoDisabled) || (video && videoGloballyDisabled))
+            ((audio && targetClient.teacherAudioMuted) || (video && targetClient.teacherVideoDisabled))
         
         const tryingToOverrideSelfMute = (targetClient.id !== sourceClient.id && sourceClient.jwt.teacher) && 
             ((audio === false && targetClient.selfAudioMuted) || (video === false && targetClient.selfVideoMuted))
@@ -454,9 +452,9 @@ export class SFU {
         }
 
         if (targetClient.id === sourceClient.id) {
-            await sourceClient.selfMute(roomId, audio, video)
+            return await sourceClient.selfMute(roomId, audio, video)
         } else if (sourceClient.jwt.teacher) {
-            await targetClient.teacherMute(roomId, audio, video);
+            return await targetClient.teacherMute(roomId, audio, video);
         }
         return muteNotification; 
     }

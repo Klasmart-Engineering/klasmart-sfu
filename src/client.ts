@@ -6,6 +6,7 @@ import {PubSub} from "apollo-server-express"
 import {EventEmitter} from "events"
 import {Logger} from "./entry"
 import {JWT} from "./auth"
+import { MuteNotification } from "./interfaces"
 
 export interface Stream {
     id: string
@@ -322,11 +323,10 @@ export class Client {
         return true
     }
 
-    public async selfMute(roomId: string, audio?:boolean, video?:boolean): Promise<boolean> {
+    public async selfMute(roomId: string, audio?:boolean, video?:boolean): Promise<MuteNotification> {
         const producer = this.getProducer(audio, video);
         if (!producer) {
-            Logger.debug(`selfMute: no producer found`)
-            return false;
+            throw new Error(`selfMute: no producer found`)
         }
         Logger.debug(`selfMute: muting producer ${producer.id}`)
         switch (producer.kind) {
@@ -351,24 +351,25 @@ export class Client {
                 break;
         }
 
+        const notification: MuteNotification =  {
+            roomId,
+            sessionId: this.id,
+            audio,
+            video,
+        }
+
         await this.channel.publish("mute", {
             media: {
-                mute: {
-                    roomId,
-                    sessionId: this.id,
-                    audio,
-                    video,
-                }
+                mute: notification
             }
         })
-        return true
+        return notification;
     }
 
-    public async teacherMute(roomId: string, audio?: boolean, video?: boolean): Promise<boolean> {
+    public async teacherMute(roomId: string, audio?: boolean, video?: boolean): Promise<MuteNotification> {
         const producer = this.getProducer(audio, video);
         if (!producer) {
-            Logger.debug(`teacherMute: no producer found`)
-            return false;
+            throw new Error(`teacherMute: no producer found`)
         }
         Logger.debug(`teacherMute: muting producer: ${producer.id}`)
         switch (producer.kind) {
@@ -405,7 +406,12 @@ export class Client {
                 }
             }
         })
-        return true
+        return {
+                roomId,
+                sessionId: this.id,
+                audio: !this.teacherAudioMuted,
+                video: !this.teacherVideoDisabled,
+            };
     }
 
     public getProducer(audio?: boolean, video?: boolean): MediaSoup.Producer | undefined {
