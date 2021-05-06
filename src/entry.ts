@@ -183,7 +183,7 @@ async function main() {
                 connectionData.roomId = roomId;
                 return {roomId, sessionId, token} as Context;
             },
-            onDisconnect: (websocket, connectionData) => {
+            onDisconnect: async (websocket, connectionData) => {
                 if (!(connectionData as any).counted) {
                     return
                 }
@@ -193,8 +193,9 @@ async function main() {
                     startServerTimeout(sfu)
                 }
                 const {sessionId} = connectionData as any
+                const context: Context = await connectionData.initPromise;
                 Logger.info(`Disconnection(${connectionCount}) from ${sessionId}`)
-                sfu.disconnect(sessionId).catch(e => Logger.error(e))
+                sfu.disconnect(context, sessionId).catch(e => Logger.error(e))
             }
         },
         resolvers: {

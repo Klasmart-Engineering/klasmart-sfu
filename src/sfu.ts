@@ -511,7 +511,23 @@ export class SFU {
         }
     }
 
-    public async disconnect(sessionId: string) {
+    public async disconnect(context: Context, sessionId: string) {
+        const roomId = context.token?.roomid;
+        const remainingTeachers = [...this.clients.values()].filter(client => client.jwt.teacher && client.id !== sessionId);
+        if (!remainingTeachers.length && roomId) {
+            await this.globalMuteMutation(context, {
+                roomId,
+                sessionId,
+                audioGloballyMuted: false,
+                videoGloballyDisabled: undefined, 
+            }); 
+            await this.globalMuteMutation(context, {
+                roomId,
+                sessionId,
+                audioGloballyMuted: undefined,
+                videoGloballyDisabled: false, 
+            }); 
+        }
         const client = await this.getOrCreateClient(sessionId)
         this.clients.delete(client.id)
         const producerWorker = this.producerClientWorkerMap.get(client.id)
