@@ -61,9 +61,9 @@ export const Logger = createLogger(
 )
 
 export interface Context {
-    roomId?: string,
-    sessionId?: string,
-    token?: JWT
+    roomId: string,
+    sessionId: string,
+    token: JWT
 }
 
 const ECSClient = new ECS()
@@ -192,10 +192,10 @@ async function main() {
                 if (connectionCount <= 0) {
                     startServerTimeout(sfu)
                 }
-                const {sessionId} = connectionData as any
                 const context: Context = await connectionData.initPromise;
-                Logger.info(`Disconnection(${connectionCount}) from ${sessionId}`)
-                sfu.disconnect(context, sessionId).catch(e => Logger.error(e))
+                Logger.info(`Disconnection(${connectionCount}) from ${context.sessionId}`)
+                await sfu.resetGlobalMute(context)
+                sfu.disconnect(context).catch(e => Logger.error(e))
             }
         },
         resolvers: {

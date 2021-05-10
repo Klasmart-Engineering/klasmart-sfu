@@ -511,10 +511,11 @@ export class SFU {
         }
     }
 
-    public async disconnect(context: Context, sessionId: string) {
-        const roomId = context.token?.roomid;
-        const remainingTeachers = [...this.clients.values()].filter(client => client.jwt.teacher && client.id !== sessionId);
-        if (!remainingTeachers.length && roomId) {
+    public async resetGlobalMute(context: Context) {
+        const sessionId = context.sessionId;
+        const roomId = context.token.roomid;
+        const remainingTeachers = Array.from(this.clients.values()).filter(client => client.jwt.teacher && client.id !== sessionId);
+        if (!remainingTeachers.length && roomId && context.token.teacher) {
             await this.globalMuteMutation(context, {
                 roomId,
                 sessionId,
@@ -528,15 +529,18 @@ export class SFU {
                 videoGloballyDisabled: false, 
             }); 
         }
-        const client = await this.getOrCreateClient(sessionId)
+    }
+
+    public async disconnect(context: Context) {
+        const client = await this.getOrCreateClient(context.sessionId)
         this.clients.delete(client.id)
         const producerWorker = this.producerClientWorkerMap.get(client.id)
         const consumerWorker = this.consumerClientWorkerMap.get(client.id)
         if (producerWorker) {
-            producerWorker.disconnect(sessionId)
+            producerWorker.disconnect(context.sessionId)
         }
         if (consumerWorker) {
-            consumerWorker.disconnect(sessionId)
+            consumerWorker.disconnect(context.sessionId)
         }
     }
 }
