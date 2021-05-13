@@ -4,6 +4,7 @@ export const schema = gql`
     type Query {
         ready: Boolean,
         retrieveGlobalMute(roomId: String!): GlobalMuteNotification,
+        retrieveMuteStatuses(sessionId: String!): MuteNotification,
     }
 
     type Mutation {
