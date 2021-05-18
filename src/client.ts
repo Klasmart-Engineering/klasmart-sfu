@@ -326,7 +326,12 @@ export class Client {
     public async selfMute(roomId: string, audio?:boolean, video?:boolean): Promise<MuteNotification> {
         const producer = this.getProducer(audio, video);
         if (!producer) {
-            throw new Error(`selfMute: no producer found`)
+            return {
+                roomId,
+                sessionId: this.id,
+                audio: undefined,
+                video: undefined,
+            };
         }
         Logger.debug(`selfMute: muting producer ${producer.id}`)
         switch (producer.kind) {
@@ -369,7 +374,12 @@ export class Client {
     public async teacherMute(roomId: string, audio?: boolean, video?: boolean): Promise<MuteNotification> {
         const producer = this.getProducer(audio, video);
         if (!producer) {
-            throw new Error(`teacherMute: no producer found`)
+            return {
+                roomId,
+                sessionId: this.id,
+                audio: undefined,
+                video: undefined,
+            };
         }
         Logger.debug(`teacherMute: muting producer: ${producer.id}`)
         switch (producer.kind) {
