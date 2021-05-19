@@ -23,6 +23,7 @@ pipelines:
           - aws ecr get-login-password --region eu-west-2 | docker login --username AWS --password-stdin $DOCKER_REPO_URL
           
           - cp deploy/Dockerfile.bitbucket-pipeline .
+          - cp deploy/nodesource.gpg.key .
           - docker build -t kidsloop-sfu -f Dockerfile.bitbucket-pipeline .
     
           - docker tag kidsloop-sfu:latest $REPO:$BRANCH_TAG

@@ -1,8 +1,25 @@
-FROM node:lts-alpine
+FROM ubuntu:20.04
+
+# Install Node.js deb/ubuntu dist
+RUN apt-get update && apt-get upgrade
+RUN apt-get install --yes curl gnupg2
+
+# Add nodesource GPG Key to list of trusted sources
+COPY ./nodesource.gpg.key .
+RUN apt-key add nodesource.gpg.key
+
+RUN echo "deb https://deb.nodesource.com/node_14.x focal main" | tee /etc/apt/sources.list.d/nodesource.list
+RUN echo "deb https://deb.nodesource.com/node_14.x focal main" | tee /etc/apt/sources.list.d/nodesource.list
+
+RUN apt-get update && apt-get upgrade
+RUN apt-get install --yes nodejs build-essential
+
+# Install SFU and dependencies
 WORKDIR /usr/src/app
 COPY ./package*.json ./
 COPY ./src ./src
 COPY ./tsconfig.json .
 COPY ./node_modules ./node_modules
+
 EXPOSE 8080
 CMD [ "npm", "start" ]
