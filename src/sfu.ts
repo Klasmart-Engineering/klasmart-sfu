@@ -511,17 +511,21 @@ export class SFU {
         }
     }
 
-    public async muteStatusQuery(context: Context, sessionId: string) {
+    public async muteStatusQuery(context: Context) {
         const roomId = context.token.roomid;
-        const client = await this.getOrCreateClient(sessionId)
-        const audio = !client.selfAudioMuted && !client.teacherAudioMuted;
-        const video = !client.selfVideoMuted && !client.teacherVideoDisabled;
-        return {
-            roomId,
-            sessionId,
-            audio,
-            video,
+        const muteStatuses = []
+        for (const [sessionId, client] of this.clients) {
+            const audio = !client.selfAudioMuted && !client.teacherAudioMuted;
+            const video = !client.selfVideoMuted && !client.teacherVideoDisabled;
+            const muteStatus = {
+                roomId,
+                sessionId,
+                audio,
+                video,
+            }
+            muteStatuses.push(muteStatus)
         }
+        return muteStatuses
     }
 
     public async resetGlobalMute(context: Context) {
