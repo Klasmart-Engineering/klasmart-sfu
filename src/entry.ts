@@ -202,7 +202,7 @@ async function main() {
             Query: {
                 ready: () => true,
                 retrieveGlobalMute: (_parent, {roomId}, context: Context) => sfu.globalMuteQuery(context, roomId).catch(e => Logger.error(e)),
-                retrieveMuteStatuses: (_parent, {}, context: Context) => sfu.muteStatusQuery(context).catch(e => Logger.error(e)),
+                retrieveMuteStatuses: (_parent, args , context: Context) => sfu.muteStatusQuery(context).catch(e => Logger.error(e)),
             },
             Mutation: {
                 rtpCapabilities: (_parent, {rtpCapabilities}, context: Context) => sfu.rtpCapabilitiesMessage(context, rtpCapabilities).catch(e => Logger.error(e)),
