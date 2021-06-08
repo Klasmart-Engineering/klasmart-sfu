@@ -1,7 +1,7 @@
 FROM ubuntu:20.04
 
 # Install Node.js deb/ubuntu dist
-RUN apt-get update && apt-get upgrade
+RUN apt-get update && apt-get --yes upgrade
 RUN apt-get install --yes curl gnupg2
 
 # Add nodesource GPG Key to list of trusted sources
@@ -11,7 +11,7 @@ RUN apt-key add nodesource.gpg.key
 RUN echo "deb https://deb.nodesource.com/node_14.x focal main" | tee /etc/apt/sources.list.d/nodesource.list
 RUN echo "deb https://deb.nodesource.com/node_14.x focal main" | tee /etc/apt/sources.list.d/nodesource.list
 
-RUN apt-get update && apt-get upgrade
+RUN apt-get update && apt-get --yes upgrade
 RUN apt-get install --yes nodejs build-essential
 
 # Install SFU and dependencies
