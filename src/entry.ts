@@ -172,8 +172,12 @@ async function main() {
         typeDefs: schema,
         subscriptions: {
             keepAlive: 1000,
-            onConnect: async ({roomId, sessionId, authToken}: any, _webSocket, connectionData: any) => {
+            onConnect: async ({sessionId, authToken}: any, _webSocket, connectionData: any) => {
                 const token = await checkToken(authToken);
+                const roomId = String(token.roomid)
+                if (!sfu.roomId || sfu.roomId !== roomId) {
+                    throw new Error(`Room(${token.roomid}) unavailable`)
+                }
                 connectionCount++
                 setGraphQLConnections(connectionCount)
                 stopServerTimeout()
@@ -226,6 +230,9 @@ async function main() {
                 return connection.context;
             }
             const token = await checkToken(req.headers.authorization)
+            if (!sfu.roomId || token.roomid !== sfu.roomId) {
+                throw new Error(`Room(${token.roomid}) unavailable`)
+            }
             return {}
         }
     });
