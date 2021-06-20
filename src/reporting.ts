@@ -51,7 +51,6 @@ async function reporting(invokeTime = Date.now()) {
                     Value: producersCreated,
                     Unit: "Count",
                     Dimensions: [
-                        { Name: 'DockerId', Value: _dockerId },
                         { Name: 'ClusterId', Value: _cluster },
                     ]
                 },
@@ -60,7 +59,6 @@ async function reporting(invokeTime = Date.now()) {
                     Value: consumersCreated,
                     Unit: "Count",
                     Dimensions: [
-                        { Name: 'DockerId', Value: _dockerId },
                         { Name: 'ClusterId', Value: _cluster },
                     ]
                 },
@@ -69,7 +67,6 @@ async function reporting(invokeTime = Date.now()) {
                     Value: _graphQlConnections,
                     Unit: "Count",
                     Dimensions: [
-                        { Name: 'DockerId', Value: _dockerId },
                         { Name: 'ClusterId', Value: _cluster },
                     ]
                 },
