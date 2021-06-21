@@ -19,6 +19,7 @@ import {WorkerType, Worker} from "./worker"
 import {Client, Stream} from "./client";
 import {JWT} from "./auth";
 import {GlobalMuteNotification, MuteNotification} from "./interfaces";
+import { AudioLevelObserverVolume } from "mediasoup/lib/AudioLevelObserver"
 
 export class SFU {
     private readonly id: string;
@@ -50,6 +51,8 @@ export class SFU {
         this.redis = redis
         for (const worker of producerWorkers) {
             this.producerWorkers.set(worker.id, worker)
+            worker.audioLevelObserver.on("volumes", (v: AudioLevelObserverVolume[]) => this.volumes(v))
+            worker.audioLevelObserver.on("silence", () => this.volumes())
         }
 
         for (const worker of consumerWorkers) {
@@ -58,6 +61,8 @@ export class SFU {
 
         for (const worker of mixedWorkers) {
             this.mixedWorkers.set(worker.id, worker)
+            worker.audioLevelObserver.on("volumes", (v: AudioLevelObserverVolume[]) => this.volumes(v))
+            worker.audioLevelObserver.on("silence", () => this.volumes())
         }
 
         this.reportSFUState().catch(e => Logger.error(e))
@@ -86,7 +91,11 @@ export class SFU {
             })
 
             const router = await worker.createRouter({mediaCodecs})
-            const newWorker = new Worker(worker, workerType, router)
+            const audioLevelObserver = await router.createAudioLevelObserver({
+                interval: 200,
+            })
+
+            const newWorker = new Worker(worker, workerType, router, audioLevelObserver)
             switch (workerType) {
                 case WorkerType.PRODUCER:
                     producerWorkers.push(newWorker)
@@ -252,77 +261,113 @@ export class SFU {
         }
     }
 
+    private roomToClients = new Map<string, Client[]>()
     private async getOrCreateClient(id: string, token?: JWT): Promise<Client> {
+        if (!token) {
+            Logger.error("Token must be supplied to create a client")
+            throw new Error("Token must be supplied to create a client")
+        }
+
+        const roomid = token.roomid
+        if(!roomid) {
+            Logger.error("Room ID not provided")
+            throw new Error("Room ID not provided")
+        }
+
         let client = this.clients.get(id)
-        if (!client) {
-            if (!token) {
-                Logger.error("Token must be supplied to create a client")
-                throw new Error("Token must be supplied to create a client")
-            }
+        if(client) { return client }
 
-            // Select a worker to assign the client to
-            let minProducers = Infinity
-            let minConsumers = Infinity
-            let lowestLoadProducer: Worker | undefined
-            let lowestLoadConsumer: Worker | undefined
-            for (const producerWorker of this.producerWorkers.values()) {
-                if (producerWorker.numProducers() < minProducers) {
-                    lowestLoadProducer = producerWorker
-                    minProducers = lowestLoadProducer.numProducers()
+
+        // Select a worker to assign the client to
+        let minProducers = Infinity
+        let minConsumers = Infinity
+        let lowestLoadProducer: Worker | undefined
+        let lowestLoadConsumer: Worker | undefined
+        for (const producerWorker of this.producerWorkers.values()) {
+            if (producerWorker.numProducers() < minProducers) {
+                lowestLoadProducer = producerWorker
+                minProducers = lowestLoadProducer.numProducers()
+            }
+        }
+
+        for (const consumerWorker of this.consumerWorkers.values()) {
+            if (consumerWorker.numConsumers() < minConsumers) {
+                lowestLoadConsumer = consumerWorker
+                minConsumers = lowestLoadConsumer.numConsumers()
+            }
+        }
+
+        for (const mixedWorker of this.mixedWorkers.values()) {
+            if (mixedWorker.numProducers() < minProducers) {
+                lowestLoadProducer = mixedWorker
+                minProducers = lowestLoadProducer.numProducers()
+            }
+            if (mixedWorker.numConsumers() < minConsumers) {
+                lowestLoadConsumer = mixedWorker
+                minConsumers = lowestLoadConsumer.numConsumers()
+            }
+        }
+
+        if (!lowestLoadProducer) {
+            throw new Error("No available worker for producer!")
+        }
+        if (!lowestLoadConsumer) {
+            throw new Error("No available worker for consumer!")
+        }
+
+        client = await Client.create(
+            id,
+            lowestLoadProducer.getRouter(),
+            lowestLoadConsumer.getRouter(),
+            lowestLoadProducer.audioLevelObserver,
+            this.listenIps,
+            () => {
+                this.clients.delete(id)
+            },
+            token
+        )
+        if(!client) {
+            throw new Error("Unable to create client")
+        }
+        this.clients.set(client.id, client)
+        this.producerClientWorkerMap.set(client.id, lowestLoadProducer)
+        lowestLoadProducer.clients.set(client.id, client)
+        this.consumerClientWorkerMap.set(client.id, lowestLoadConsumer)
+        lowestLoadConsumer.clients.set(client.id, client)
+        let clientsInRoom = this.roomToClients.get(roomid)
+        if(!clientsInRoom) {
+            clientsInRoom = [client]
+            this.roomToClients.set(roomid, clientsInRoom)
+        } else {
+            clientsInRoom.push(client)
+        }
+
+        Logger.info(`New Client(${id}) assigned to producer worker(${lowestLoadProducer.id}) and consumer worker (${lowestLoadConsumer.id})`)
+        {
+            //Send existing streams to this new client
+            const targetClient = client
+            for (const sourceClient of clientsInRoom) {
+                for (const stream of sourceClient.getStreams()) {
+                    Client.forwardStream(stream, sourceClient, targetClient)
+                    .then(() => Logger.info(`Forwarding Stream(${stream.sessionId}_${stream.id}) from Client(${sourceClient.id}) to Client(${targetClient.id})`))
+                    .catch((e) => Logger.info(`Failed to forward new Stream(${stream.sessionId}_${stream.id}) from Client(${sourceClient.id}) to Client(${targetClient.id}): ${e}`))
                 }
             }
-
-            for (const consumerWorker of this.consumerWorkers.values()) {
-                if (consumerWorker.numConsumers() < minConsumers) {
-                    lowestLoadConsumer = consumerWorker
-                    minConsumers = lowestLoadConsumer.numConsumers()
+        }
+        {
+            //Send out future streams from this new client to other clients 
+            const sourceClient = client
+            client.emitter.on("stream", (stream: Stream) => {
+                Logger.info(`New Stream(${stream.sessionId}_${stream.id})`)
+                for (const [id, targetClient] of this.clients) {
+                    if (id === stream.sessionId) {
+                        continue
+                    }
+                    Client.forwardStream(stream, sourceClient, targetClient)
+                    .then(() => Logger.info(`Forwarding new Stream(${stream.sessionId}_${stream.id}) from Client(${sourceClient.id}) to Client(${targetClient.id})`))
+                    .catch((e) => Logger.info(`Failed to forward new Stream(${stream.sessionId}_${stream.id}) from Client(${sourceClient.id}) to Client(${targetClient.id}): ${e}`))
                 }
-            }
-
-            for (const mixedWorker of this.mixedWorkers.values()) {
-                if (mixedWorker.numProducers() < minProducers) {
-                    lowestLoadProducer = mixedWorker
-                    minProducers = lowestLoadProducer.numProducers()
-                }
-                if (mixedWorker.numConsumers() < minConsumers) {
-                    lowestLoadConsumer = mixedWorker
-                    minConsumers = lowestLoadConsumer.numConsumers()
-                }
-            }
-
-            if (!lowestLoadProducer) {
-                throw new Error("No available worker for producer!")
-            }
-            if (!lowestLoadConsumer) {
-                throw new Error("No available worker for consumer!")
-            }
-
-            client = await Client.create(
-                id,
-                lowestLoadProducer.getRouter(),
-                lowestLoadConsumer.getRouter(),
-                this.listenIps,
-                () => {
-                    this.clients.delete(id)
-                },
-                token
-            )
-            this.clients.set(client.id, client)
-            lowestLoadProducer.clients.set(client.id, client)
-            lowestLoadConsumer.clients.set(client.id, client)
-
-            this.producerClientWorkerMap.set(client.id, lowestLoadProducer)
-            this.consumerClientWorkerMap.set(client.id, lowestLoadConsumer)
-
-            Logger.info(`New Client(${id}) assigned to producer worker(${lowestLoadProducer.id}) and consumer worker (${lowestLoadConsumer.id})`)
-            for (const [otherId, otherClient] of this.clients) {
-                for (const stream of otherClient.getStreams()) {
-                    client.forwardStream(stream, this.roomId!).then(() => {
-                        Logger.info(`Forwarding Stream(${stream.sessionId}_${stream.id}) from Client(${otherId}) to Client(${id})`)
-                    })
-                }
-            }
-            client.emitter.on("stream", (s: Stream) => lowestLoadProducer!.newStream(s, this.roomId!))
+            })
         }
         return client
     }
@@ -343,7 +388,7 @@ export class SFU {
         Logger.info(`endClassMessage from: ${context.sessionId}`)
         const {sessionId} = SFU.verifyContext(context)
         const sourceClient = await this.getOrCreateClient(sessionId)
-        let teacher = sourceClient.jwt.teacher
+        let teacher = sourceClient.teacher
 
         if (!teacher) {
             Logger.warn(`SessionId: ${sessionId} attempted to end the class!`)
@@ -369,11 +414,13 @@ export class SFU {
         return await client.transportMessage(isProducer, params)
     }
 
+    private producersIdToClient = new Map<string, Client>()
     public async producerMessage(context: Context, params: string) {
         const {sessionId, token} = SFU.verifyContext(context)
         Logger.info(`ProducerMessage from ${sessionId}`)
         const client = await this.getOrCreateClient(sessionId, token)
         const producer = await client.producerMessage(params)
+        this.producersIdToClient.set(producer.id, client)
         const producerWorker = this.producerClientWorkerMap.get(client.id)
 
         if (!producerWorker) {
@@ -436,10 +483,10 @@ export class SFU {
             throw new Error("Cannot find target client for mute message")
         }
 
-        const tryingToOverrideTeacherMute = !sourceClient.jwt.teacher &&
+        const tryingToOverrideTeacherMute = !sourceClient.teacher &&
             ((audio && targetClient.teacherAudioMuted) || (video && targetClient.teacherVideoDisabled))
         
-        const tryingToOverrideSelfMute = (targetClient.id !== sourceClient.id && sourceClient.jwt.teacher) && 
+        const tryingToOverrideSelfMute = (targetClient.id !== sourceClient.id && sourceClient.teacher) && 
             ((audio === false && targetClient.selfAudioMuted) || (video === false && targetClient.selfVideoMuted))
 
         if (tryingToOverrideSelfMute || tryingToOverrideTeacherMute) {
@@ -453,7 +500,7 @@ export class SFU {
 
         if (targetClient.id === sourceClient.id) {
             return await sourceClient.selfMute(roomId, audio, video)
-        } else if (sourceClient.jwt.teacher) {
+        } else if (sourceClient.teacher) {
             return await targetClient.teacherMute(roomId, audio, video);
         }
         return muteNotification; 
@@ -464,7 +511,7 @@ export class SFU {
         const {sessionId } = SFU.verifyContext(context)
         Logger.debug(`globalMuteMutation requested by ${sessionId}`)
         const sourceClient = await this.getOrCreateClient(sessionId)
-        if (!sourceClient.jwt.teacher) {
+        if (!sourceClient.teacher) {
             throw new Error("globalMuteMutation: only teachers can enforce this");
         }
 
@@ -478,7 +525,7 @@ export class SFU {
             await this.redis.set(roomVideoDisabled.key, videoGloballyDisabled.toString());
         } 
 
-        const students = Array.from(this.clients.values()).filter(client => !client.jwt.teacher);
+        const students = Array.from(this.clients.values()).filter(client => !client.teacher);
         const audio = audioGloballyMuted === undefined ? undefined : !audioGloballyMuted;
         const video = videoGloballyDisabled === undefined ? undefined : !videoGloballyDisabled;
         for (const student of students) {
@@ -531,7 +578,7 @@ export class SFU {
     public async resetGlobalMute(context: Context) {
         const sessionId = context.sessionId;
         const roomId = context.token.roomid;
-        const remainingTeachers = Array.from(this.clients.values()).filter(client => client.jwt.teacher && client.id !== sessionId);
+        const remainingTeachers = Array.from(this.clients.values()).filter(client => client.teacher && client.id !== sessionId);
         if (!remainingTeachers.length && roomId && context.token.teacher) {
             await this.globalMuteMutation(context, {
                 roomId,
@@ -559,6 +606,20 @@ export class SFU {
         if (consumerWorker) {
             consumerWorker.disconnect(context.sessionId)
         }
+    }
+
+    private levels = new Map<string, number>()
+    private volumes(volumes?: MediaSoup.AudioLevelObserverVolume[]): void {
+        if(!volumes) { return }
+        for (const { producer, volume } of volumes) {
+            this.levels.set(producer.id, volume)
+        }
+        
+        const values = [...this.levels.entries()]
+        values.sort((a,b) => a[1]-b[1]) // Values will be in ascending order
+
+        const promises = values.map(([producerId], i) => {Client.setConsumerPriority(producerId, i/values.length)})
+        Promise.allSettled(promises)
     }
 }
 

@@ -7,6 +7,7 @@ import {EventEmitter} from "events"
 import {Logger} from "./entry"
 import {JWT} from "./auth"
 import { MuteNotification } from "./interfaces"
+import { Consumer } from "mediasoup/lib/Consumer"
 
 export interface Stream {
     id: string
@@ -16,53 +17,39 @@ export interface Stream {
 
 // noinspection DuplicatedCode
 export class Client {
-    public id: string
     public emitter = new EventEmitter()
     private destructors = new Map<string, () => unknown>()
     private streams = new Map<string, Stream>()
     private producers = new Map<string, MediaSoup.Producer>()
     private consumers = new Map<string, MediaSoup.Consumer>()
     private channel = new PubSub()
-    private producerRouter: MediaSoup.Router
-    private consumerRouter: MediaSoup.Router
-    public producerTransport: MediaSoup.WebRtcTransport
-    public consumerTransport: MediaSoup.WebRtcTransport
     private timeout?: NodeJS.Timeout
-    private readonly closeCallback: () => unknown
-    public jwt: JWT
     public selfAudioMuted: boolean = false
     public selfVideoMuted: boolean = false
     public teacherAudioMuted: boolean = false
     public teacherVideoDisabled: boolean = false
-    private consumerMute: Map<string, boolean>
+    private consumerMute = new Map<string, boolean>()
 
     private constructor(
-        id: string,
-        producerRouter: MediaSoup.Router,
-        consumerRouter: MediaSoup.Router,
-        producerTransport: MediaSoup.WebRtcTransport,
-        consumerTransport: MediaSoup.WebRtcTransport,
-        closeCallback: () => unknown,
-        jwt: JWT
+        public readonly id: string,
+        private readonly producerRouter: MediaSoup.Router,
+        private readonly consumerRouter: MediaSoup.Router,
+        public readonly producerTransport: MediaSoup.WebRtcTransport,
+        public readonly consumerTransport: MediaSoup.WebRtcTransport,
+        public readonly audioLevelObserver: MediaSoup.AudioLevelObserver,
+        private readonly closeCallback: () => unknown,
+        public readonly roomId: string,
+        public readonly teacher: boolean,
     ) {
-        this.id = id
-        this.producerRouter = producerRouter
-        this.consumerRouter = consumerRouter
-
-        this.producerTransport = producerTransport
-        producerTransport.on("routerclose", () => {
+        this.producerTransport.on("routerclose", () => {
             this.channel.publish("close", {media: {close: producerTransport.id}}).catch(e => Logger.error(e))
         })
         this.destructors.set(producerTransport.id, () => producerTransport.close())
 
-        this.consumerTransport = consumerTransport
-        consumerTransport.on("routerclose", () => {
+        this.consumerTransport.on("routerclose", () => {
             this.channel.publish("close", {media: {close: consumerTransport.id}}).catch(e => Logger.error(e))
         })
         this.destructors.set(consumerTransport.id, () => consumerTransport.close())
-        this.jwt = jwt
-        this.closeCallback = closeCallback
-        this.consumerMute = new Map()
     }
 
     private _rtpCapabilities?: MediaSoup.RtpCapabilities
@@ -72,10 +59,12 @@ export class Client {
         id: string,
         producerRouter: MediaSoup.Router,
         consumerRouter: MediaSoup.Router,
+        audioLevelObserver: MediaSoup.AudioLevelObserver,
         listenIps: MediaSoup.TransportListenIp[],
         closeCallback: () => unknown,
         jwt: JWT) {
         try {
+            if(!jwt.roomid) { throw new Error("No room id") }
             const producerTransport = await producerRouter.createWebRtcTransport({
                 listenIps,
                 enableTcp: true,
@@ -88,7 +77,17 @@ export class Client {
                 enableUdp: true,
                 preferUdp: true,
             })
-            return new Client(id, producerRouter, consumerRouter, producerTransport, consumerTransport, closeCallback, jwt)
+            return new Client(
+                id,
+                producerRouter,
+                consumerRouter,
+                producerTransport,
+                consumerTransport,
+                audioLevelObserver,
+                closeCallback,
+                jwt.roomid,
+                jwt.teacher,
+            )
         } catch (e) {
             Logger.error(e)
             throw e
@@ -137,98 +136,126 @@ export class Client {
         return this.streams.values()
     }
 
-    public async forwardStream(stream: Stream, roomId: string) {
-        Logger.info(`forward Stream(${stream.sessionId}_${stream.id})(${stream.producers.length}) to Client(${this.id})`)
-        const forwardPromises = stream.producers.map((p) => this.forward(p, roomId, stream.sessionId).catch((e) => Logger.error(e)))
-        Logger.info(`forward Stream - wait`)
-        await Promise.all(forwardPromises)
-        const producerIds = stream.producers.map((p) => p.id)
-        Logger.info(`Publish Stream(${stream.sessionId}_${stream.id})`, producerIds)
-        this.channel.publish("stream", {
+    public static async forwardStream(stream: Stream, source: Client, destination: Client) {
+        if(source.roomId !== destination.roomId) {
+            const errorMessage = `Attempt to forward Stream(${stream.id}) from Client(${source.id}) in Room(${source.roomId}) to Client(${destination.id}) in Room(${destination.roomId})`
+            Logger.crit(errorMessage)
+            throw new Error(errorMessage)
+        }
+        
+        
+        const {id, sessionId, producers} = stream
+        Logger.info(`forward Stream(${sessionId}_${id})(${producers.length}) from Client(${source.id}) to Client(${destination.id})`)
+        
+        const consumePromises: Promise<MediaSoup.Consumer | undefined>[] = []
+        const producerIds: string[] = []
+        for(const producer of producers) {
+            producerIds.push(producer.id)
+            const priority = source.producerIdBasePriority.get(producer.id)
+            let consumerSet = source.producerIdToConsumers.get(producer.id)
+            if(!consumerSet) {
+                let errorMessage = `Unable to find producer to consumer mapping from Producer(${producer.id})`
+                Logger.crit(errorMessage)
+                throw new Error(errorMessage)
+            }
+            const promise = destination.consume(producer, source.roomId, sessionId, consumerSet, priority)
+            consumePromises.push(promise)
+        }
+        const consumers = await Promise.all(consumePromises)
+        Logger.info(`Publish Stream(${sessionId}_${id})`, producerIds)
+        destination.channel.publish("stream", {
             media: {
                 stream: {
-                    id: stream.id,
-                    sessionId: stream.sessionId,
+                    id,
+                    sessionId,
                     producerIds,
                 }
             }
         }).catch(e => Logger.error(e))
     }
 
-    public async forward(producer: MediaSoup.Producer, roomId: string, sessionId: string) {
-        Logger.info(`forward rtp caps`)
-        const rtpCapabilities = await this.rtpCapabilities()
-        const producerParams = {
-            producerId: producer.id,
-            rtpCapabilities
-        }
-        Logger.info(`forward can consume`)
-        if (!this.consumerRouter.canConsume(producerParams)) {
-            Logger.error(`Client(${this.id}) could not consume producer(${producer.kind},${producer.id})`, producer.consumableRtpParameters)
-            return
-        }
-        Logger.info(`forward wait consumer`)
-        const consumer = await this.consumerTransport.consume({
-            ...producerParams,
-            paused: true
-        })
-        this.destructors.set(consumer.id, () => consumer.close())
-        this.consumers.set(consumer.id, consumer)
-        this.consumerMute.set(consumer.id, false)
-        consumer.on("transportclose", () => {
-            this.consumers.delete(consumer.id)
-            this.channel.publish("close", {media: {close: consumer.id}})
+    public async consume(producer: MediaSoup.Producer, roomId: string, sessionId: string, priority=0) {
+        try {
+            Logger.info(`forward rtp caps`)
+            const rtpCapabilities = await this.rtpCapabilities()
+            const producerParams = {
+                producerId: producer.id,
+                rtpCapabilities
+            }
 
-        })
-        consumer.on("producerclose", () => {
-            this.consumers.delete(consumer.id)
-            this.channel.publish("close", {media: {close: consumer.id}})
-        })
-        consumer.on("producerpause", () => {
-            consumer.pause()
-            this.channel.publish("mute", {
-                media: {
-                    mute: {
-                        roomId,
-                        sessionId,
-                        producerId: producer.id,
-                        consumerId: consumer.id,
-                        audio: consumer.kind === "audio" ? false : undefined,
-                        video: consumer.kind === "video" ? false : undefined,
-                    }
-                }
-            })
-        })
-        consumer.on("producerresume", () => {
-            if (this.consumerMute.get(consumer.id)) {
+            Logger.info(`forward can consume`)
+            if (!this.consumerRouter.canConsume(producerParams)) {
+                Logger.error(`Client(${this.id}) could not consume producer(${producer.kind},${producer.id})`, producer.consumableRtpParameters)
                 return
             }
-            consumer.resume()
-            this.channel.publish("mute", {
-                media: {
-                    mute: {
-                        roomId,
-                        sessionId,
-                        producerId: producer.id,
-                        consumerId: consumer.id,
-                        audio: consumer.kind === "audio" ? true : undefined,
-                        video: consumer.kind === "video" ? true : undefined,
-                    }
-                }
+            
+            Logger.info(`forward wait consumer`)
+            const consumer = await this.consumerTransport.consume({
+                ...producerParams,
+                paused: true
             })
-        })
+            this.destructors.set(consumer.id, () => consumer.close())
+            this.consumers.set(consumer.id, consumer)
+            this.consumerMute.set(consumer.id, false)
 
-        this.channel.publish("consumer", {
-            media: {
-                consumer: JSON.stringify({
-                    id: consumer.id,
-                    producerId: consumer.producerId,
-                    kind: consumer.kind,
-                    rtpParameters: consumer.rtpParameters,
-                    appData: undefined
+            consumer.on("transportclose", () => {
+                this.consumers.delete(consumer.id)
+                this.channel.publish("close", {media: {close: consumer.id}})
+            })
+            consumer.on("producerclose", () => {
+                this.consumers.delete(consumer.id)
+                this.channel.publish("close", {media: {close: consumer.id}})
+            })
+            consumer.on("producerpause", () => {
+                consumer.pause()
+                this.channel.publish("mute", {
+                    media: {
+                        mute: {
+                            roomId,
+                            sessionId,
+                            producerId: producer.id,
+                            consumerId: consumer.id,
+                            audio: consumer.kind === "audio" ? false : undefined,
+                            video: consumer.kind === "video" ? false : undefined,
+                        }
+                    }
                 })
-            }
-        }).catch(e => Logger.error(e))
+            })
+            consumer.on("producerresume", () => {
+                if (this.consumerMute.get(consumer.id)) {
+                    return
+                }
+                consumer.resume()
+                this.channel.publish("mute", {
+                    media: {
+                        mute: {
+                            roomId,
+                            sessionId,
+                            producerId: producer.id,
+                            consumerId: consumer.id,
+                            audio: consumer.kind === "audio" ? true : undefined,
+                            video: consumer.kind === "video" ? true : undefined,
+                        }
+                    }
+                })
+            })
+            await consumer.setPriority(priority)
+
+            this.channel.publish("consumer", {
+                media: {
+                    consumer: JSON.stringify({
+                        id: consumer.id,
+                        producerId: consumer.producerId,
+                        kind: consumer.kind,
+                        rtpParameters: consumer.rtpParameters,
+                        appData: undefined
+                    })
+                }
+            }).catch(e => Logger.error(e))
+            return consumer
+        } catch(e) {
+            Logger.error(e)
+        }
     }
 
     public async rtpCapabilitiesMessage(message: string) {
@@ -254,18 +281,45 @@ export class Client {
         return true
     }
 
+    // TODO: Refactor this to remove these maps, there is a better way :(
+    private producerIdToConsumers = new Map<string, Set<Consumer>>()
+    private producerIdBasePriority = new Map<string, number>()
     public async producerMessage(paramsMessage: string) {
         Logger.info("producer message")
         const params = JSON.parse(paramsMessage)
         const producer = await this.producerTransport.produce(params)
-        this.destructors.set(producer.id, () => producer.close())
-        producer.on("transportclose", () => {
-            this.producers.delete(producer.id)
-            this.channel.publish("close", {media: {close: producer.id}})
+        
+        const basePriority = (this.teacher ? 128 : 0) + (producer.kind === "audio" ? 64 : 0) 
+        const producerId = producer.id
+        this.producers.set(producerId, producer)
+        this.producerIdBasePriority.set(producerId, basePriority)
+        this.producerIdToConsumers.set(producerId, new Set<Consumer>())
+        this.destructors.set(producerId, () => producer.close())
+        this.audioLevelObserver.addProducer({producerId})
+
+        producer.observer.on("close", () => {
+            this.producerIdToConsumers.delete(producerId)
+            this.audioLevelObserver.removeProducer({producerId})
         })
-        this.producers.set(producer.id, producer)
+        producer.on("transportclose", () => {
+            this.producers.delete(producerId)
+            this.channel.publish("close", {media: {close: producerId}})
+        })
         Logger.info("producer message - ret")
         return producer
+    }
+
+    public async setConsumerPriority(producerId: string, priority: number) {
+        const consumers = this.producerIdToConsumers.get(producerId)
+        if(!consumers) { return }
+        const promises: Promise<any>[] = []
+        const basePriority = this.producerIdBasePriority.get(producerId) || 0
+        for(const consumer of consumers) {
+            const newPriority = basePriority + Math.floor(63 * priority) 
+            const promise = consumer.setPriority(newPriority)
+            promises.push(promise)
+        }
+        await Promise.allSettled(promises)
     }
 
     public consumerMessage(id: string, pause?: boolean) {
@@ -286,9 +340,14 @@ export class Client {
         return true
     }
 
+    private videoProducersByAssociatedAudioStreamId = new Map<string, MediaSoup.Producer[]>()
     public streamMessage(id: string, producerIds: string[]) {
         Logger.info(`StreamMessage(${id}) to Client(${this.id}) contains ${producerIds.map((id) => `Producer(${id})`).join(" ")}`)
-        const producers = []
+        
+        const producers: MediaSoup.Producer[] = []
+        const videoProducers: MediaSoup.Producer[] = []
+        const audioProducers: MediaSoup.Producer[] = []
+
         for (const producerId of producerIds) {
             const producer = this.producers.get(producerId)
             if (!producer) {
@@ -296,8 +355,15 @@ export class Client {
                 continue
             }
             producers.push(producer)
+            const likeTypeProducers = (producer.kind === "audio" ? audioProducers : videoProducers)
+            likeTypeProducers.push(producer)
         }
-        const stream = {
+
+        for(const { id } of audioProducers) {
+            this.videoProducersByAssociatedAudioStreamId.set(id, videoProducers)
+        }
+
+        const stream: Stream = {
             id,
             sessionId: this.id,
             producers
