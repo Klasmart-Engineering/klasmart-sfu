@@ -618,7 +618,11 @@ export class SFU {
         const values = [...this.levels.entries()]
         values.sort((a,b) => a[1]-b[1]) // Values will be in ascending order
 
-        const promises = values.map(([producerId], i) => {Client.setConsumerPriority(producerId, i/values.length)})
+        const promises = values.map(async ([producerId], i) => {
+            const client = this.producersIdToClient.get(producerId)
+            if(!client) { return }
+            await client.setConsumerPriority(producerId, i/values.length)
+        })
         Promise.allSettled(promises)
     }
 }

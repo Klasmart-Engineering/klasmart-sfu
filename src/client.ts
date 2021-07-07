@@ -147,21 +147,21 @@ export class Client {
         const {id, sessionId, producers} = stream
         Logger.info(`forward Stream(${sessionId}_${id})(${producers.length}) from Client(${source.id}) to Client(${destination.id})`)
         
-        const consumePromises: Promise<MediaSoup.Consumer | undefined>[] = []
         const producerIds: string[] = []
-        for(const producer of producers) {
+        const promises = producers.map(async (producer) => {
             producerIds.push(producer.id)
-            const priority = source.producerIdBasePriority.get(producer.id)
-            let consumerSet = source.producerIdToConsumers.get(producer.id)
+            const priority = source.producerIdBasePriority.get(producer.id)||0
+            const consumer = await destination.consume(producer, source.roomId, sessionId, priority)
+            const consumerSet = source.producerIdToConsumers.get(producer.id)
             if(!consumerSet) {
                 let errorMessage = `Unable to find producer to consumer mapping from Producer(${producer.id})`
                 Logger.crit(errorMessage)
                 throw new Error(errorMessage)
             }
-            const promise = destination.consume(producer, source.roomId, sessionId, consumerSet, priority)
-            consumePromises.push(promise)
-        }
-        const consumers = await Promise.all(consumePromises)
+            consumerSet.add(consumer)
+        })
+        await Promise.allSettled(promises)
+
         Logger.info(`Publish Stream(${sessionId}_${id})`, producerIds)
         destination.channel.publish("stream", {
             media: {
@@ -185,8 +185,7 @@ export class Client {
 
             Logger.info(`forward can consume`)
             if (!this.consumerRouter.canConsume(producerParams)) {
-                Logger.error(`Client(${this.id}) could not consume producer(${producer.kind},${producer.id})`, producer.consumableRtpParameters)
-                return
+                throw new Error(`Client(${this.id}) could not consume Producer(${producer.kind},${producer.id}), capabilities: ${producer.consumableRtpParameters}`)
             }
             
             Logger.info(`forward wait consumer`)
@@ -255,6 +254,7 @@ export class Client {
             return consumer
         } catch(e) {
             Logger.error(e)
+            throw e
         }
     }
 
