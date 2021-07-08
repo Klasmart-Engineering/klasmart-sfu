@@ -46,7 +46,8 @@ export class SFU {
         mixedWorkers: Worker[]) {
 
         this.externalIp = ip
-        this.listenIps = [{ip: "0.0.0.0", announcedIp: process.env.PUBLIC_ADDRESS ?? ip}]
+        const announcedIp = process.env.WEBRTC_ANNOUCE_IP || process.env.PUBLIC_ADDRESS || ip
+        this.listenIps = [{ip: "0.0.0.0", announcedIp }]
         this.id = id
         this.redis = redis
         for (const worker of producerWorkers) {
