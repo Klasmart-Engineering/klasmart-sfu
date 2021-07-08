@@ -47,7 +47,7 @@ export class SFU {
 
         this.externalIp = ip
         const announcedIp = process.env.WEBRTC_ANNOUCE_IP || process.env.PUBLIC_ADDRESS || ip
-        this.listenIps = [{ip: "0.0.0.0", announcedIp }]
+        this.listenIps = [{ip: process.env.WEBRTC_INTERFACE_ADDRESS || "0.0.0.0", announcedIp }]
         this.id = id
         this.redis = redis
         for (const worker of producerWorkers) {
