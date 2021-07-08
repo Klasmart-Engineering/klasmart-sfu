@@ -23,7 +23,6 @@ import { AudioLevelObserverVolume } from "mediasoup/lib/AudioLevelObserver"
 
 export class SFU {
     private readonly id: string;
-    private readonly externalIp: string
     private readonly listenIps: MediaSoup.TransportListenIp[]
     public roomId?: string
     private redis: Redis.Redis
@@ -45,7 +44,6 @@ export class SFU {
         consumerWorkers: Worker[],
         mixedWorkers: Worker[]) {
 
-        this.externalIp = ip
         const announcedIp = process.env.WEBRTC_ANNOUCE_IP || process.env.PUBLIC_ADDRESS || ip
         this.listenIps = [{ip: process.env.WEBRTC_INTERFACE_ADDRESS || "0.0.0.0", announcedIp }]
         this.id = id
