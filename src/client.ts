@@ -151,14 +151,12 @@ export class Client {
         const promises = producers.map(async (producer) => {
             producerIds.push(producer.id)
             const priority = source.producerIdBasePriority.get(producer.id)||0
-            const consumer = await destination.consume(producer, source.roomId, sessionId, priority)
             const consumerSet = source.producerIdToConsumers.get(producer.id)
+            const consumer = await destination.consume(producer, source.roomId, sessionId, consumerSet, priority)
             if(!consumerSet) {
                 let errorMessage = `Unable to find producer to consumer mapping from Producer(${producer.id})`
                 Logger.crit(errorMessage)
-                throw new Error(errorMessage)
             }
-            consumerSet.add(consumer)
         })
         await Promise.allSettled(promises)
 
@@ -174,7 +172,7 @@ export class Client {
         }).catch(e => Logger.error(e))
     }
 
-    public async consume(producer: MediaSoup.Producer, roomId: string, sessionId: string, priority=0) {
+    public async consume(producer: MediaSoup.Producer, roomId: string, sessionId: string, consumerSet?: Set<Consumer>, priority=0) {
         try {
             Logger.info(`forward rtp caps`)
             const rtpCapabilities = await this.rtpCapabilities()
@@ -193,16 +191,21 @@ export class Client {
                 ...producerParams,
                 paused: true
             })
+            consumerSet?.add(consumer)
             this.destructors.set(consumer.id, () => consumer.close())
             this.consumers.set(consumer.id, consumer)
             this.consumerMute.set(consumer.id, false)
 
             consumer.on("transportclose", () => {
+                consumerSet?.delete(consumer)
                 this.consumers.delete(consumer.id)
+                this.consumerMute.delete(consumer.id)
                 this.channel.publish("close", {media: {close: consumer.id}})
             })
             consumer.on("producerclose", () => {
+                consumerSet?.delete(consumer)
                 this.consumers.delete(consumer.id)
+                this.consumerMute.delete(consumer.id)
                 this.channel.publish("close", {media: {close: consumer.id}})
             })
             consumer.on("producerpause", () => {
@@ -295,16 +298,24 @@ export class Client {
         this.producerIdBasePriority.set(producerId, basePriority)
         this.producerIdToConsumers.set(producerId, new Set<Consumer>())
         this.destructors.set(producerId, () => producer.close())
-        this.audioLevelObserver.addProducer({producerId})
+
 
         producer.observer.on("close", () => {
+            this.producers.delete(producerId)
+            this.producerIdBasePriority.delete(producerId)
             this.producerIdToConsumers.delete(producerId)
-            this.audioLevelObserver.removeProducer({producerId})
         })
         producer.on("transportclose", () => {
             this.producers.delete(producerId)
+            this.producerIdBasePriority.delete(producerId)
+            this.producerIdToConsumers.delete(producerId)
             this.channel.publish("close", {media: {close: producerId}})
         })
+        if(producer.kind === "audio") {
+            this.audioLevelObserver
+                .addProducer({producerId})
+                .catch((e) => Logger.error(e))
+        }
         Logger.info("producer message - ret")
         return producer
     }
@@ -314,9 +325,9 @@ export class Client {
         if(!consumers) { return }
         const promises: Promise<any>[] = []
         const basePriority = this.producerIdBasePriority.get(producerId) || 0
+        const newPriority = basePriority + Math.floor(63 * priority) 
         for(const consumer of consumers) {
-            const newPriority = basePriority + Math.floor(63 * priority) 
-            const promise = consumer.setPriority(newPriority)
+            const promise = consumer.setPriority(newPriority).catch((e) => Logger.error(e))
             promises.push(promise)
         }
         await Promise.allSettled(promises)
