@@ -282,7 +282,7 @@ async function main() {
     const host = 
         process.env.HTTP_ANNOUCE_ADDRESS ||
         process.env.HOSTNAME_OVERRIDE ||
-        (process.env.USE_IP === "1" ? ip : undefined)
+        (process.env.USE_IP === "1" ? ip : undefined) ||
         hostname()
     const uri = `${host}:${address.port}${server.subscriptionsPath}`
     console.log(`Announcing address HTTP traffic for webRTC signaling via redis: ${uri}`)
