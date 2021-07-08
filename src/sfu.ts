@@ -233,14 +233,12 @@ export class SFU {
     }
 
     public async subscribe(context: Context) {
-        if (!context.sessionId) {
-            throw new Error("Context missing sessionId")
-        }
-        if (!context.token) {
-            throw new Error("Context missing token")
-        }
 
-        const client = await this.getOrCreateClient(context.sessionId, context.token)
+        const { sessionId, token } = SFU.verifyContext(context)
+        if (!sessionId) { throw new Error("Context missing sessionId") }
+        if (!token) { throw new Error("Context missing token") }
+        
+        const client = await this.getOrCreateClient(sessionId, token)
         if (!this.roomStatusMap.get(context.token.roomid)) {
             this.roomStatusMap.set(context.token.roomid, true)
         }
@@ -262,7 +260,7 @@ export class SFU {
     }
 
     private roomToClients = new Map<string, Client[]>()
-    private async getOrCreateClient(id: string, token?: JWT): Promise<Client> {
+    private async getOrCreateClient(id: string, token: JWT): Promise<Client> {
         if (!token) {
             Logger.error("Token must be supplied to create a client")
             throw new Error("Token must be supplied to create a client")
@@ -386,8 +384,8 @@ export class SFU {
 
     public async endClassMessage(context: Context, roomId?: string): Promise<boolean> {
         Logger.info(`endClassMessage from: ${context.sessionId}`)
-        const {sessionId} = SFU.verifyContext(context)
-        const sourceClient = await this.getOrCreateClient(sessionId)
+        const {sessionId, token} = SFU.verifyContext(context)
+        const sourceClient = await this.getOrCreateClient(sessionId, token)
         let teacher = sourceClient.teacher
 
         if (!teacher) {
@@ -453,28 +451,28 @@ export class SFU {
     }
 
     public async consumerMessage(context: Context, producerId: string, pause?: boolean) {
-        const {sessionId} = SFU.verifyContext(context)
-        const client = await this.getOrCreateClient(sessionId)
+        const { sessionId, token } = SFU.verifyContext(context)
+        const client = await this.getOrCreateClient(sessionId, token)
         return client.consumerMessage(producerId, pause)
     }
 
     public async streamMessage(context: Context, streamId: string, producerIds: string[]) {
         Logger.info(`Stream message: ${streamId}`)
-        const {sessionId} = SFU.verifyContext(context)
-        const client = await this.getOrCreateClient(sessionId)
+        const { sessionId, token } = SFU.verifyContext(context)
+        const client = await this.getOrCreateClient(sessionId, token)
         return client.streamMessage(streamId, producerIds)
     }
 
     public async closeMessage(context: Context, id: string) {
-        const {sessionId} = SFU.verifyContext(context)
-        const client = await this.getOrCreateClient(sessionId)
+        const { sessionId, token } = SFU.verifyContext(context)
+        const client = await this.getOrCreateClient(sessionId, token)
         return await client.closeMessage(id)
     }
 
     public async muteMessage(context: Context, muteNotification: MuteNotification) {
-        const {sessionId: sourceSessionId} = SFU.verifyContext(context)
+        const {sessionId: sourceSessionId, token } = SFU.verifyContext(context)
         Logger.debug(`muteMessage from ${sourceSessionId}`)
-        const sourceClient = await this.getOrCreateClient(sourceSessionId)
+        const sourceClient = await this.getOrCreateClient(sourceSessionId, token)
 
         const { roomId, sessionId: targetSessionId, audio, video } = muteNotification
         const targetClient = this.clients.get(targetSessionId)
@@ -508,9 +506,9 @@ export class SFU {
 
     public async globalMuteMutation(context: Context, globalMuteNotification: GlobalMuteNotification) {
         const { roomId, audioGloballyMuted, videoGloballyDisabled } = globalMuteNotification;
-        const {sessionId } = SFU.verifyContext(context)
+        const { sessionId, token } = SFU.verifyContext(context)
         Logger.debug(`globalMuteMutation requested by ${sessionId}`)
-        const sourceClient = await this.getOrCreateClient(sessionId)
+        const sourceClient = await this.getOrCreateClient(sessionId, token)
         if (!sourceClient.teacher) {
             throw new Error("globalMuteMutation: only teachers can enforce this");
         }
@@ -596,7 +594,9 @@ export class SFU {
     }
 
     public async disconnect(context: Context) {
-        const client = await this.getOrCreateClient(context.sessionId)
+        const { sessionId, token } = SFU.verifyContext(context)
+        const client = await this.getOrCreateClient(sessionId, token)
+
         this.clients.delete(client.id)
         const producerWorker = this.producerClientWorkerMap.get(client.id)
         const consumerWorker = this.consumerClientWorkerMap.get(client.id)
