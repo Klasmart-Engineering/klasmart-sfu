@@ -278,9 +278,14 @@ async function main() {
     const address = httpServer.address()
     if(!address || typeof address === "string") { throw new Error("Unexpected address format") }
 
-    const host = process.env.USE_IP ? ip : (process.env.HOSTNAME_OVERRIDE || hostname())
+
+    const host = 
+        process.env.HTTP_ANNOUCE_ADDRESS ||
+        process.env.HOSTNAME_OVERRIDE ||
+        (process.env.USE_IP === "1" ? ip : undefined)
+        hostname()
     const uri = `${host}:${address.port}${server.subscriptionsPath}`
-    console.log(`Announcing address for webRTC signaling: ${uri}`)
+    console.log(`Announcing address HTTP traffic for webRTC signaling via redis: ${uri}`)
     await sfu.claimRoom(uri)
 }
 
