@@ -67,6 +67,7 @@ const issuers = new Map<
     ]);
 
 if (process.env.NODE_ENV !== "production" && process.env.DEV_SECRET) {
+    console.log(`Allowing JWT tokens issued by 'calmid-debug' with symetric secret '${process.env.DEV_SECRET}'`)
     issuers.set("calmid-debug",
         {
             options: {
