@@ -1,8 +1,7 @@
 FROM node:14
 WORKDIR /usr/src/app
 COPY ./package*.json ./
-RUN npm cache verify
-RUN npm i
+RUN npm ci
 RUN npm audit fix
 COPY ./src ./src
 COPY ./tsconfig.json .
