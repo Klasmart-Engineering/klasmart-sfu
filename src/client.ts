@@ -150,7 +150,7 @@ export class Client {
         const producerIds: string[] = []
         const promises = producers.map(async (producer) => {
             producerIds.push(producer.id)
-            const priority = source.producerIdBasePriority.get(producer.id)||0
+            const priority = source.producerIdBasePriority.get(producer.id)||1
             const consumerSet = source.producerIdToConsumers.get(producer.id)
             const consumer = await destination.consume(producer, source.roomId, sessionId, consumerSet, priority)
             if(!consumerSet) {
@@ -172,7 +172,7 @@ export class Client {
         }).catch(e => Logger.error(e))
     }
 
-    public async consume(producer: MediaSoup.Producer, roomId: string, sessionId: string, consumerSet?: Set<Consumer>, priority=0) {
+    public async consume(producer: MediaSoup.Producer, roomId: string, sessionId: string, consumerSet?: Set<Consumer>, priority=1) {
         try {
             Logger.info(`forward rtp caps`)
             const rtpCapabilities = await this.rtpCapabilities()
