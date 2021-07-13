@@ -557,7 +557,7 @@ export class SFU {
 
     public async muteStatusQuery(context: Context) {
         const roomId = context.token.roomid;
-        const muteStatuses = []
+        const muteStatuses: any[] = []
         for (const [sessionId, client] of this.clients) {
             const audio = !client.selfAudioMuted && !client.teacherAudioMuted;
             const video = !client.selfVideoMuted && !client.teacherVideoDisabled;
