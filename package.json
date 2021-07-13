@@ -36,6 +36,7 @@
     "cassandra-driver": "^4.6.0",
     "check-ip": "^1.1.1",
     "express": "^4.17.1",
+    "graphql": "^15.5.1",
     "ioredis": "^4.17.3",
     "jsonwebtoken": "^8.5.1",
     "mediasoup": "^3.7.18",
