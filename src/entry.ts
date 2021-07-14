@@ -175,7 +175,6 @@ async function main() {
         subscriptions: {
             keepAlive: 1000,
             onConnect: async ({ sessionId, authToken }: any, _webSocket, connectionData: any) => {
-                console.log('AUTHE TOKEN: ', authToken);
                 const token = await checkAuthorizationToken(authToken).catch((e) => {
                     throw new ForbiddenError(e)
                 });
