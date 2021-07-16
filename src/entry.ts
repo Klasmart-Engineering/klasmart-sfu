@@ -255,7 +255,7 @@ async function main() {
                 throw new Error(`Room(${token.roomid}) unavailable`)
             }
 
-            const authenticationToken = await checkToken(req.cookies.access).catch((e) => {
+            const authenticationToken = await checkToken(req.cookies?.access).catch((e) => {
                 throw new AuthenticationError(e);
             });
             if (!authenticationToken.id || authenticationToken.id !== token.userid) {
