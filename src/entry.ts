@@ -254,10 +254,10 @@ async function main() {
             if (!sfu.roomId || token.roomid !== sfu.roomId) {
                 throw new Error(`Room(${token.roomid}) unavailable`)
             }
-
-            const authenticationToken = await checkToken(req.cookies?.access).catch((e) => {
-                throw new AuthenticationError(e);
-            });
+            
+            const rawCookies = req.headers.cookie;
+            const cookies = rawCookies ? cookie.parse(rawCookies) : undefined;
+            const authenticationToken = await checkToken(cookies?.access).catch((e) => { throw new AuthenticationError(e); });
             if (!authenticationToken.id || authenticationToken.id !== token.userid) {
                 console.log('CONTEXT ERROR OCCURED');
                 throw new ForbiddenError("The authorization token does not match your session token");
