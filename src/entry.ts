@@ -1,25 +1,27 @@
-import {hostname} from "os" 
-import {createLogger, format, transports} from "winston"
+import { hostname } from "os"
+import { createLogger, format, transports } from "winston"
 import { createServer } from "http"
 import express from "express"
-import {ApolloServer} from "apollo-server-express"
-import {SFU} from "./sfu"
-import {schema} from "./schema"
-import {checkToken, JWT} from "./auth"
-import {getNetworkInterfaceInfo} from "./networkInterfaces"
-import {NetworkInterfaceInfo} from "os"
+import { ApolloServer, AuthenticationError, ForbiddenError } from "apollo-server-express"
+import { SFU } from "./sfu"
+import { schema } from "./schema"
+import { checkAuthorizationToken, JWT } from "./auth"
+import { getNetworkInterfaceInfo } from "./networkInterfaces"
+import { NetworkInterfaceInfo } from "os"
 import fetch from "node-fetch"
 import EC2 from "aws-sdk/clients/ec2"
 import ECS from "aws-sdk/clients/ecs"
+import cookie from "cookie";
+import { checkToken } from "kidsloop-token-validation";
 // @ts-ignore
 import checkIp = require("check-ip")
-import {setDockerId, setGraphQLConnections, setClusterId, reportConferenceStats} from "./reporting"
+import { setDockerId, setGraphQLConnections, setClusterId, reportConferenceStats } from "./reporting"
 import { register, collectDefaultMetrics, Gauge } from "prom-client"
 import { GlobalMuteNotification, MuteNotification } from "./interfaces"
 
 collectDefaultMetrics({})
 
-const logFormat = format.printf(({level, message, label, timestamp}) => {
+const logFormat = format.printf(({ level, message, label, timestamp }) => {
     return `${timestamp} [${level}]: ${message} service: ${label}`
 })
 
@@ -29,10 +31,10 @@ export const Logger = createLogger(
         format: format.combine(
             format.colorize(),
             format.timestamp(),
-            format.label({label: 'default'}),
+            format.label({ label: 'default' }),
             logFormat
         ),
-        defaultMeta: {service: 'default'},
+        defaultMeta: { service: 'default' },
         transports: [
             new transports.Console(
                 {
@@ -42,18 +44,17 @@ export const Logger = createLogger(
             new transports.File(
                 {
                     level: 'info',
-                    filename: `logs/sfu_${
-                        new Date().toLocaleDateString("en", {
-                            year: "numeric",
-                            day: "2-digit",
-                            month: "2-digit",
-                            hour: "2-digit",
-                            minute: "2-digit"
-                        })
-                            .replace(/,/g, "")
-                            .replace(/\//g, "-")
-                            .replace(/ /g, "_")
-                    }.log`
+                    filename: `logs/sfu_${new Date().toLocaleDateString("en", {
+                        year: "numeric",
+                        day: "2-digit",
+                        month: "2-digit",
+                        hour: "2-digit",
+                        minute: "2-digit"
+                    })
+                        .replace(/,/g, "")
+                        .replace(/\//g, "-")
+                        .replace(/ /g, "_")
+                        }.log`
                 }
             )
         ]
@@ -84,7 +85,7 @@ async function getECSTaskENIPublicIP() {
     if (!taskARN) {
         return
     }
-    const tasks = await ECSClient.describeTasks({cluster: clusterARN, tasks: [taskARN]}).promise()
+    const tasks = await ECSClient.describeTasks({ cluster: clusterARN, tasks: [taskARN] }).promise()
     if (!tasks.tasks) {
         return
     }
@@ -109,7 +110,7 @@ async function getECSTaskENIPublicIP() {
                 if (!detail.value) {
                     continue
                 }
-                const enis = await EC2Client.describeNetworkInterfaces({NetworkInterfaceIds: [detail.value]}).promise()
+                const enis = await EC2Client.describeNetworkInterfaces({ NetworkInterfaceIds: [detail.value] }).promise()
                 if (!enis.NetworkInterfaces) {
                     continue
                 }
@@ -172,11 +173,23 @@ async function main() {
         typeDefs: schema,
         subscriptions: {
             keepAlive: 1000,
-            onConnect: async ({sessionId, authToken}: any, _webSocket, connectionData: any) => {
-                const token = await checkToken(authToken);
+            onConnect: async ({ sessionId, authToken }: any, _webSocket, connectionData: any) => {
+                const token = await checkAuthorizationToken(authToken).catch((e) => {
+                    throw new ForbiddenError(e)
+                });
                 const roomId = String(token.roomid)
                 if (!sfu.roomId || sfu.roomId !== roomId) {
                     throw new Error(`Room(${token.roomid}) unavailable`)
+                }
+
+                const rawCookies = connectionData.request.headers.cookie;
+                const cookies = rawCookies ? cookie.parse(rawCookies) : undefined;
+                const authenticationToken = await (checkToken(cookies?.access).catch((e) => {
+                    if (e.name === "TokenExpiredError") { throw new AuthenticationError("AuthenticationExpired"); }
+                    throw new AuthenticationError("AuthenticationInvalid");
+                }));
+                if (!authenticationToken.id || authenticationToken.id !== token.userid) {
+                    throw new ForbiddenError("The authorization token does not match your session token");
                 }
                 connectionCount++
                 setGraphQLConnections(connectionCount)
@@ -185,7 +198,7 @@ async function main() {
                 connectionData.counted = true
                 connectionData.sessionId = sessionId;
                 connectionData.roomId = roomId;
-                return {roomId, sessionId, token} as Context;
+                return { roomId, sessionId, token } as Context;
             },
             onDisconnect: async (websocket, connectionData) => {
                 if (!(connectionData as any).counted) {
@@ -205,35 +218,47 @@ async function main() {
         resolvers: {
             Query: {
                 ready: () => true,
-                retrieveGlobalMute: (_parent, {roomId}, context: Context) => sfu.globalMuteQuery(context, roomId).catch(e => Logger.error(e)),
-                retrieveMuteStatuses: (_parent, args , context: Context) => sfu.muteStatusQuery(context).catch(e => Logger.error(e)),
+                retrieveGlobalMute: (_parent, { roomId }, context: Context) => sfu.globalMuteQuery(context, roomId).catch(e => Logger.error(e)),
+                retrieveMuteStatuses: (_parent, args, context: Context) => sfu.muteStatusQuery(context).catch(e => Logger.error(e)),
             },
             Mutation: {
-                rtpCapabilities: (_parent, {rtpCapabilities}, context: Context) => sfu.rtpCapabilitiesMessage(context, rtpCapabilities).catch(e => Logger.error(e)),
-                transport: (_parent, {producer, params}, context: Context) => sfu.transportMessage(context, producer, params).catch(e => Logger.error(e)),
-                producer: (_parent, {params}, context: Context) => sfu.producerMessage(context, params).catch(e => Logger.error(e)),
-                consumer: (_parent, {id, pause}, context: Context) => sfu.consumerMessage(context, id, pause).catch(e => Logger.error(e)),
-                stream: (_parent, {id, producerIds}, context: Context) => sfu.streamMessage(context, id, producerIds).catch(e => Logger.error(e)),
-                close: (_parent, {id}, context: Context) => sfu.closeMessage(context, id).catch(e => Logger.error(e)),
+                rtpCapabilities: (_parent, { rtpCapabilities }, context: Context) => sfu.rtpCapabilitiesMessage(context, rtpCapabilities).catch(e => Logger.error(e)),
+                transport: (_parent, { producer, params }, context: Context) => sfu.transportMessage(context, producer, params).catch(e => Logger.error(e)),
+                producer: (_parent, { params }, context: Context) => sfu.producerMessage(context, params).catch(e => Logger.error(e)),
+                consumer: (_parent, { id, pause }, context: Context) => sfu.consumerMessage(context, id, pause).catch(e => Logger.error(e)),
+                stream: (_parent, { id, producerIds }, context: Context) => sfu.streamMessage(context, id, producerIds).catch(e => Logger.error(e)),
+                close: (_parent, { id }, context: Context) => sfu.closeMessage(context, id).catch(e => Logger.error(e)),
                 mute: (_parent, muteNotification: MuteNotification, context: Context) => sfu.muteMessage(context, muteNotification).catch(e => Logger.error(e)),
                 updateGlobalMute: (_parent, globalMuteNotification: GlobalMuteNotification, context: Context) => sfu.globalMuteMutation(context, globalMuteNotification).catch(e => Logger.error(e)),
-                endClass: (_parent, {roomId}, context: Context) => sfu.endClassMessage(context, roomId).catch(e => Logger.error(e))
+                endClass: (_parent, { roomId }, context: Context) => sfu.endClassMessage(context, roomId).catch(e => Logger.error(e))
             },
             Subscription: {
                 media: {
-                    subscribe: (_parent, {}, context: Context) => sfu.subscribe(context).catch(e => Logger.error(e))
+                    subscribe: (_parent, { }, context: Context) => sfu.subscribe(context).catch(e => Logger.error(e))
                 },
             }
         },
-        context: async ({req, connection}) => {
+        context: async ({ req, connection }) => {
             if (connection) {
                 return connection.context;
             }
-            const token = await checkToken(req.headers.authorization)
+
+            const authHeader = req.headers.authorization;
+            const rawAuthorizationToken = authHeader?.substr(0, 7).toLowerCase() === "bearer" ? authHeader.substr(7) : authHeader;
+            const token = await checkAuthorizationToken(rawAuthorizationToken).catch((e) => {
+                throw new ForbiddenError(e);
+            });
             if (!sfu.roomId || token.roomid !== sfu.roomId) {
                 throw new Error(`Room(${token.roomid}) unavailable`)
             }
-            return {}
+            
+            const rawCookies = req.headers.cookie;
+            const cookies = rawCookies ? cookie.parse(rawCookies) : undefined;
+            const authenticationToken = await checkToken(cookies?.access).catch((e) => { throw new AuthenticationError(e); });
+            if (!authenticationToken.id || authenticationToken.id !== token.userid) {
+                throw new ForbiddenError("The authorization token does not match your session token");
+            }
+            return { token };
         }
     });
 
@@ -249,8 +274,8 @@ async function main() {
                 } = await sfu.sfuStats()
                 this.labels("available").set(availableCount);
                 this.labels("unavailable").set(otherCount);
-                this.labels("total").set(availableCount+otherCount);
-            } catch(e) {
+                this.labels("total").set(availableCount + otherCount);
+            } catch (e) {
                 this.labels("available").set(-1);
                 this.labels("unavailable").set(-1);
                 this.labels("total").set(-1);
@@ -270,13 +295,13 @@ async function main() {
             res.status(500).end(ex.toString());
         }
     });
-    server.applyMiddleware({app})
+    server.applyMiddleware({ app })
     const httpServer = createServer(app)
     server.installSubscriptionHandlers(httpServer)
 
-    httpServer.listen({port: process.env.PORT}, () => { Logger.info(`🌎 Server available`); })
+    httpServer.listen({ port: process.env.PORT }, () => { Logger.info(`🌎 Server available`); })
     const address = httpServer.address()
-    if(!address || typeof address === "string") { throw new Error("Unexpected address format") }
+    if (!address || typeof address === "string") { throw new Error("Unexpected address format") }
 
 
     const host = 
