@@ -189,9 +189,6 @@ async function main() {
                     throw new AuthenticationError("AuthenticationInvalid");
                 }));
                 if (!authenticationToken.id || authenticationToken.id !== token.userid) {
-                    console.log('CONNECT ERROR OCCURED');
-                    console.log(token.userid);
-                    console.log(authenticationToken.id);
                     throw new ForbiddenError("The authorization token does not match your session token");
                 }
                 connectionCount++
@@ -259,7 +256,6 @@ async function main() {
             const cookies = rawCookies ? cookie.parse(rawCookies) : undefined;
             const authenticationToken = await checkToken(cookies?.access).catch((e) => { throw new AuthenticationError(e); });
             if (!authenticationToken.id || authenticationToken.id !== token.userid) {
-                console.log('CONTEXT ERROR OCCURED');
                 throw new ForbiddenError("The authorization token does not match your session token");
             }
             return { token };
