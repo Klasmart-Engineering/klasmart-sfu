@@ -1,4 +1,5 @@
 import { hostname } from "os"
+import dotenv from "dotenv"
 import { createLogger, format, transports } from "winston"
 import { createServer } from "http"
 import express from "express"
@@ -19,6 +20,7 @@ import { setDockerId, setGraphQLConnections, setClusterId, reportConferenceStats
 import { register, collectDefaultMetrics, Gauge } from "prom-client"
 import { GlobalMuteNotification, MuteNotification } from "./interfaces"
 
+dotenv.config();
 collectDefaultMetrics({})
 
 const logFormat = format.printf(({ level, message, label, timestamp }) => {
@@ -181,15 +183,18 @@ async function main() {
                 if (!sfu.roomId || sfu.roomId !== roomId) {
                     throw new Error(`Room(${token.roomid}) unavailable`)
                 }
-
-                const rawCookies = connectionData.request.headers.cookie;
-                const cookies = rawCookies ? cookie.parse(rawCookies) : undefined;
-                const authenticationToken = await (checkToken(cookies?.access).catch((e) => {
-                    if (e.name === "TokenExpiredError") { throw new AuthenticationError("AuthenticationExpired"); }
-                    throw new AuthenticationError("AuthenticationInvalid");
-                }));
-                if (!authenticationToken.id || authenticationToken.id !== token.userid) {
-                    throw new ForbiddenError("The authorization token does not match your session token");
+                if(!process.env.DISABLE_AUTH){
+                    const rawCookies = connectionData.request.headers.cookie;
+                    const cookies = rawCookies ? cookie.parse(rawCookies) : undefined;
+                    const authenticationToken = await (checkToken(cookies?.access).catch((e) => {
+                        if (e.name === "TokenExpiredError") { throw new AuthenticationError("AuthenticationExpired"); }
+                        throw new AuthenticationError("AuthenticationInvalid");
+                    }));
+                    if (!authenticationToken.id || authenticationToken.id !== token.userid) {
+                        throw new ForbiddenError("The authorization token does not match your session token");
+                    }
+                }else{
+                    console.warn("skipping AUTHENTICATION");
                 }
                 connectionCount++
                 setGraphQLConnections(connectionCount)
@@ -252,11 +257,15 @@ async function main() {
                 throw new Error(`Room(${token.roomid}) unavailable`)
             }
             
-            const rawCookies = req.headers.cookie;
-            const cookies = rawCookies ? cookie.parse(rawCookies) : undefined;
-            const authenticationToken = await checkToken(cookies?.access).catch((e) => { throw new AuthenticationError(e); });
-            if (!authenticationToken.id || authenticationToken.id !== token.userid) {
-                throw new ForbiddenError("The authorization token does not match your session token");
+            if(!process.env.DISABLE_AUTH){
+                const rawCookies = req.headers.cookie;
+                const cookies = rawCookies ? cookie.parse(rawCookies) : undefined;
+                const authenticationToken = await checkToken(cookies?.access).catch((e) => { throw new AuthenticationError(e); });
+                if (!authenticationToken.id || authenticationToken.id !== token.userid) {
+                    throw new ForbiddenError("The authorization token does not match your session token");
+                }
+            }else{
+                console.warn("skipping AUTHENTICATION");
             }
             return { token };
         }
