@@ -1,47 +1,61 @@
-
 pipelines:
-  default:
-    - step:
-        name: 'Build NPM'
-        image: node:lts
-        script:
-          - npm i mediasoup
-          - npm i
-        caches:
-          - nodemodules
-        artifacts:
-          - node_modules/**
-    - step:
-        name: 'Docker build'
-        image: python:3.9-alpine
-        script:
-          - pip3 install -U awscli
+  branches:
+    master:
+      - step: &step-build-npm
+          name: "Build NPM"
+          image: node:lts
+          script:
+            - npm i mediasoup
+            - npm i
+          caches:
+            - nodemodules
+          artifacts:
+            - node_modules/**
+      - step: &step-build-docker
+          name: "Docker build"
+          image: python:3.9-alpine
+          script:
+            - pip3 install -U awscli
 
-          - export BRANCH_TAG=$(echo "$BITBUCKET_BRANCH" | sed -E 's/([^0-9a-zA-Z]+)/-/g' | awk '{print tolower($0)}')
-          - export REPO=$DOCKER_REPO_URL/kidsloop-sfu  # DOCKER_REPO_URL is workspace wide variable
-          - export COMMIT_TAG=$(echo $BITBUCKET_COMMIT | cut -c1-7)
-          - printf '"Git tag":"%s", "Git commit":"%s" "ECR repo":"%s"' $BRANCH_TAG $COMMIT_TAG $REPO
+            - export BRANCH_TAG=$(echo "$BITBUCKET_BRANCH" | sed -E 's/([^0-9a-zA-Z]+)/-/g' | awk '{print tolower($0)}')
+            - export REPO=$DOCKER_REPO_URL/kidsloop-sfu # DOCKER_REPO_URL is workspace wide variable
+            - export COMMIT_TAG=$(echo $BITBUCKET_COMMIT | cut -c1-7)
+            - printf '"Git tag":"%s", "Git commit":"%s" "ECR repo":"%s"' $BRANCH_TAG $COMMIT_TAG $REPO
 
-          - aws ecr get-login-password --region eu-west-2 | docker login --username AWS --password-stdin $DOCKER_REPO_URL
-          
-          - cp deploy/Dockerfile.bitbucket-pipeline .
-          - cp deploy/nodesource.gpg.key .
-          - docker build -t kidsloop-sfu -f Dockerfile.bitbucket-pipeline .
-    
-          - docker tag kidsloop-sfu:latest $REPO:$BRANCH_TAG
-          - docker tag kidsloop-sfu:latest $REPO:$BRANCH_TAG-latest
-          - docker tag kidsloop-sfu:latest $REPO:$BRANCH_TAG-$BITBUCKET_BUILD_NUMBER
-          - docker tag kidsloop-sfu:latest $REPO:$BRANCH_TAG-$COMMIT_TAG
+            - aws ecr get-login-password --region eu-west-2 | docker login --username AWS --password-stdin $DOCKER_REPO_URL
 
-          - docker push $REPO:$BRANCH_TAG
-          - docker push $REPO:$BRANCH_TAG-latest
-          - docker push $REPO:$BRANCH_TAG-$BITBUCKET_BUILD_NUMBER
-          - docker push $REPO:$BRANCH_TAG-$COMMIT_TAG
+            - cp deploy/Dockerfile.bitbucket-pipeline .
+            - cp deploy/nodesource.gpg.key .
+            - docker build -t kidsloop-sfu -f Dockerfile.bitbucket-pipeline .
 
-        services:
-          - docker
+            - docker tag kidsloop-sfu:latest $REPO:$BRANCH_TAG
+            - docker tag kidsloop-sfu:latest $REPO:$BRANCH_TAG-latest
+            - docker tag kidsloop-sfu:latest $REPO:$BRANCH_TAG-$BITBUCKET_BUILD_NUMBER
+            - docker tag kidsloop-sfu:latest $REPO:$BRANCH_TAG-$COMMIT_TAG
 
+            - docker push $REPO:$BRANCH_TAG
+            - docker push $REPO:$BRANCH_TAG-latest
+            - docker push $REPO:$BRANCH_TAG-$BITBUCKET_BUILD_NUMBER
+            - docker push $REPO:$BRANCH_TAG-$COMMIT_TAG
 
+          services:
+            - docker
+          caches:
+            - docker
+    alpha:
+      - step: *step-build-npm
+      - step: *step-build-docker
+      - step: &step-deploy-alpha
+          name: Deploy to alpha
+          deployment: alpha
+          image: python:3.7.4-alpine3.10
+          script:
+            - pip3 install -U awscli
+            - AWS_SECRET_ACCESS_KEY="$AWS_SECRET_ACCESS_KEY_ALPHA_OLD" AWS_ACCESS_KEY_ID="$AWS_ACCESS_KEY_ID_ALPHA_OLD" aws ecs update-service --service arn:aws:ecs:ap-northeast-2:871601235178:service/kidsloop-alpha/kidsloop-alpha-live-graphql --force-new-deployment --cluster kidsloop-alpha --region ap-northeast-2
+
+  custom:
+    deploy-alpha:
+      - step: *step-deploy-alpha
 definitions:
   caches:
     nodemodules: ./node_modules
