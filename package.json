@@ -1,6 +1,6 @@
 {
   "name": "sfu",
-  "version": "1.0.0",
+  "version": "1.0.2",
   "description": "",
   "main": "index.js",
   "scripts": {
@@ -38,7 +38,7 @@
     "graphql": "^15.5.1",
     "ioredis": "^4.17.3",
     "jsonwebtoken": "^8.5.1",
-    "kidsloop-token-validation": "bitbucket:calmisland/kidsloop-token-validation#v1.1.1",
+    "kidsloop-token-validation": "bitbucket:calmisland/kidsloop-token-validation#v1.2.3",
     "mediasoup": "^3.7.18",
     "node-fetch": "^2.6.1",
     "prom-client": "^13.1.0",
