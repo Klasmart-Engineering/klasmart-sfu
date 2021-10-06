@@ -1,5 +1,6 @@
 import "newrelic"
 import winstonEnricher from '@newrelic/winstonEnricher';
+import newRelicApolloServerPlugin from '@newrelic/apollo-server-plugin';
 import { hostname } from "os"
 import dotenv from "dotenv"
 import { createLogger, format, transports } from "winston"
@@ -273,7 +274,11 @@ async function main() {
                 console.warn("skipping AUTHENTICATION");
             }
             return { token };
-        }
+        },
+        plugins: [
+            // Note - Apollo server plugin should be the last plugin in the list
+            newRelicApolloServerPlugin
+        ]
     });
 
     new Gauge({
