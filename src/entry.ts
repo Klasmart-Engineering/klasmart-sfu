@@ -1,3 +1,4 @@
+import "newrelic"
 import { hostname } from "os"
 import dotenv from "dotenv"
 import { createLogger, format, transports } from "winston"
