@@ -31,6 +31,7 @@
     "@newrelic/apollo-server-plugin": "^1.0.2",
     "@newrelic/winston-enricher": "^2.0.0",
     "@types/jsonwebtoken": "^8.5.0",
+    "@types/newrelic": "^7.0.2",
     "apollo-server-express": "^2.19.0",
     "aws-sdk": "^2.747.0",
     "check-ip": "^1.1.1",
