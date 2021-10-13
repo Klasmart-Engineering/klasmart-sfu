@@ -1,3 +1,8 @@
+import "newrelic"
+// @ts-ignore - Typing planned, but not available yet: https://github.com/newrelic/newrelic-winston-logenricher-node/issues/30
+import winstonEnricher from "@newrelic/winston-enricher";
+// @ts-ignore - Typing planned, but not available yet: https://github.com/newrelic/newrelic-node-apollo-server-plugin/issues/71
+import newRelicApolloServerPlugin from "@newrelic/apollo-server-plugin";
 import { hostname } from "os"
 import dotenv from "dotenv"
 import { createLogger, format, transports } from "winston"
@@ -24,7 +29,10 @@ dotenv.config();
 collectDefaultMetrics({})
 
 const logFormat = format.printf(({ level, message, label, timestamp }) => {
-    return `${timestamp} [${level}]: ${message} service: ${label}`
+    // Use New Relic log enricher when a license key is available to configure it 
+    return process.env.NEW_RELIC_LICENSE_KEY 
+        ? winstonEnricher()
+        : `${timestamp} [${level}]: ${message} service: ${label}`
 })
 
 export const Logger = createLogger(
@@ -268,7 +276,11 @@ async function main() {
                 console.warn("skipping AUTHENTICATION");
             }
             return { token };
-        }
+        },
+        plugins: [
+            // Note - Apollo server plugin should be the last plugin in the list
+            newRelicApolloServerPlugin
+        ]
     });
 
     new Gauge({
