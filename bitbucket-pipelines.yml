@@ -4,8 +4,7 @@ pipelines:
         name: "Build NPM"
         image: node:lts
         script:
-          - npm i mediasoup
-          - npm i
+          - npm ci
         caches:
           - nodemodules
         artifacts:
