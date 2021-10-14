@@ -1,7 +1,7 @@
 import "newrelic"
-// @ts-ignore - Typing planned, but not available yet: https://github.com/newrelic/newrelic-winston-logenricher-node/issues/30
+// custom implementation awaiting official support https://github.com/newrelic/newrelic-winston-logenricher-node/issues/30
 import winstonEnricher from "@newrelic/winston-enricher";
-// @ts-ignore - Typing planned, but not available yet: https://github.com/newrelic/newrelic-node-apollo-server-plugin/issues/71
+// custom implementation awaiting official support https://github.com/newrelic/newrelic-node-apollo-server-plugin/issues/71
 import newRelicApolloServerPlugin from "@newrelic/apollo-server-plugin";
 import { hostname } from "os"
 import dotenv from "dotenv"

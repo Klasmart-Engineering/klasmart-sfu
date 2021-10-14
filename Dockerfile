@@ -5,6 +5,7 @@ COPY ./package*.json ./
 RUN --mount=type=ssh npm ci
 RUN --mount=type=ssh npm audit fix
 COPY ./src ./src
+COPY ./types ./types
 COPY ./tsconfig.json .
 EXPOSE 8080
 CMD [ "npm", "start" ]
