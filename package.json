@@ -4,9 +4,9 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "start": "ts-node src/entry.ts",
+    "start": "node dist/index.js",
     "build": "webpack",
-    "dev": "nodemon src/entry.ts"
+    "dev": "ts-node-dev src/entry.ts"
   },
   "author": "",
   "license": "ISC",
@@ -46,8 +46,10 @@
     "newrelic": "^8.4.0",
     "node-fetch": "^2.6.1",
     "prom-client": "^13.1.0",
+    "ts-node-dev": "^1.1.8",
     "typeorm": "^0.2.28",
     "uuid": "^8.3.0",
+    "webpack-node-externals": "^3.0.0",
     "winston": "^3.3.3",
     "ws": "^7.5.2"
   }
