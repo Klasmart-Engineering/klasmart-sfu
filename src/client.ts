@@ -150,7 +150,9 @@ export class Client {
         const producerIds: string[] = []
         const promises = producers.map(async (producer) => {
             producerIds.push(producer.id)
+            const priority = source.producerIdBasePriority.get(producer.id)||1
             const consumerSet = source.producerIdToConsumers.get(producer.id)
+            await destination.consume(producer, source.roomId, sessionId, consumerSet, priority)
             if(!consumerSet) {
                 let errorMessage = `Unable to find producer to consumer mapping from Producer(${producer.id})`
                 Logger.crit(errorMessage)
