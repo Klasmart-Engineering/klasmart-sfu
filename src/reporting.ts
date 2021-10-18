@@ -8,8 +8,6 @@ const CloudwatchClient = new Cloudwatch({
     region: process.env.AWS_REGION
 })
 
-let _service = `SFU`
-
 let _dockerId = "UnknownDockerId"
 export function setDockerId(dockerId: string) {
     _dockerId = dockerId
@@ -44,7 +42,7 @@ export function setAvailable(available: boolean) {
 const reportIntervalMs = 5000
 async function reporting(invokeTime = Date.now()) {
     try {
-        const result = await CloudwatchClient.putMetricData({
+        await CloudwatchClient.putMetricData({
             Namespace: "kidsloop/live/sfu", MetricData: [
                 {
                     MetricName: "producers",

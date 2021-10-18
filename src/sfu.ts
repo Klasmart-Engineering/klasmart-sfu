@@ -94,7 +94,7 @@ export class SFU {
                 interval: 200,
             })
 
-            const newWorker = new Worker(worker, workerType, router, audioLevelObserver)
+            const newWorker = new Worker(workerType, router, audioLevelObserver)
             switch (workerType) {
                 case WorkerType.PRODUCER:
                     producerWorkers.push(newWorker)
@@ -141,7 +141,7 @@ export class SFU {
             this.reporting = true
             while(true) {
                 const status = RedisKeys.sfuStatus(this.id)
-                await this.redis.set(status.key, this.available ? 1 : 0, "EX", status.ttl).catch((e) => console)
+                await this.redis.set(status.key, this.available ? 1 : 0, "EX", status.ttl).catch((e) => console.log(e))
                 await new Promise((resolve) => setTimeout(resolve, 1000 * status.ttl / 2))
             }
         } finally {
@@ -256,6 +256,8 @@ export class SFU {
         if (mixedWorker) {
             return await mixedWorker.subscribe(client)
         }
+
+        return
     }
 
     private roomToClients = new Map<string, Client[]>()
@@ -546,7 +548,7 @@ export class SFU {
         }
     }
 
-    public async globalMuteQuery(context: Context, roomId: string) {
+    public async globalMuteQuery(roomId: string) {
         const { audioGloballyMuted, videoGloballyDisabled } = await this.getGlobalMuteStates(roomId);
         return {
             roomId,

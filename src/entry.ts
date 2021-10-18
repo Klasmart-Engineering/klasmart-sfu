@@ -136,6 +136,7 @@ async function getECSTaskENIPublicIP() {
             }
         }
     }
+    return
 }
 
 function getIPAddress() {
@@ -213,7 +214,7 @@ async function main() {
                 connectionData.roomId = roomId;
                 return { roomId, sessionId, token } as Context;
             },
-            onDisconnect: async (websocket, connectionData) => {
+            onDisconnect: async (_websocket, connectionData) => {
                 if (!(connectionData as any).counted) {
                     return
                 }
@@ -231,8 +232,8 @@ async function main() {
         resolvers: {
             Query: {
                 ready: () => true,
-                retrieveGlobalMute: (_parent, { roomId }, context: Context) => sfu.globalMuteQuery(context, roomId).catch(e => Logger.error(e)),
-                retrieveMuteStatuses: (_parent, args, context: Context) => sfu.muteStatusQuery(context).catch(e => Logger.error(e)),
+                retrieveGlobalMute: (_parent, { roomId }) => sfu.globalMuteQuery(roomId).catch(e => Logger.error(e)),
+                retrieveMuteStatuses: (_parent, _args, context: Context) => sfu.muteStatusQuery(context).catch(e => Logger.error(e)),
             },
             Mutation: {
                 rtpCapabilities: (_parent, { rtpCapabilities }, context: Context) => sfu.rtpCapabilitiesMessage(context, rtpCapabilities).catch(e => Logger.error(e)),
