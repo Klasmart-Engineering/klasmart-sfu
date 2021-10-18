@@ -17,7 +17,7 @@ pipelines:
             - node_modules/**
             - dist/**
       - step: &step-build-docker
-          name: "Docker build & push to ECR"
+          name: "Docker build & push to docker image"
           image: python:3.9-alpine
           script:
             - pip3 install -U awscli
