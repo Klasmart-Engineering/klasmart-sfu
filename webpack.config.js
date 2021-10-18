@@ -1,15 +1,16 @@
 const path = require('path')
 const webpack = require('webpack');
+const nodeExternals = require('webpack-node-externals');
 
 module.exports = {
-  mode: 'production',
+  mode: 'development',
   target: 'node',
   entry: './src/entry.ts',
-  devtool: 'sourcemap',
+  devtool: 'source-map',
   module: {
     rules: [
       {
-        test: /\.ts$/,
+        test: /\.(j|t)s$/,
         exclude: /node_modules/,
         use: {
           loader: 'ts-loader'
@@ -21,7 +22,7 @@ module.exports = {
     extensions: ['.js', '.jsx', '.tsx', '.ts']
   },
   output: {
-    filename: '[name].[contenthash].js',
+    filename: 'index.js',
     path: path.resolve(__dirname, 'dist')
   },
   plugins: [
@@ -32,5 +33,6 @@ module.exports = {
         entryOnly: false
       },
     )
-  ]
+  ],
+  externals: [nodeExternals({additionalModuleDirs: ["./types/**"]})],
 }
