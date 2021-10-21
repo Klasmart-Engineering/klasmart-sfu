@@ -1,4 +1,4 @@
-import "newrelic"
+import newrelic from "newrelic"
 // custom implementation awaiting official support https://github.com/newrelic/newrelic-winston-logenricher-node/issues/30
 import winstonEnricher from "@newrelic/winston-enricher";
 // custom implementation awaiting official support https://github.com/newrelic/newrelic-node-apollo-server-plugin/issues/71
@@ -24,6 +24,7 @@ import checkIp = require("check-ip")
 import { setDockerId, setGraphQLConnections, setClusterId, reportConferenceStats } from "./reporting"
 import { register, collectDefaultMetrics, Gauge } from "prom-client"
 import { GlobalMuteNotification, MuteNotification } from "./interfaces"
+import { ProcessCredentials } from 'aws-sdk';
 
 dotenv.config();
 collectDefaultMetrics({})
@@ -179,6 +180,14 @@ async function main() {
         reportConferenceStats(sfu)
     }, 10000)
     let connectionCount = 0
+
+    /* Add shutdown listeners to forward New Relic metrics prior to app death */
+
+    process.on('SIGTERM', () => {
+        newrelic.shutdown({
+            collectPendingData: true
+        });
+    });
 
     const server = new ApolloServer({
         typeDefs: schema,

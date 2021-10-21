@@ -223,8 +223,15 @@ export class SFU {
             value = await this.redis.get(sfu.key)
         } while (value === announceURI)
         
-        Logger.error(`Room(${roomId})::SFU was '${value}' but expected '${announceURI}', terminating SFU`)
-        process.exit(-2)
+        if (process.env.NEW_RELIC_LICENSE_KEY) {
+            Logger.info(`Pre-shutdown push of NR data`)
+            newrelic.shutdown({ 
+                collectPendingData: true
+            }, () => {
+                Logger.error(`Room(${roomId})::SFU was '${value}' but expected '${announceURI}', terminating SFU`)
+                process.exit(-2)
+            })
+        }
     }
 
     private async checkRoomStatus() {
@@ -507,9 +514,9 @@ export class SFU {
             if (targetClient.id === sourceClient.id) {
                 return await sourceClient.selfMute(roomId, audio, video)
             } else if (sourceClient.teacher) {
-                return await targetClient.teacherMute(roomId, audio, video);
+                return await targetClient.teacherMute(roomId, audio, video)
             }
-            return muteNotification;
+            return muteNotification
         }) 
     }
 
