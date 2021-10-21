@@ -178,7 +178,7 @@ export class SFU {
     }
 
     public async claimRoom(announceURI: string) {
-        newrelic.startBackgroundTransaction('claimRoom', async () => {
+        return newrelic.startBackgroundTransaction('claimRoom', async () => {
             this.available = true
             setAvailable(true)
             let roomId: string
