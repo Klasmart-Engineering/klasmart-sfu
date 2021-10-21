@@ -24,7 +24,6 @@ import checkIp = require("check-ip")
 import { setDockerId, setGraphQLConnections, setClusterId, reportConferenceStats } from "./reporting"
 import { register, collectDefaultMetrics, Gauge } from "prom-client"
 import { GlobalMuteNotification, MuteNotification } from "./interfaces"
-import { ProcessCredentials } from 'aws-sdk';
 
 dotenv.config();
 collectDefaultMetrics({})
