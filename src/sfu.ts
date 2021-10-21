@@ -1,3 +1,4 @@
+import newrelic from "newrelic"
 import {v4 as uuid} from "uuid"
 import {
     observer,
@@ -177,51 +178,55 @@ export class SFU {
     }
 
     public async claimRoom(announceURI: string) {
-        this.available = true
-        setAvailable(true)
-        let roomId: string
-        let claimed: "OK" | null = null
-        let sfu = {key: "", ttl: 0}
-        {
-            //Duplicate redis as we will block
-            const redis = this.redis.duplicate()
-            try {
-                do {
-                    [, roomId] = await redis.blpop("sfu:request", 0)
-                    if (!roomId) {
-                        continue
-                    }
-                    sfu = RedisKeys.roomSfu(roomId)
-                    claimed = await this.redis.set(sfu.key, announceURI, "EX", sfu.ttl, "NX")
-                } while (claimed !== "OK")
-            } finally {
-                redis.disconnect()
+        newrelic.startBackgroundTransaction('claimRoom', async () => {
+            this.available = true
+            setAvailable(true)
+            let roomId: string
+            let claimed: "OK" | null = null
+            let sfu = {key: "", ttl: 0}
+            {
+                //Duplicate redis as we will block
+                const redis = this.redis.duplicate()
+                try {
+                    do {
+                        [, roomId] = await redis.blpop("sfu:request", 0)
+                        if (!roomId) {
+                            continue
+                        }
+                        sfu = RedisKeys.roomSfu(roomId)
+                        claimed = await this.redis.set(sfu.key, announceURI, "EX", sfu.ttl, "NX")
+                    } while (claimed !== "OK")
+                } finally {
+                    redis.disconnect()
+                }
             }
-        }
-        this.roomId = roomId
-        this.available = false
-        setAvailable(false)
+            this.roomId = roomId
+            this.available = false
+            setAvailable(false)
 
-        Logger.info(`Assigned to Room(${roomId})`)
-        startServerTimeout(this)
-        const notify = RedisKeys.roomNotify(this.roomId);
-        await this.redis.xadd(
-            notify.key,
-            "MAXLEN", "~", 32, "*",
-            "json", JSON.stringify({sfu: announceURI})
-        );
-
-        await this.checkRoomStatus();
-
-        let value: string | null
-        do {
-            await this.redis.set(sfu.key, announceURI, "EX", sfu.ttl, "XX")
-            await new Promise((resolve) => setTimeout(resolve, 1000 * sfu.ttl / 2))
-            value = await this.redis.get(sfu.key)
-        } while (value === announceURI)
-
-        Logger.error(`Room(${roomId})::SFU was '${value}' but expected '${announceURI}', terminating SFU`)
-        process.exit(-2)
+            newrelic.addCustomAttribute('roomId', roomId);
+    
+            Logger.info(`Assigned to Room(${roomId})`)
+            startServerTimeout(this)
+            const notify = RedisKeys.roomNotify(this.roomId);
+            await this.redis.xadd(
+                notify.key,
+                "MAXLEN", "~", 32, "*",
+                "json", JSON.stringify({sfu: announceURI})
+            );
+    
+            await this.checkRoomStatus();
+    
+            let value: string | null
+            do {
+                await this.redis.set(sfu.key, announceURI, "EX", sfu.ttl, "XX")
+                await new Promise((resolve) => setTimeout(resolve, 1000 * sfu.ttl / 2))
+                value = await this.redis.get(sfu.key)
+            } while (value === announceURI)
+    
+            Logger.error(`Room(${roomId})::SFU was '${value}' but expected '${announceURI}', terminating SFU`)
+            process.exit(-2)
+        })
     }
 
     private async checkRoomStatus() {
@@ -384,21 +389,24 @@ export class SFU {
 
 
     public async endClassMessage(context: Context, roomId?: string): Promise<boolean> {
-        Logger.info(`endClassMessage from: ${context.sessionId}`)
-        const {sessionId, token} = SFU.verifyContext(context)
-        const sourceClient = await this.getOrCreateClient(sessionId, token)
-        let teacher = sourceClient.teacher
-
-        if (!teacher) {
-            Logger.warn(`SessionId: ${sessionId} attempted to end the class!`)
-            return false
-        }
-
-        for (const client of this.clients.values()) {
-            await client.endClassMessage(roomId)
-        }
-
-        return true
+        return newrelic.startWebTransaction('/endclass', async () => {
+            Logger.info(`endClassMessage from: ${context.sessionId}`)
+            newrelic.addCustomAttribute('sessionId', context.sessionId)
+            const {sessionId, token} = SFU.verifyContext(context)
+            const sourceClient = await this.getOrCreateClient(sessionId, token)
+            let teacher = sourceClient.teacher
+    
+            if (!teacher) {
+                Logger.warn(`SessionId: ${sessionId} attempted to end the class!`)
+                return false
+            }
+    
+            for (const client of this.clients.values()) {
+                await client.endClassMessage(roomId)
+            }
+    
+            return true
+        })
     }
 
     public async rtpCapabilitiesMessage(context: Context, rtpCapabilities: string) {
@@ -471,38 +479,40 @@ export class SFU {
     }
 
     public async muteMessage(context: Context, muteNotification: MuteNotification) {
-        const {sessionId: sourceSessionId, token } = SFU.verifyContext(context)
-        Logger.debug(`muteMessage from ${sourceSessionId}`)
-        const sourceClient = await this.getOrCreateClient(sourceSessionId, token)
+        return newrelic.startBackgroundTransaction('muteMessage', async () => {
+            const {sessionId: sourceSessionId, token } = SFU.verifyContext(context)
+            Logger.debug(`muteMessage from ${sourceSessionId}`)
+            const sourceClient = await this.getOrCreateClient(sourceSessionId, token)
 
-        const { roomId, sessionId: targetSessionId, audio, video } = muteNotification
-        const targetClient = this.clients.get(targetSessionId)
+            const { roomId, sessionId: targetSessionId, audio, video } = muteNotification
+            const targetClient = this.clients.get(targetSessionId)
 
-        if (!targetClient) {
-            throw new Error("Cannot find target client for mute message")
-        }
-
-        const tryingToOverrideTeacherMute = !sourceClient.teacher &&
-            ((audio && targetClient.teacherAudioMuted) || (video && targetClient.teacherVideoDisabled))
-        
-        const tryingToOverrideSelfMute = (targetClient.id !== sourceClient.id && sourceClient.teacher) && 
-            ((audio === false && targetClient.selfAudioMuted) || (video === false && targetClient.selfVideoMuted))
-
-        if (tryingToOverrideSelfMute || tryingToOverrideTeacherMute) {
-            return {
-                roomId,
-                sessionId: sourceSessionId,
-                audio: undefined,
-                video: undefined,
+            if (!targetClient) {
+                throw new Error("Cannot find target client for mute message")
             }
-        }
 
-        if (targetClient.id === sourceClient.id) {
-            return await sourceClient.selfMute(roomId, audio, video)
-        } else if (sourceClient.teacher) {
-            return await targetClient.teacherMute(roomId, audio, video);
-        }
-        return muteNotification; 
+            const tryingToOverrideTeacherMute = !sourceClient.teacher &&
+                ((audio && targetClient.teacherAudioMuted) || (video && targetClient.teacherVideoDisabled))
+            
+            const tryingToOverrideSelfMute = (targetClient.id !== sourceClient.id && sourceClient.teacher) && 
+                ((audio === false && targetClient.selfAudioMuted) || (video === false && targetClient.selfVideoMuted))
+
+            if (tryingToOverrideSelfMute || tryingToOverrideTeacherMute) {
+                return {
+                    roomId,
+                    sessionId: sourceSessionId,
+                    audio: undefined,
+                    video: undefined,
+                }
+            }
+
+            if (targetClient.id === sourceClient.id) {
+                return await sourceClient.selfMute(roomId, audio, video)
+            } else if (sourceClient.teacher) {
+                return await targetClient.teacherMute(roomId, audio, video);
+            }
+            return muteNotification;
+        }) 
     }
 
     public async globalMuteMutation(context: Context, globalMuteNotification: GlobalMuteNotification) {
