@@ -387,7 +387,7 @@ export class SFU {
 
 
     public async endClassMessage(context: Context, roomId?: string): Promise<boolean> {
-        return newrelic.startWebTransaction('/endclass', async () => {
+        return newrelic.startBackgroundTransaction('/endclass', async () => {
             Logger.info(`endClassMessage from: ${context.sessionId}`)
             newrelic.addCustomAttribute('sessionId', context.sessionId)
             const {sessionId, token} = SFU.verifyContext(context)
