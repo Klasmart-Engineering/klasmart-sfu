@@ -178,55 +178,53 @@ export class SFU {
     }
 
     public async claimRoom(announceURI: string) {
-        return newrelic.startBackgroundTransaction('claimRoom', async () => {
-            this.available = true
-            setAvailable(true)
-            let roomId: string
-            let claimed: "OK" | null = null
-            let sfu = {key: "", ttl: 0}
-            {
-                //Duplicate redis as we will block
-                const redis = this.redis.duplicate()
-                try {
-                    do {
-                        [, roomId] = await redis.blpop("sfu:request", 0)
-                        if (!roomId) {
-                            continue
-                        }
-                        sfu = RedisKeys.roomSfu(roomId)
-                        claimed = await this.redis.set(sfu.key, announceURI, "EX", sfu.ttl, "NX")
-                    } while (claimed !== "OK")
-                } finally {
-                    redis.disconnect()
-                }
+        this.available = true
+        setAvailable(true)
+        let roomId: string
+        let claimed: "OK" | null = null
+        let sfu = {key: "", ttl: 0}
+        {
+            //Duplicate redis as we will block
+            const redis = this.redis.duplicate()
+            try {
+                do {
+                    [, roomId] = await redis.blpop("sfu:request", 0)
+                    if (!roomId) {
+                        continue
+                    }
+                    sfu = RedisKeys.roomSfu(roomId)
+                    claimed = await this.redis.set(sfu.key, announceURI, "EX", sfu.ttl, "NX")
+                } while (claimed !== "OK")
+            } finally {
+                redis.disconnect()
             }
-            this.roomId = roomId
-            this.available = false
-            setAvailable(false)
+        }
+        this.roomId = roomId
+        this.available = false
+        setAvailable(false)
 
-            newrelic.addCustomAttribute('roomId', roomId);
-    
-            Logger.info(`Assigned to Room(${roomId})`)
-            startServerTimeout(this)
-            const notify = RedisKeys.roomNotify(this.roomId);
-            await this.redis.xadd(
-                notify.key,
-                "MAXLEN", "~", 32, "*",
-                "json", JSON.stringify({sfu: announceURI})
-            );
-    
-            await this.checkRoomStatus();
-    
-            let value: string | null
-            do {
-                await this.redis.set(sfu.key, announceURI, "EX", sfu.ttl, "XX")
-                await new Promise((resolve) => setTimeout(resolve, 1000 * sfu.ttl / 2))
-                value = await this.redis.get(sfu.key)
-            } while (value === announceURI)
-    
-            Logger.error(`Room(${roomId})::SFU was '${value}' but expected '${announceURI}', terminating SFU`)
-            process.exit(-2)
-        })
+        newrelic.addCustomAttribute('roomId', roomId);
+
+        Logger.info(`Assigned to Room(${roomId})`)
+        startServerTimeout(this)
+        const notify = RedisKeys.roomNotify(this.roomId);
+        await this.redis.xadd(
+            notify.key,
+            "MAXLEN", "~", 32, "*",
+            "json", JSON.stringify({sfu: announceURI})
+        );
+
+        await this.checkRoomStatus();
+
+        let value: string | null
+        do {
+            await this.redis.set(sfu.key, announceURI, "EX", sfu.ttl, "XX")
+            await new Promise((resolve) => setTimeout(resolve, 1000 * sfu.ttl / 2))
+            value = await this.redis.get(sfu.key)
+        } while (value === announceURI)
+        
+        Logger.error(`Room(${roomId})::SFU was '${value}' but expected '${announceURI}', terminating SFU`)
+        process.exit(-2)
     }
 
     private async checkRoomStatus() {
