@@ -1,6 +1,4 @@
 import newrelic from "newrelic"
-// custom implementation awaiting official support https://github.com/newrelic/newrelic-winston-logenricher-node/issues/30
-import winstonEnricher from "@newrelic/winston-enricher";
 // custom implementation awaiting official support https://github.com/newrelic/newrelic-node-apollo-server-plugin/issues/71
 import newRelicApolloServerPlugin from "@newrelic/apollo-server-plugin";
 import { hostname } from "os"
