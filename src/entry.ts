@@ -1,4 +1,5 @@
 import newrelic from "newrelic"
+import winstonEnricher from "@newrelic/winston-enricher";
 // custom implementation awaiting official support https://github.com/newrelic/newrelic-node-apollo-server-plugin/issues/71
 import newRelicApolloServerPlugin from "@newrelic/apollo-server-plugin";
 import { hostname } from "os"
@@ -27,21 +28,19 @@ dotenv.config();
 collectDefaultMetrics({})
 
 const logFormat = format.printf(({ level, message, label, timestamp }) => {
-    // Use New Relic log enricher when a license key is available to configure it 
-    // return process.env.NEW_RELIC_LICENSE_KEY 
-    //     ? winstonEnricher()
-    //     : `${timestamp} [${level}]: ${message} service: ${label}`
     return `${timestamp} [${level}]: ${message} service: ${label}`;
 })
+
+const devOutput = [ format.colorize(), format.timestamp(), format.label({ label: 'default' }), logFormat]
+const nrOutput = [ format.timestamp(), format.label({ label: 'default' }), winstonEnricher() ]
 
 export const Logger = createLogger(
     {
         level: 'info',
         format: format.combine(
-            format.colorize(),
-            format.timestamp(),
-            format.label({ label: 'default' }),
-            logFormat
+            ...(process.env.NEW_RELIC_LICENSE_KEY
+                ? nrOutput
+                : devOutput)
         ),
         defaultMeta: { service: 'default' },
         transports: [
