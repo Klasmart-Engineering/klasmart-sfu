@@ -394,9 +394,10 @@ export class SFU {
 
 
     public async endClassMessage(context: Context, roomId?: string): Promise<boolean> {
-        return newrelic.startBackgroundTransaction('/endclass', async () => {
-            Logger.info(`endClassMessage from: ${context.sessionId}`)
+        return newrelic.startBackgroundTransaction('endClassMessage', async () => {
             newrelic.addCustomAttribute('sessionId', context.sessionId)
+            if (roomId) newrelic.addCustomAttribute('roomId', roomId)
+            Logger.info(`endClassMessage from: ${context.sessionId}`)
             const {sessionId, token} = SFU.verifyContext(context)
             const sourceClient = await this.getOrCreateClient(sessionId, token)
             let teacher = sourceClient.teacher

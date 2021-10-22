@@ -181,12 +181,18 @@ async function main() {
     let connectionCount = 0
 
     /* Add shutdown listeners to forward New Relic metrics prior to app death */
-
     process.on('SIGTERM', () => {
         newrelic.shutdown({
             collectPendingData: true
         });
     });
+    process.on('exit', () => {
+        newrelic.shutdown({
+            collectPendingData: true
+        })
+    })
+
+
 
     const server = new ApolloServer({
         typeDefs: schema,
@@ -315,6 +321,9 @@ async function main() {
     });
 
     const app = express();
+    app.use((req, _res, next) => {
+        newrelic.startWebTransaction(req.path, next);
+    });
     app.get('/metrics', async (_req, res) => {
         try {
             res.set('Content-Type', register.contentType);
