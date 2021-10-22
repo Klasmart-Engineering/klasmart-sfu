@@ -30,9 +30,10 @@ collectDefaultMetrics({})
 
 const logFormat = format.printf(({ level, message, label, timestamp }) => {
     // Use New Relic log enricher when a license key is available to configure it 
-    return process.env.NEW_RELIC_LICENSE_KEY 
-        ? winstonEnricher()
-        : `${timestamp} [${level}]: ${message} service: ${label}`
+    // return process.env.NEW_RELIC_LICENSE_KEY 
+    //     ? winstonEnricher()
+    //     : `${timestamp} [${level}]: ${message} service: ${label}`
+    return `${timestamp} [${level}]: ${message} service: ${label}`;
 })
 
 export const Logger = createLogger(
