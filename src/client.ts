@@ -64,35 +64,40 @@ export class Client {
         listenIps: MediaSoup.TransportListenIp[],
         closeCallback: () => unknown,
         jwt: JWT) {
-        try {
-            if(!jwt.roomid) { throw new Error("No room id") }
-            const producerTransport = await producerRouter.createWebRtcTransport({
-                listenIps,
-                enableTcp: true,
-                enableUdp: true,
-                preferUdp: true,
-            })
-            const consumerTransport = await consumerRouter.createWebRtcTransport({
-                listenIps,
-                enableTcp: true,
-                enableUdp: true,
-                preferUdp: true,
-            })
-            return new Client(
-                id,
-                producerRouter,
-                consumerRouter,
-                producerTransport,
-                consumerTransport,
-                audioLevelObserver,
-                closeCallback,
-                jwt.roomid,
-                jwt.teacher,
-            )
-        } catch (e) {
-            Logger.error(e)
-            throw e
-        }
+        return newrelic.startBackgroundTransaction('create', async (_handle) => {
+            const transaction = newrelic.getTransaction();
+            try {
+                if(!jwt.roomid) { throw new Error("No room id") }
+                const producerTransport = await producerRouter.createWebRtcTransport({
+                    listenIps,
+                    enableTcp: true,
+                    enableUdp: true,
+                    preferUdp: true,
+                })
+                const consumerTransport = await consumerRouter.createWebRtcTransport({
+                    listenIps,
+                    enableTcp: true,
+                    enableUdp: true,
+                    preferUdp: true,
+                })
+                const client = new Client(
+                    id,
+                    producerRouter,
+                    consumerRouter,
+                    producerTransport,
+                    consumerTransport,
+                    audioLevelObserver,
+                    closeCallback,
+                    jwt.roomid,
+                    jwt.teacher,
+                )
+                transaction.end();
+                return client;
+            } catch (e) {
+                Logger.error(e)
+                throw e
+            }
+        })
     }
 
     public connect() {
@@ -289,36 +294,38 @@ export class Client {
     private producerIdToConsumers = new Map<string, Set<Consumer>>()
     private producerIdBasePriority = new Map<string, number>()
     public async producerMessage(paramsMessage: string) {
-        Logger.info("producer message")
-        const params = JSON.parse(paramsMessage)
-        const producer = await this.producerTransport.produce(params)
-        
-        const basePriority = (this.teacher ? 128 : 0) + (producer.kind === "audio" ? 64 : 0) 
-        const producerId = producer.id
-        this.producers.set(producerId, producer)
-        this.producerIdBasePriority.set(producerId, basePriority)
-        this.producerIdToConsumers.set(producerId, new Set<Consumer>())
-        this.destructors.set(producerId, () => producer.close())
-
-
-        producer.observer.on("close", () => {
-            this.producers.delete(producerId)
-            this.producerIdBasePriority.delete(producerId)
-            this.producerIdToConsumers.delete(producerId)
-        })
-        producer.on("transportclose", () => {
-            this.producers.delete(producerId)
-            this.producerIdBasePriority.delete(producerId)
-            this.producerIdToConsumers.delete(producerId)
-            this.channel.publish("close", {media: {close: producerId}})
-        })
-        if(producer.kind === "audio") {
-            this.audioLevelObserver
-                .addProducer({producerId})
-                .catch((e) => Logger.error(e))
-        }
-        Logger.info("producer message - ret")
-        return producer
+        return newrelic.startWebTransaction('/consumerMessage', async () => {
+            Logger.info("producer message")
+            const params = JSON.parse(paramsMessage)
+            const producer = await this.producerTransport.produce(params)
+            
+            const basePriority = (this.teacher ? 128 : 0) + (producer.kind === "audio" ? 64 : 0) 
+            const producerId = producer.id
+            this.producers.set(producerId, producer)
+            this.producerIdBasePriority.set(producerId, basePriority)
+            this.producerIdToConsumers.set(producerId, new Set<Consumer>())
+            this.destructors.set(producerId, () => producer.close())
+    
+    
+            producer.observer.on("close", () => {
+                this.producers.delete(producerId)
+                this.producerIdBasePriority.delete(producerId)
+                this.producerIdToConsumers.delete(producerId)
+            })
+            producer.on("transportclose", () => {
+                this.producers.delete(producerId)
+                this.producerIdBasePriority.delete(producerId)
+                this.producerIdToConsumers.delete(producerId)
+                this.channel.publish("close", {media: {close: producerId}})
+            })
+            if(producer.kind === "audio") {
+                this.audioLevelObserver
+                    .addProducer({producerId})
+                    .catch((e) => Logger.error(e))
+            }
+            Logger.info("producer message - ret")
+            return producer
+        });
     }
 
     public async setConsumerPriority(producerId: string, priority: number) {
@@ -335,55 +342,59 @@ export class Client {
     }
 
     public consumerMessage(id: string, pause?: boolean) {
-        Logger.info("consumer message")
-        if (pause === undefined) {
-            return
-        }
-        const consumer = this.consumers.get(id)
-        if (!consumer) {
-            Logger.error(`Unable to pause missing Consumer(${id})`);
-            return;
-        }
-        if (pause) {
-            consumer.pause().catch(e => Logger.error(e))
-        } else {
-            consumer.resume().catch(e => Logger.error(e))
-        }
-        return true
+        return newrelic.startWebTransaction('/consumerMessage', async () => {
+            Logger.info("consumer message")
+            if (pause === undefined) {
+                return
+            }
+            const consumer = this.consumers.get(id)
+            if (!consumer) {
+                Logger.error(`Unable to pause missing Consumer(${id})`);
+                return;
+            }
+            if (pause) {
+                consumer.pause().catch(e => Logger.error(e))
+            } else {
+                consumer.resume().catch(e => Logger.error(e))
+            }
+            return true
+        });
     }
 
     private videoProducersByAssociatedAudioStreamId = new Map<string, MediaSoup.Producer[]>()
     public streamMessage(id: string, producerIds: string[]) {
-        Logger.info(`StreamMessage(${id}) to Client(${this.id}) contains ${producerIds.map((id) => `Producer(${id})`).join(" ")}`)
-        
-        const producers: MediaSoup.Producer[] = []
-        const videoProducers: MediaSoup.Producer[] = []
-        const audioProducers: MediaSoup.Producer[] = []
-
-        for (const producerId of producerIds) {
-            const producer = this.producers.get(producerId)
-            if (!producer) {
-                Logger.error(`Client(${this.id}).Stream(${id}) could not locate Producer(${producerId})`)
-                continue
+        return newrelic.startWebTransaction('/streamMessage', async () => {
+            Logger.info(`StreamMessage(${id}) to Client(${this.id}) contains ${producerIds.map((id) => `Producer(${id})`).join(" ")}`)
+            
+            const producers: MediaSoup.Producer[] = []
+            const videoProducers: MediaSoup.Producer[] = []
+            const audioProducers: MediaSoup.Producer[] = []
+    
+            for (const producerId of producerIds) {
+                const producer = this.producers.get(producerId)
+                if (!producer) {
+                    Logger.error(`Client(${this.id}).Stream(${id}) could not locate Producer(${producerId})`)
+                    continue
+                }
+                producers.push(producer)
+                const likeTypeProducers = (producer.kind === "audio" ? audioProducers : videoProducers)
+                likeTypeProducers.push(producer)
             }
-            producers.push(producer)
-            const likeTypeProducers = (producer.kind === "audio" ? audioProducers : videoProducers)
-            likeTypeProducers.push(producer)
-        }
-
-        for(const { id } of audioProducers) {
-            this.videoProducersByAssociatedAudioStreamId.set(id, videoProducers)
-        }
-
-        const stream: Stream = {
-            id,
-            sessionId: this.id,
-            producers
-        }
-        this.streams.set(id, stream)
-        Logger.info(`Emit Stream(${this.id}_${id})(${producers.length})`)
-        this.emitter.emit("stream", stream)
-        return true
+    
+            for(const { id } of audioProducers) {
+                this.videoProducersByAssociatedAudioStreamId.set(id, videoProducers)
+            }
+    
+            const stream: Stream = {
+                id,
+                sessionId: this.id,
+                producers
+            }
+            this.streams.set(id, stream)
+            Logger.info(`Emit Stream(${this.id}_${id})(${producers.length})`)
+            this.emitter.emit("stream", stream)
+            return true
+        })
     }
 
     public async closeMessage(id: string) {
@@ -472,38 +483,44 @@ export class Client {
             Logger.debug(`teacherMute: muting producer: ${producer.id}`)
             switch (producer.kind) {
                 case "audio":
-                    this.teacherAudioMuted = audio !== undefined ? !audio : this.teacherAudioMuted
-                    this.selfAudioMuted = this.teacherAudioMuted ? true : this.selfAudioMuted
-                    if (this.selfAudioMuted) {
-                        await producer.pause()
-                    } else {
-                        await producer.resume()
-                    }
+                    await newrelic.startSegment('audio-mute', true, async () => {
+                        this.teacherAudioMuted = audio !== undefined ? !audio : this.teacherAudioMuted
+                        this.selfAudioMuted = this.teacherAudioMuted ? true : this.selfAudioMuted
+                        if (this.selfAudioMuted) {
+                            await producer.pause()
+                        } else {
+                            await producer.resume()
+                        }
+                    });
                     break;
                 case "video":
-                    this.teacherVideoDisabled = video !== undefined ? !video : this.teacherVideoDisabled
-                    this.selfVideoMuted = this.teacherVideoDisabled ? true : this.selfVideoMuted
-                    if (this.selfVideoMuted) {
-                        await producer.pause()
-                    } else {
-                        await producer.resume()
-                    }
+                    await newrelic.startSegment('video-mute', true, async () => {
+                        this.teacherVideoDisabled = video !== undefined ? !video : this.teacherVideoDisabled
+                        this.selfVideoMuted = this.teacherVideoDisabled ? true : this.selfVideoMuted
+                        if (this.selfVideoMuted) {
+                            await producer.pause()
+                        } else {
+                            await producer.resume()
+                        }
+                    })
                     break;
                 default:
                     Logger.info(`muteMessage: default`)
                     break;
             }
     
-            await this.channel.publish("mute", {
-                media: {
-                    mute: {
-                        roomId,
-                        sessionId: this.id,
-                        audio: !this.selfAudioMuted,
-                        video: !this.selfVideoMuted,
+            await newrelic.startSegment('publishing', true, async () => {
+                this.channel.publish("mute", {
+                    media: {
+                        mute: {
+                            roomId,
+                            sessionId: this.id,
+                            audio: !this.selfAudioMuted,
+                            video: !this.selfVideoMuted,
+                        }
                     }
-                }
-            })
+                })
+            });
             return {
                     roomId,
                     sessionId: this.id,

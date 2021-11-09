@@ -23,6 +23,7 @@ import checkIp = require("check-ip")
 import { setDockerId, setGraphQLConnections, setClusterId, reportConferenceStats } from "./reporting"
 import { register, collectDefaultMetrics, Gauge } from "prom-client"
 import { GlobalMuteNotification, MuteNotification } from "./interfaces"
+import { NewRelicApolloTransactionWrapPlugin } from './apollo-nr-plugin';
 
 dotenv.config();
 collectDefaultMetrics({})
@@ -291,6 +292,7 @@ async function main() {
             return { token };
         },
         plugins: [
+            NewRelicApolloTransactionWrapPlugin,
             // Note - Apollo server plugin should be the last plugin in the list
             newRelicApolloServerPlugin
         ]
@@ -329,7 +331,7 @@ async function main() {
             res.end(metrics);
         } catch (ex) {
             console.error(ex)
-            res.status(500).end(ex.toString());
+            res.status(500).end(ex instanceof Error ? ex.toString() : 'Error retrieving metrics');
         }
     });
     server.applyMiddleware({ app })

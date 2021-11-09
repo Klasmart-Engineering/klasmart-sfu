@@ -1,5 +1,6 @@
 import Cloudwatch from "aws-sdk/clients/cloudwatch"
 import { Logger } from "./entry";
+import newrelic from 'newrelic';
 import {
     types as MediaSoup,
 } from "mediasoup";
@@ -86,6 +87,12 @@ async function reporting(invokeTime = Date.now()) {
                 },
             ]
         }).promise()
+
+        newrelic.recordMetric('producersCreated', producersCreated);
+        newrelic.recordMetric('consumersCreated', consumersCreated);
+        newrelic.recordMetric('graphQlConnections', _graphQlConnections);
+        newrelic.recordMetric('available', _available);
+        newrelic.recordMetric('online', 1)
 
     } catch (e) {
         Logger.error(e)
