@@ -23,7 +23,7 @@ import checkIp = require("check-ip")
 import { setDockerId, setGraphQLConnections, setClusterId, reportConferenceStats } from "./reporting"
 import { register, collectDefaultMetrics, Gauge } from "prom-client"
 import { GlobalMuteNotification, MuteNotification } from "./interfaces"
-import { NewRelicApolloTransactionWrapPlugin } from './apollo-nr-plugin';
+import { withTransaction } from './withTransaction';
 
 dotenv.config();
 collectDefaultMetrics({})
@@ -244,24 +244,24 @@ async function main() {
         },
         resolvers: {
             Query: {
-                ready: () => true,
-                retrieveGlobalMute: (_parent, { roomId }) => sfu.globalMuteQuery(roomId).catch(e => Logger.error(e)),
-                retrieveMuteStatuses: (_parent, _args, context: Context) => sfu.muteStatusQuery(context).catch(e => Logger.error(e)),
+                ready: () => withTransaction('ready', () => true),
+                retrieveGlobalMute: (_parent, { roomId }) => withTransaction('retrieveGlobalMute', async () => sfu.globalMuteQuery(roomId).catch(e => Logger.error(e))),
+                retrieveMuteStatuses: (_parent, _args, context: Context) => withTransaction('retrieveMuteStatuses', async () => sfu.muteStatusQuery(context).catch(e => Logger.error(e))),
             },
             Mutation: {
-                rtpCapabilities: (_parent, { rtpCapabilities }, context: Context) => sfu.rtpCapabilitiesMessage(context, rtpCapabilities).catch(e => Logger.error(e)),
-                transport: (_parent, { producer, params }, context: Context) => sfu.transportMessage(context, producer, params).catch(e => Logger.error(e)),
-                producer: (_parent, { params }, context: Context) => sfu.producerMessage(context, params).catch(e => Logger.error(e)),
-                consumer: (_parent, { id, pause }, context: Context) => sfu.consumerMessage(context, id, pause).catch(e => Logger.error(e)),
-                stream: (_parent, { id, producerIds }, context: Context) => sfu.streamMessage(context, id, producerIds).catch(e => Logger.error(e)),
-                close: (_parent, { id }, context: Context) => sfu.closeMessage(context, id).catch(e => Logger.error(e)),
-                mute: (_parent, muteNotification: MuteNotification, context: Context) => sfu.muteMessage(context, muteNotification).catch(e => Logger.error(e)),
-                updateGlobalMute: (_parent, globalMuteNotification: GlobalMuteNotification, context: Context) => sfu.globalMuteMutation(context, globalMuteNotification).catch(e => Logger.error(e)),
-                endClass: (_parent, { roomId }, context: Context) => sfu.endClassMessage(context, roomId).catch(e => Logger.error(e))
+                rtpCapabilities: (_parent, { rtpCapabilities }, context: Context) => withTransaction('rtpCapabilities', async () => sfu.rtpCapabilitiesMessage(context, rtpCapabilities).catch(e => Logger.error(e))),
+                transport: (_parent, { producer, params }, context: Context) => withTransaction('transport', async () => sfu.transportMessage(context, producer, params).catch(e => Logger.error(e))),
+                producer: (_parent, { params }, context: Context) => withTransaction('producers', async () => sfu.producerMessage(context, params).catch(e => Logger.error(e))),
+                consumer: (_parent, { id, pause }, context: Context) => withTransaction('consumer', async () => sfu.consumerMessage(context, id, pause).catch(e => Logger.error(e))),
+                stream: (_parent, { id, producerIds }, context: Context) => withTransaction('stream', async () => sfu.streamMessage(context, id, producerIds).catch(e => Logger.error(e))),
+                close: (_parent, { id }, context: Context) => withTransaction('close', async () => sfu.closeMessage(context, id).catch(e => Logger.error(e))),
+                mute: (_parent, muteNotification: MuteNotification, context: Context) => withTransaction('mute', async () => sfu.muteMessage(context, muteNotification).catch(e => Logger.error(e))),
+                updateGlobalMute: (_parent, globalMuteNotification: GlobalMuteNotification, context: Context) => withTransaction('updateGlobalMute', async () => sfu.globalMuteMutation(context, globalMuteNotification).catch(e => Logger.error(e))),
+                endClass: (_parent, { roomId }, context: Context) => withTransaction('endClass', async () => sfu.endClassMessage(context, roomId).catch(e => Logger.error(e)))
             },
             Subscription: {
                 media: {
-                    subscribe: (_parent, { }, context: Context) => sfu.subscribe(context).catch(e => Logger.error(e))
+                    subscribe: (_parent, { }, context: Context) => withTransaction('subscribe', async () => sfu.subscribe(context).catch(e => Logger.error(e)))
                 },
             }
         },
@@ -292,7 +292,6 @@ async function main() {
             return { token };
         },
         plugins: [
-            NewRelicApolloTransactionWrapPlugin,
             // Note - Apollo server plugin should be the last plugin in the list
             newRelicApolloServerPlugin
         ]
