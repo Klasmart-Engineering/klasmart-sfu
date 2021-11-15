@@ -32,3 +32,5 @@ Thumbs.db
 *.mov
 *.wmv
 
+# IDEs
+.idea/
