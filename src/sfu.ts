@@ -20,7 +20,7 @@ import {WorkerType, Worker} from "./worker"
 import {Client, Stream} from "./client";
 import {JWT} from "./auth";
 import {GlobalMuteNotification, MuteNotification} from "./interfaces";
-import { AudioLevelObserverVolume } from "mediasoup/lib/AudioLevelObserver"
+import {AudioLevelObserverVolume} from "mediasoup/node/lib/AudioLevelObserver";
 
 export class SFU {
     private readonly id: string;

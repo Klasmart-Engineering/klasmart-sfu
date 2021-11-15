@@ -7,8 +7,8 @@ import {EventEmitter} from "events"
 import {Logger} from "./entry"
 import {JWT} from "./auth"
 import { MuteNotification } from "./interfaces"
-import { Consumer } from "mediasoup/lib/Consumer"
 import newrelic from 'newrelic'
+import {Consumer} from "mediasoup/node/lib/Consumer";
 
 export interface Stream {
     id: string
