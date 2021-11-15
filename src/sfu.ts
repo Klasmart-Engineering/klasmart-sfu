@@ -394,7 +394,10 @@ export class SFU {
 
 
     public async endClassMessage(context: Context, roomId?: string): Promise<boolean> {
-        newrelic.addCustomAttribute('sessionId', context.sessionId)
+        newrelic.addCustomAttributes({
+            roomId: context.roomId,
+            sessionId: context.sessionId
+        });
         if (roomId) newrelic.addCustomAttribute('roomId', roomId)
         Logger.info(`endClassMessage from: ${context.sessionId}`)
         const {sessionId, token} = SFU.verifyContext(context)
@@ -415,6 +418,10 @@ export class SFU {
 
     public async rtpCapabilitiesMessage(context: Context, rtpCapabilities: string) {
         const {sessionId, token} = SFU.verifyContext(context)
+        newrelic.addCustomAttributes({
+            roomId: context.roomId,
+            sessionId: context.sessionId
+        });
         const client = await this.getOrCreateClient(sessionId, token)
         return await client.rtpCapabilitiesMessage(rtpCapabilities)
     }
@@ -484,6 +491,12 @@ export class SFU {
 
     public async muteMessage(context: Context, muteNotification: MuteNotification) {
         const {sessionId: sourceSessionId, token } = SFU.verifyContext(context)
+
+        newrelic.addCustomAttribute('roomId', context.roomId);
+        newrelic.addCustomAttribute('sessionId', context.sessionId);
+        if (muteNotification.audio !== undefined) newrelic.addCustomAttribute('audio', muteNotification.audio);
+        if (muteNotification.video !== undefined) newrelic.addCustomAttribute('video', muteNotification.video);
+        
         Logger.debug(`muteMessage from ${sourceSessionId}`)
         const sourceClient = await this.getOrCreateClient(sourceSessionId, token)
 
@@ -520,6 +533,12 @@ export class SFU {
     public async globalMuteMutation(context: Context, globalMuteNotification: GlobalMuteNotification) {
         const { roomId, audioGloballyMuted, videoGloballyDisabled } = globalMuteNotification;
         const { sessionId, token } = SFU.verifyContext(context)
+
+        newrelic.addCustomAttribute('roomId', context.roomId);
+        newrelic.addCustomAttribute('sessionId', context.sessionId);
+        if (globalMuteNotification.audioGloballyMuted !== undefined) newrelic.addCustomAttribute('audioGloballyMuted', globalMuteNotification.audioGloballyMuted);
+        if (globalMuteNotification.videoGloballyDisabled !== undefined) newrelic.addCustomAttribute('videoGloballyDisabled', globalMuteNotification.videoGloballyDisabled);
+        
         Logger.debug(`globalMuteMutation requested by ${sessionId}`)
         const sourceClient = await this.getOrCreateClient(sessionId, token)
         if (!sourceClient.teacher) {
