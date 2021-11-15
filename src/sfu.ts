@@ -394,25 +394,23 @@ export class SFU {
 
 
     public async endClassMessage(context: Context, roomId?: string): Promise<boolean> {
-        return newrelic.startBackgroundTransaction('endClassMessage', async () => {
-            newrelic.addCustomAttribute('sessionId', context.sessionId)
-            if (roomId) newrelic.addCustomAttribute('roomId', roomId)
-            Logger.info(`endClassMessage from: ${context.sessionId}`)
-            const {sessionId, token} = SFU.verifyContext(context)
-            const sourceClient = await this.getOrCreateClient(sessionId, token)
-            let teacher = sourceClient.teacher
-    
-            if (!teacher) {
-                Logger.warn(`SessionId: ${sessionId} attempted to end the class!`)
-                return false
-            }
-    
-            for (const client of this.clients.values()) {
-                await client.endClassMessage(roomId)
-            }
-    
-            return true
-        })
+        newrelic.addCustomAttribute('sessionId', context.sessionId)
+        if (roomId) newrelic.addCustomAttribute('roomId', roomId)
+        Logger.info(`endClassMessage from: ${context.sessionId}`)
+        const {sessionId, token} = SFU.verifyContext(context)
+        const sourceClient = await this.getOrCreateClient(sessionId, token)
+        let teacher = sourceClient.teacher
+
+        if (!teacher) {
+            Logger.warn(`SessionId: ${sessionId} attempted to end the class!`)
+            return false
+        }
+
+        for (const client of this.clients.values()) {
+            await client.endClassMessage(roomId)
+        }
+
+        return true
     }
 
     public async rtpCapabilitiesMessage(context: Context, rtpCapabilities: string) {
@@ -485,40 +483,38 @@ export class SFU {
     }
 
     public async muteMessage(context: Context, muteNotification: MuteNotification) {
-        return newrelic.startBackgroundTransaction('muteMessage', async () => {
-            const {sessionId: sourceSessionId, token } = SFU.verifyContext(context)
-            Logger.debug(`muteMessage from ${sourceSessionId}`)
-            const sourceClient = await this.getOrCreateClient(sourceSessionId, token)
+        const {sessionId: sourceSessionId, token } = SFU.verifyContext(context)
+        Logger.debug(`muteMessage from ${sourceSessionId}`)
+        const sourceClient = await this.getOrCreateClient(sourceSessionId, token)
 
-            const { roomId, sessionId: targetSessionId, audio, video } = muteNotification
-            const targetClient = this.clients.get(targetSessionId)
+        const { roomId, sessionId: targetSessionId, audio, video } = muteNotification
+        const targetClient = this.clients.get(targetSessionId)
 
-            if (!targetClient) {
-                throw new Error("Cannot find target client for mute message")
+        if (!targetClient) {
+            throw new Error("Cannot find target client for mute message")
+        }
+
+        const tryingToOverrideTeacherMute = !sourceClient.teacher &&
+            ((audio && targetClient.teacherAudioMuted) || (video && targetClient.teacherVideoDisabled))
+        
+        const tryingToOverrideSelfMute = (targetClient.id !== sourceClient.id && sourceClient.teacher) && 
+            ((audio === false && targetClient.selfAudioMuted) || (video === false && targetClient.selfVideoMuted))
+
+        if (tryingToOverrideSelfMute || tryingToOverrideTeacherMute) {
+            return {
+                roomId,
+                sessionId: sourceSessionId,
+                audio: undefined,
+                video: undefined,
             }
+        }
 
-            const tryingToOverrideTeacherMute = !sourceClient.teacher &&
-                ((audio && targetClient.teacherAudioMuted) || (video && targetClient.teacherVideoDisabled))
-            
-            const tryingToOverrideSelfMute = (targetClient.id !== sourceClient.id && sourceClient.teacher) && 
-                ((audio === false && targetClient.selfAudioMuted) || (video === false && targetClient.selfVideoMuted))
-
-            if (tryingToOverrideSelfMute || tryingToOverrideTeacherMute) {
-                return {
-                    roomId,
-                    sessionId: sourceSessionId,
-                    audio: undefined,
-                    video: undefined,
-                }
-            }
-
-            if (targetClient.id === sourceClient.id) {
-                return await sourceClient.selfMute(roomId, audio, video)
-            } else if (sourceClient.teacher) {
-                return await targetClient.teacherMute(roomId, audio, video)
-            }
-            return muteNotification
-        }) 
+        if (targetClient.id === sourceClient.id) {
+            return await sourceClient.selfMute(roomId, audio, video)
+        } else if (sourceClient.teacher) {
+            return await targetClient.teacherMute(roomId, audio, video)
+        }
+        return muteNotification
     }
 
     public async globalMuteMutation(context: Context, globalMuteNotification: GlobalMuteNotification) {
