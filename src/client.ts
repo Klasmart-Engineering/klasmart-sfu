@@ -143,11 +143,11 @@ export class Client {
             Logger.crit(errorMessage)
             throw new Error(errorMessage)
         }
-        
-        
+
+
         const {id, sessionId, producers} = stream
         Logger.info(`forward Stream(${sessionId}_${id})(${producers.length}) from Client(${source.id}) to Client(${destination.id})`)
-        
+
         const producerIds: string[] = []
         const promises = producers.map(async (producer) => {
             producerIds.push(producer.id)
@@ -186,7 +186,7 @@ export class Client {
             if (!this.consumerRouter.canConsume(producerParams)) {
                 throw new Error(`Client(${this.id}) could not consume Producer(${producer.kind},${producer.id}), capabilities: ${producer.consumableRtpParameters}`)
             }
-            
+
             Logger.info(`forward wait consumer`)
             const consumer = await this.consumerTransport.consume({
                 ...producerParams,
@@ -292,8 +292,8 @@ export class Client {
         Logger.info("producer message")
         const params = JSON.parse(paramsMessage)
         const producer = await this.producerTransport.produce(params)
-        
-        const basePriority = (this.teacher ? 128 : 0) + (producer.kind === "audio" ? 64 : 0) 
+
+        const basePriority = (this.teacher ? 128 : 0) + (producer.kind === "audio" ? 64 : 0)
         const producerId = producer.id
         this.producers.set(producerId, producer)
         this.producerIdBasePriority.set(producerId, basePriority)
@@ -326,7 +326,7 @@ export class Client {
         if(!consumers) { return }
         const promises: Promise<any>[] = []
         const basePriority = this.producerIdBasePriority.get(producerId) || 0
-        const newPriority = basePriority + Math.floor(63 * priority) 
+        const newPriority = basePriority + Math.floor(63 * priority)
         for(const consumer of consumers) {
             const promise = consumer.setPriority(newPriority).catch((e) => Logger.error(e))
             promises.push(promise)
@@ -355,7 +355,7 @@ export class Client {
     private videoProducersByAssociatedAudioStreamId = new Map<string, MediaSoup.Producer[]>()
     public streamMessage(id: string, producerIds: string[]) {
         Logger.info(`StreamMessage(${id}) to Client(${this.id}) contains ${producerIds.map((id) => `Producer(${id})`).join(" ")}`)
-        
+
         const producers: MediaSoup.Producer[] = []
         const videoProducers: MediaSoup.Producer[] = []
         const audioProducers: MediaSoup.Producer[] = []
@@ -438,14 +438,14 @@ export class Client {
                     Logger.debug(`muteMessage: default`)
                     break;
             }
-    
+
             const notification: MuteNotification =  {
                 roomId,
                 sessionId: this.id,
                 audio,
                 video,
             }
-    
+
             await this.channel.publish("mute", {
                 media: {
                     mute: notification
@@ -493,7 +493,7 @@ export class Client {
                     Logger.info(`muteMessage: default`)
                     break;
             }
-    
+
             await this.channel.publish("mute", {
                 media: {
                     mute: {

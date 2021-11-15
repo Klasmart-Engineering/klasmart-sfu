@@ -153,7 +153,7 @@ export class SFU {
     public async sfuStats() {
         let availableCount = 0
         let otherCount = 0
-        
+
         const statusSearch = RedisKeys.sfuStatus("*");
         let statusSearchCursor = "0";
         do {
@@ -222,10 +222,10 @@ export class SFU {
             await new Promise((resolve) => setTimeout(resolve, 1000 * sfu.ttl / 2))
             value = await this.redis.get(sfu.key)
         } while (value === announceURI)
-        
+
         if (process.env.NEW_RELIC_LICENSE_KEY) {
             Logger.info(`Pre-shutdown push of NR data`)
-            newrelic.shutdown({ 
+            newrelic.shutdown({
                 collectPendingData: true
             }, () => {
                 Logger.error(`Room(${roomId})::SFU was '${value}' but expected '${announceURI}', terminating SFU`)
@@ -246,7 +246,7 @@ export class SFU {
         const { sessionId, token } = SFU.verifyContext(context)
         if (!sessionId) { throw new Error("Context missing sessionId") }
         if (!token) { throw new Error("Context missing token") }
-        
+
         const client = await this.getOrCreateClient(sessionId, token)
         if (!this.roomStatusMap.get(context.token.roomid)) {
             this.roomStatusMap.set(context.token.roomid, true)
@@ -364,7 +364,7 @@ export class SFU {
             }
         }
         {
-            //Send out future streams from this new client to other clients 
+            //Send out future streams from this new client to other clients
             const sourceClient = client
             client.emitter.on("stream", (stream: Stream) => {
                 Logger.info(`New Stream(${stream.sessionId}_${stream.id})`)
@@ -507,11 +507,11 @@ export class SFU {
             throw new Error("Cannot find target client for mute message")
         }
 
-        const tryingToOverrideTeacherMute = !sourceClient.teacher &&
-            ((audio && targetClient.teacherAudioMuted) || (video && targetClient.teacherVideoDisabled))
-        
-        const tryingToOverrideSelfMute = (targetClient.id !== sourceClient.id && sourceClient.teacher) && 
-            ((audio === false && targetClient.selfAudioMuted) || (video === false && targetClient.selfVideoMuted))
+            const tryingToOverrideTeacherMute = !sourceClient.teacher &&
+                ((audio && targetClient.teacherAudioMuted) || (video && targetClient.teacherVideoDisabled))
+
+            const tryingToOverrideSelfMute = (targetClient.id !== sourceClient.id && sourceClient.teacher) &&
+                ((audio === false && targetClient.selfAudioMuted) || (video === false && targetClient.selfVideoMuted))
 
         if (tryingToOverrideSelfMute || tryingToOverrideTeacherMute) {
             return {
@@ -553,7 +553,7 @@ export class SFU {
         } else if (videoGloballyDisabled !== undefined) {
             const roomVideoDisabled = RedisKeys.roomVideoDisabled(roomId);
             await this.redis.set(roomVideoDisabled.key, videoGloballyDisabled.toString());
-        } 
+        }
 
         const students = Array.from(this.clients.values()).filter(client => !client.teacher);
         const audio = audioGloballyMuted === undefined ? undefined : !audioGloballyMuted;
@@ -614,14 +614,14 @@ export class SFU {
                 roomId,
                 sessionId,
                 audioGloballyMuted: false,
-                videoGloballyDisabled: undefined, 
-            }); 
+                videoGloballyDisabled: undefined,
+            });
             await this.globalMuteMutation(context, {
                 roomId,
                 sessionId,
                 audioGloballyMuted: undefined,
-                videoGloballyDisabled: false, 
-            }); 
+                videoGloballyDisabled: false,
+            });
         }
     }
 
@@ -646,7 +646,7 @@ export class SFU {
         for (const { producer, volume } of volumes) {
             this.levels.set(producer.id, volume)
         }
-        
+
         const values = [...this.levels.entries()]
         values.sort((a,b) => a[1]-b[1]) // Values will be in ascending order
 
