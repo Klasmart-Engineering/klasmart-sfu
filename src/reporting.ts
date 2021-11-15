@@ -43,6 +43,13 @@ export function setAvailable(available: boolean) {
 const reportIntervalMs = 5000
 async function reporting(invokeTime = Date.now()) {
     try {
+
+        newrelic.recordMetric('producersCreated', producersCreated);
+        newrelic.recordMetric('consumersCreated', consumersCreated);
+        newrelic.recordMetric('graphQlConnections', _graphQlConnections);
+        newrelic.recordMetric('available', _available);
+        newrelic.recordMetric('online', 1)
+
         await CloudwatchClient.putMetricData({
             Namespace: "kidsloop/live/sfu", MetricData: [
                 {
@@ -88,11 +95,7 @@ async function reporting(invokeTime = Date.now()) {
             ]
         }).promise()
 
-        newrelic.recordMetric('producersCreated', producersCreated);
-        newrelic.recordMetric('consumersCreated', consumersCreated);
-        newrelic.recordMetric('graphQlConnections', _graphQlConnections);
-        newrelic.recordMetric('available', _available);
-        newrelic.recordMetric('online', 1)
+
 
     } catch (e) {
         Logger.error(e)
