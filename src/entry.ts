@@ -10,7 +10,7 @@ import express from "express"
 import { ApolloServer, AuthenticationError, ForbiddenError } from "apollo-server-express"
 import { SFU } from "./sfu"
 import { schema } from "./schema"
-import { checkAuthorizationToken, JWT } from "./auth"
+import {checkAuthorizationToken, checkIssuers, JWT} from "./auth"
 import { getNetworkInterfaceInfo } from "./networkInterfaces"
 import { NetworkInterfaceInfo } from "os"
 import fetch from "node-fetch"
@@ -167,6 +167,7 @@ function getIPAddress() {
 export const connectionCount = new Map<string, number>()
 
 async function main() {
+    checkIssuers();
     const ip = (await getECSTaskENIPublicIP()) || getIPAddress()
     if (!ip) {
         Logger.error("No network interface found");
@@ -190,8 +191,6 @@ async function main() {
             collectPendingData: true
         })
     })
-
-
 
     const server = new ApolloServer({
         typeDefs: schema,
@@ -278,7 +277,7 @@ async function main() {
             if (!sfu.roomId || token.roomid !== sfu.roomId) {
                 throw new Error(`Room(${token.roomid}) unavailable`)
             }
-            
+
             if(!process.env.DISABLE_AUTH){
                 const rawCookies = req.headers.cookie;
                 const cookies = rawCookies ? cookie.parse(rawCookies) : undefined;
@@ -328,7 +327,7 @@ async function main() {
             res.set('Content-Type', register.contentType);
             const metrics = await register.metrics()
             res.end(metrics);
-        } catch (ex) {
+        } catch (ex: any) {
             console.error(ex)
             res.status(500).end(ex instanceof Error ? ex.toString() : 'Error retrieving metrics');
         }
@@ -342,7 +341,7 @@ async function main() {
     if (!address || typeof address === "string") { throw new Error("Unexpected address format") }
 
 
-    const host = 
+    const host =
         process.env.HTTP_ANNOUCE_ADDRESS ||
         process.env.HOSTNAME_OVERRIDE ||
         (process.env.USE_IP === "1" ? ip : undefined) ||
@@ -352,7 +351,7 @@ async function main() {
     await sfu.claimRoom(uri)
 }
 
-let timeout: NodeJS.Timeout | undefined
+let timeout: NodeJS.Timeout | undefined;
 
 export function startServerTimeout(sfu: SFU) {
     if (timeout) {

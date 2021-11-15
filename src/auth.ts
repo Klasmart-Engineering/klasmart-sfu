@@ -66,25 +66,28 @@ const issuers = new Map<
         ]
     ]);
 
-if (process.env.NODE_ENV !== "production" && process.env.DEV_SECRET) {
-    console.warn(`NODE_ENV is not set to 'production'`);
-    const issuer = "calmid-debug";
-    const secretOrPublicKey = process.env.DEV_SECRET || "iXtZx1D5AqEB0B9pfn";
-    console.log(`Allowing JWT tokens issued by '${issuer}' with symetric secret '${secretOrPublicKey}'`);
-    issuers.set("calmid-debug",
-        {
-            options: {
-                issuer,
-                algorithms: [
-                    "HS512",
-                    "HS384",
-                    "HS256",
-                ],
-            },
-            secretOrPublicKey,
-        }
-    )
+export function checkIssuers() {
+    if (process.env.NODE_ENV !== "production" && process.env.DEV_SECRET) {
+        console.warn(`NODE_ENV is not set to 'production'`);
+        const issuer = "calmid-debug";
+        const secretOrPublicKey = process.env.DEV_SECRET || "iXtZx1D5AqEB0B9pfn";
+        console.log(`Allowing JWT tokens issued by '${issuer}' with symmetric secret '${secretOrPublicKey}'`);
+        issuers.set("calmid-debug",
+            {
+                options: {
+                    issuer,
+                    algorithms: [
+                        "HS512",
+                        "HS384",
+                        "HS256",
+                    ],
+                },
+                secretOrPublicKey,
+            }
+        )
+    }
 }
+
 
 export type JWT = {
     aud: string,
