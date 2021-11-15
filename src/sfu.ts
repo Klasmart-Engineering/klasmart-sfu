@@ -26,7 +26,6 @@ export class SFU {
     private readonly id: string;
     private readonly listenIps: MediaSoup.TransportListenIp[]
     public roomId?: string
-    private redis: Redis.Redis
     private roomStatusMap = new Map<string, boolean>()
     private available = false
     private producerWorkers = new Map<string, Worker>()
@@ -40,7 +39,7 @@ export class SFU {
     private constructor(
         ip: string,
         id: string,
-        redis: Redis.Redis,
+        private redis: Redis.Redis | Redis.Cluster,
         producerWorkers: Worker[],
         consumerWorkers: Worker[],
         mixedWorkers: Worker[]) {
@@ -48,7 +47,6 @@ export class SFU {
         const announcedIp = process.env.WEBRTC_ANNOUCE_IP || process.env.PUBLIC_ADDRESS || ip
         this.listenIps = [{ip: process.env.WEBRTC_INTERFACE_ADDRESS || "0.0.0.0", announcedIp }]
         this.id = id
-        this.redis = redis
         for (const worker of producerWorkers) {
             this.producerWorkers.set(worker.id, worker)
             worker.audioLevelObserver.on("volumes", (v: AudioLevelObserverVolume[]) => this.volumes(v))
@@ -114,13 +112,36 @@ export class SFU {
         Logger.info(`🎥 Mediasoup workers initialized: Producer Workers(${producerWorkers.length}), Consumer Workers(${consumerWorkers.length}), Mixed Workers(${mixedWorkers.length})`)
         Logger.info("💠 Mediasoup routers created")
 
-        const redis = new Redis({
-            host: process.env.REDIS_HOST,
-            port: Number(process.env.REDIS_PORT ?? 6379),
-            password: process.env.REDIS_PASS ?? undefined,
-            lazyConnect: true,
-            reconnectOnError: (err) => err.message.includes("READONLY"),
-        });
+        const redisMode = process.env.REDIS_MODE ?? "NODE";
+        const port = Number(process.env.REDIS_PORT ?? 6379);
+        const host = process.env.REDIS_HOST;
+        const password = process.env.REDIS_PASS;
+        const lazyConnect = true;
+        let redis: Redis.Redis | Redis.Cluster
+
+        if (redisMode === "CLUSTER") {
+            redis = new Redis.Cluster([
+                {
+                    port,
+                    host
+                }
+            ],
+                {
+                    lazyConnect,
+                    redisOptions: {
+                        password
+                    }
+                });
+        } else {
+            redis = new Redis({
+                host,
+                port,
+                password,
+                lazyConnect: true,
+                reconnectOnError: (err) => err.message.includes("READONLY"),
+            });
+        }
+
         await redis.connect();
         Logger.info("🔴 Redis database connected")
 
