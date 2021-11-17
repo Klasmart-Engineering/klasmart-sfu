@@ -1,7 +1,6 @@
-import "newrelic"
-// @ts-ignore - Typing planned, but not available yet: https://github.com/newrelic/newrelic-winston-logenricher-node/issues/30
+import newrelic from "newrelic"
 import winstonEnricher from "@newrelic/winston-enricher";
-// @ts-ignore - Typing planned, but not available yet: https://github.com/newrelic/newrelic-node-apollo-server-plugin/issues/71
+// custom implementation awaiting official support https://github.com/newrelic/newrelic-node-apollo-server-plugin/issues/71
 import newRelicApolloServerPlugin from "@newrelic/apollo-server-plugin";
 import { hostname } from "os"
 import dotenv from "dotenv"
@@ -24,25 +23,25 @@ import checkIp = require("check-ip")
 import { setDockerId, setGraphQLConnections, setClusterId, reportConferenceStats } from "./reporting"
 import { register, collectDefaultMetrics, Gauge } from "prom-client"
 import { GlobalMuteNotification, MuteNotification } from "./interfaces"
+import { withTransaction } from './withTransaction';
 
 dotenv.config();
 collectDefaultMetrics({})
 
 const logFormat = format.printf(({ level, message, label, timestamp }) => {
-    // Use New Relic log enricher when a license key is available to configure it 
-    return process.env.NEW_RELIC_LICENSE_KEY 
-        ? winstonEnricher()
-        : `${timestamp} [${level}]: ${message} service: ${label}`
+    return `${timestamp} [${level}]: ${message} service: ${label}`;
 })
+
+const devOutput = [ format.colorize(), format.timestamp(), format.label({ label: 'default' }), logFormat]
+const nrOutput = [ format.timestamp(), format.label({ label: 'default' }), winstonEnricher() ]
 
 export const Logger = createLogger(
     {
         level: 'info',
         format: format.combine(
-            format.colorize(),
-            format.timestamp(),
-            format.label({ label: 'default' }),
-            logFormat
+            ...(process.env.NEW_RELIC_LICENSE_KEY
+                ? nrOutput
+                : devOutput)
         ),
         defaultMeta: { service: 'default' },
         transports: [
@@ -136,6 +135,7 @@ async function getECSTaskENIPublicIP() {
             }
         }
     }
+    return
 }
 
 function getIPAddress() {
@@ -179,6 +179,20 @@ async function main() {
     }, 10000)
     let connectionCount = 0
 
+    /* Add shutdown listeners to forward New Relic metrics prior to app death */
+    process.on('SIGTERM', () => {
+        newrelic.shutdown({
+            collectPendingData: true
+        });
+    });
+    process.on('exit', () => {
+        newrelic.shutdown({
+            collectPendingData: true
+        })
+    })
+
+
+
     const server = new ApolloServer({
         typeDefs: schema,
         subscriptions: {
@@ -213,7 +227,7 @@ async function main() {
                 connectionData.roomId = roomId;
                 return { roomId, sessionId, token } as Context;
             },
-            onDisconnect: async (websocket, connectionData) => {
+            onDisconnect: async (_websocket, connectionData) => {
                 if (!(connectionData as any).counted) {
                     return
                 }
@@ -230,24 +244,24 @@ async function main() {
         },
         resolvers: {
             Query: {
-                ready: () => true,
-                retrieveGlobalMute: (_parent, { roomId }, context: Context) => sfu.globalMuteQuery(context, roomId).catch(e => Logger.error(e)),
-                retrieveMuteStatuses: (_parent, args, context: Context) => sfu.muteStatusQuery(context).catch(e => Logger.error(e)),
+                ready: () => withTransaction('ready', () => true),
+                retrieveGlobalMute: (_parent, { roomId }) => withTransaction('retrieveGlobalMute', async () => sfu.globalMuteQuery(roomId).catch(e => Logger.error(e))),
+                retrieveMuteStatuses: (_parent, _args, context: Context) => withTransaction('retrieveMuteStatuses', async () => sfu.muteStatusQuery(context).catch(e => Logger.error(e))),
             },
             Mutation: {
-                rtpCapabilities: (_parent, { rtpCapabilities }, context: Context) => sfu.rtpCapabilitiesMessage(context, rtpCapabilities).catch(e => Logger.error(e)),
-                transport: (_parent, { producer, params }, context: Context) => sfu.transportMessage(context, producer, params).catch(e => Logger.error(e)),
-                producer: (_parent, { params }, context: Context) => sfu.producerMessage(context, params).catch(e => Logger.error(e)),
-                consumer: (_parent, { id, pause }, context: Context) => sfu.consumerMessage(context, id, pause).catch(e => Logger.error(e)),
-                stream: (_parent, { id, producerIds }, context: Context) => sfu.streamMessage(context, id, producerIds).catch(e => Logger.error(e)),
-                close: (_parent, { id }, context: Context) => sfu.closeMessage(context, id).catch(e => Logger.error(e)),
-                mute: (_parent, muteNotification: MuteNotification, context: Context) => sfu.muteMessage(context, muteNotification).catch(e => Logger.error(e)),
-                updateGlobalMute: (_parent, globalMuteNotification: GlobalMuteNotification, context: Context) => sfu.globalMuteMutation(context, globalMuteNotification).catch(e => Logger.error(e)),
-                endClass: (_parent, { roomId }, context: Context) => sfu.endClassMessage(context, roomId).catch(e => Logger.error(e))
+                rtpCapabilities: (_parent, { rtpCapabilities }, context: Context) => withTransaction('rtpCapabilities', async () => sfu.rtpCapabilitiesMessage(context, rtpCapabilities).catch(e => Logger.error(e))),
+                transport: (_parent, { producer, params }, context: Context) => withTransaction('transport', async () => sfu.transportMessage(context, producer, params).catch(e => Logger.error(e))),
+                producer: (_parent, { params }, context: Context) => withTransaction('producers', async () => sfu.producerMessage(context, params).catch(e => Logger.error(e))),
+                consumer: (_parent, { id, pause }, context: Context) => withTransaction('consumer', async () => sfu.consumerMessage(context, id, pause).catch(e => Logger.error(e))),
+                stream: (_parent, { id, producerIds }, context: Context) => withTransaction('stream', async () => sfu.streamMessage(context, id, producerIds).catch(e => Logger.error(e))),
+                close: (_parent, { id }, context: Context) => withTransaction('close', async () => sfu.closeMessage(context, id).catch(e => Logger.error(e))),
+                mute: (_parent, muteNotification: MuteNotification, context: Context) => withTransaction('mute', async () => sfu.muteMessage(context, muteNotification).catch(e => Logger.error(e))),
+                updateGlobalMute: (_parent, globalMuteNotification: GlobalMuteNotification, context: Context) => withTransaction('updateGlobalMute', async () => sfu.globalMuteMutation(context, globalMuteNotification).catch(e => Logger.error(e))),
+                endClass: (_parent, { roomId }, context: Context) => withTransaction('endClass', async () => sfu.endClassMessage(context, roomId).catch(e => Logger.error(e)))
             },
             Subscription: {
                 media: {
-                    subscribe: (_parent, { }, context: Context) => sfu.subscribe(context).catch(e => Logger.error(e))
+                    subscribe: (_parent, { }, context: Context) => withTransaction('subscribe', async () => sfu.subscribe(context).catch(e => Logger.error(e)))
                 },
             }
         },
@@ -306,6 +320,9 @@ async function main() {
     });
 
     const app = express();
+    app.use((req, _res, next) => {
+        newrelic.startWebTransaction(req.path, next);
+    });
     app.get('/metrics', async (_req, res) => {
         try {
             res.set('Content-Type', register.contentType);
@@ -313,7 +330,7 @@ async function main() {
             res.end(metrics);
         } catch (ex) {
             console.error(ex)
-            res.status(500).end(ex.toString());
+            res.status(500).end(ex instanceof Error ? ex.toString() : 'Error retrieving metrics');
         }
     });
     server.applyMiddleware({ app })

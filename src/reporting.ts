@@ -1,5 +1,6 @@
 import Cloudwatch from "aws-sdk/clients/cloudwatch"
 import { Logger } from "./entry";
+import newrelic from 'newrelic';
 import {
     types as MediaSoup,
 } from "mediasoup";
@@ -7,8 +8,6 @@ import {SFU} from "./sfu";
 const CloudwatchClient = new Cloudwatch({
     region: process.env.AWS_REGION
 })
-
-let _service = `SFU`
 
 let _dockerId = "UnknownDockerId"
 export function setDockerId(dockerId: string) {
@@ -44,7 +43,14 @@ export function setAvailable(available: boolean) {
 const reportIntervalMs = 5000
 async function reporting(invokeTime = Date.now()) {
     try {
-        const result = await CloudwatchClient.putMetricData({
+
+        newrelic.recordMetric('producersCreated', producersCreated);
+        newrelic.recordMetric('consumersCreated', consumersCreated);
+        newrelic.recordMetric('graphQlConnections', _graphQlConnections);
+        newrelic.recordMetric('available', _available);
+        newrelic.recordMetric('online', 1)
+
+        await CloudwatchClient.putMetricData({
             Namespace: "kidsloop/live/sfu", MetricData: [
                 {
                     MetricName: "producers",
@@ -88,6 +94,8 @@ async function reporting(invokeTime = Date.now()) {
                 },
             ]
         }).promise()
+
+
 
     } catch (e) {
         Logger.error(e)

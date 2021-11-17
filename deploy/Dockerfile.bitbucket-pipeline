@@ -18,8 +18,10 @@ RUN apt-get install --yes nodejs build-essential
 WORKDIR /usr/src/app
 COPY ./package*.json ./
 COPY ./src ./src
+COPY ./types ./types
 COPY ./tsconfig.json .
 COPY ./node_modules ./node_modules
+COPY ./dist ./dist
 
 EXPOSE 8080
 CMD [ "npm", "start" ]

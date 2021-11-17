@@ -8,6 +8,7 @@ import {Logger} from "./entry"
 import {JWT} from "./auth"
 import { MuteNotification } from "./interfaces"
 import { Consumer } from "mediasoup/lib/Consumer"
+import newrelic from 'newrelic'
 
 export interface Stream {
     id: string
@@ -152,7 +153,7 @@ export class Client {
             producerIds.push(producer.id)
             const priority = source.producerIdBasePriority.get(producer.id)||1
             const consumerSet = source.producerIdToConsumers.get(producer.id)
-            const consumer = await destination.consume(producer, source.roomId, sessionId, consumerSet, priority)
+            await destination.consume(producer, source.roomId, sessionId, consumerSet, priority)
             if(!consumerSet) {
                 let errorMessage = `Unable to find producer to consumer mapping from Producer(${producer.id})`
                 Logger.crit(errorMessage)
@@ -396,109 +397,121 @@ export class Client {
     }
 
     public async endClassMessage(roomId?: string) {
+        console.log('Room: ', roomId, ' has been closed');
         this.close()
         return true
     }
 
     public async selfMute(roomId: string, audio?:boolean, video?:boolean): Promise<MuteNotification> {
-        const producer = this.getProducer(audio, video);
-        if (!producer) {
-            return {
+        return newrelic.startWebTransaction('selfMute', async () => {
+            newrelic.addCustomAttribute('roomId', roomId)
+            if (audio) newrelic.addCustomAttribute('audio', audio)
+            if (video) newrelic.addCustomAttribute('video', video)
+            const producer = this.getProducer(audio, video);
+            if (!producer) {
+                return {
+                    roomId,
+                    sessionId: this.id,
+                    audio: undefined,
+                    video: undefined,
+                };
+            }
+            Logger.debug(`selfMute: muting producer ${producer.id}`)
+            switch (producer.kind) {
+                case "audio":
+                    this.selfAudioMuted = audio !== undefined ? !audio : this.selfAudioMuted
+                    if (this.selfAudioMuted) {
+                        await producer.pause()
+                    } else {
+                        await producer.resume()
+                    }
+                    break;
+                case "video":
+                    this.selfVideoMuted = video !== undefined ? !video : this.selfVideoMuted
+                    if (this.selfVideoMuted) {
+                        await producer.pause()
+                    } else{
+                        await producer.resume()
+                    }
+                    break;
+                default:
+                    Logger.debug(`muteMessage: default`)
+                    break;
+            }
+    
+            const notification: MuteNotification =  {
                 roomId,
                 sessionId: this.id,
-                audio: undefined,
-                video: undefined,
-            };
-        }
-        Logger.debug(`selfMute: muting producer ${producer.id}`)
-        switch (producer.kind) {
-            case "audio":
-                this.selfAudioMuted = audio !== undefined ? !audio : this.selfAudioMuted
-                if (this.selfAudioMuted) {
-                    await producer.pause()
-                } else {
-                    await producer.resume()
-                }
-                break;
-            case "video":
-                this.selfVideoMuted = video !== undefined ? !video : this.selfVideoMuted
-                if (this.selfVideoMuted) {
-                    await producer.pause()
-                } else{
-                    await producer.resume()
-                }
-                break;
-            default:
-                Logger.debug(`muteMessage: default`)
-                break;
-        }
-
-        const notification: MuteNotification =  {
-            roomId,
-            sessionId: this.id,
-            audio,
-            video,
-        }
-
-        await this.channel.publish("mute", {
-            media: {
-                mute: notification
+                audio,
+                video,
             }
+    
+            await this.channel.publish("mute", {
+                media: {
+                    mute: notification
+                }
+            })
+            return notification;
         })
-        return notification;
     }
 
     public async teacherMute(roomId: string, audio?: boolean, video?: boolean): Promise<MuteNotification> {
-        const producer = this.getProducer(audio, video);
-        if (!producer) {
-            return {
-                roomId,
-                sessionId: this.id,
-                audio: undefined,
-                video: undefined,
-            };
-        }
-        Logger.debug(`teacherMute: muting producer: ${producer.id}`)
-        switch (producer.kind) {
-            case "audio":
-                this.teacherAudioMuted = audio !== undefined ? !audio : this.teacherAudioMuted
-                this.selfAudioMuted = this.teacherAudioMuted ? true : this.selfAudioMuted
-                if (this.selfAudioMuted) {
-                    await producer.pause()
-                } else {
-                    await producer.resume()
-                }
-                break;
-            case "video":
-                this.teacherVideoDisabled = video !== undefined ? !video : this.teacherVideoDisabled
-                this.selfVideoMuted = this.teacherVideoDisabled ? true : this.selfVideoMuted
-                if (this.selfVideoMuted) {
-                    await producer.pause()
-                } else {
-                    await producer.resume()
-                }
-                break;
-            default:
-                Logger.info(`muteMessage: default`)
-                break;
-        }
-
-        await this.channel.publish("mute", {
-            media: {
-                mute: {
+        return newrelic.startWebTransaction('teacherMute', async () => {
+            const producer = this.getProducer(audio, video);
+            newrelic.addCustomAttribute('roomId', roomId)
+            if (audio) newrelic.addCustomAttribute('audio', audio)
+            if (video) newrelic.addCustomAttribute('video', video)
+            if (!producer) {
+                return {
                     roomId,
                     sessionId: this.id,
-                    audio: !this.selfAudioMuted,
-                    video: !this.selfVideoMuted,
-                }
+                    audio: undefined,
+                    video: undefined,
+                };
             }
+            Logger.debug(`teacherMute: muting producer: ${producer.id}`)
+            switch (producer.kind) {
+                case "audio":
+                    this.teacherAudioMuted = audio !== undefined ? !audio : this.teacherAudioMuted
+                    this.selfAudioMuted = this.teacherAudioMuted ? true : this.selfAudioMuted
+                    if (this.selfAudioMuted) {
+                        await producer.pause()
+                    } else {
+                        await producer.resume()
+                    }
+                    break;
+                case "video":
+                    this.teacherVideoDisabled = video !== undefined ? !video : this.teacherVideoDisabled
+                    this.selfVideoMuted = this.teacherVideoDisabled ? true : this.selfVideoMuted
+                    if (this.selfVideoMuted) {
+                        await producer.pause()
+                    } else {
+                        await producer.resume()
+                    }
+                    break;
+                default:
+                    Logger.info(`muteMessage: default`)
+                    break;
+            }
+    
+            await this.channel.publish("mute", {
+                media: {
+                    mute: {
+                        roomId,
+                        sessionId: this.id,
+                        audio: !this.selfAudioMuted,
+                        video: !this.selfVideoMuted,
+                    }
+                }
+            })
+            return {
+                    roomId,
+                    sessionId: this.id,
+                    audio: !this.teacherAudioMuted,
+                    video: !this.teacherVideoDisabled,
+                };
+
         })
-        return {
-                roomId,
-                sessionId: this.id,
-                audio: !this.teacherAudioMuted,
-                video: !this.teacherVideoDisabled,
-            };
     }
 
     public getProducer(audio?: boolean, video?: boolean): MediaSoup.Producer | undefined {

@@ -20,7 +20,6 @@ export class Worker {
     public producers: Map<string, MediaSoup.Producer> = new Map()
 
     constructor(
-        private readonly worker: MediaSoup.Worker,
         public readonly workerType: WorkerType,
         private readonly router: MediaSoup.Router,
         public readonly audioLevelObserver: MediaSoup.AudioLevelObserver,
@@ -50,13 +49,13 @@ export class Worker {
         client.disconnect()
     }
 
-    private getClient(sessionId: string) {
-        const client = this.clients.get(sessionId)
-        if (!client) {
-            throw new Error(`SessionId: ${sessionId} has not yet been registered as a client on worker ${this.id}!`)
-        }
-        return client;
-    }
+    // private getClient(sessionId: string) {
+    //     const client = this.clients.get(sessionId)
+    //     if (!client) {
+    //         throw new Error(`SessionId: ${sessionId} has not yet been registered as a client on worker ${this.id}!`)
+    //     }
+    //     return client;
+    // }
 
     public async subscribe(client: Client) {
         return client.subscribe()

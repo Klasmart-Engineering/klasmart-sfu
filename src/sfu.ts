@@ -1,3 +1,4 @@
+import newrelic from "newrelic"
 import {v4 as uuid} from "uuid"
 import {
     observer,
@@ -94,7 +95,7 @@ export class SFU {
                 interval: 200,
             })
 
-            const newWorker = new Worker(worker, workerType, router, audioLevelObserver)
+            const newWorker = new Worker(workerType, router, audioLevelObserver)
             switch (workerType) {
                 case WorkerType.PRODUCER:
                     producerWorkers.push(newWorker)
@@ -141,7 +142,7 @@ export class SFU {
             this.reporting = true
             while(true) {
                 const status = RedisKeys.sfuStatus(this.id)
-                await this.redis.set(status.key, this.available ? 1 : 0, "EX", status.ttl).catch((e) => console)
+                await this.redis.set(status.key, this.available ? 1 : 0, "EX", status.ttl).catch((e) => console.log(e))
                 await new Promise((resolve) => setTimeout(resolve, 1000 * status.ttl / 2))
             }
         } finally {
@@ -202,6 +203,8 @@ export class SFU {
         this.available = false
         setAvailable(false)
 
+        newrelic.addCustomAttribute('roomId', roomId);
+
         Logger.info(`Assigned to Room(${roomId})`)
         startServerTimeout(this)
         const notify = RedisKeys.roomNotify(this.roomId);
@@ -219,9 +222,16 @@ export class SFU {
             await new Promise((resolve) => setTimeout(resolve, 1000 * sfu.ttl / 2))
             value = await this.redis.get(sfu.key)
         } while (value === announceURI)
-
-        Logger.error(`Room(${roomId})::SFU was '${value}' but expected '${announceURI}', terminating SFU`)
-        process.exit(-2)
+        
+        if (process.env.NEW_RELIC_LICENSE_KEY) {
+            Logger.info(`Pre-shutdown push of NR data`)
+            newrelic.shutdown({ 
+                collectPendingData: true
+            }, () => {
+                Logger.error(`Room(${roomId})::SFU was '${value}' but expected '${announceURI}', terminating SFU`)
+                process.exit(-2)
+            })
+        }
     }
 
     private async checkRoomStatus() {
@@ -256,6 +266,8 @@ export class SFU {
         if (mixedWorker) {
             return await mixedWorker.subscribe(client)
         }
+
+        return
     }
 
     private roomToClients = new Map<string, Client[]>()
@@ -382,6 +394,11 @@ export class SFU {
 
 
     public async endClassMessage(context: Context, roomId?: string): Promise<boolean> {
+        newrelic.addCustomAttributes({
+            roomId: context.roomId,
+            sessionId: context.sessionId
+        });
+        if (roomId) newrelic.addCustomAttribute('roomId', roomId)
         Logger.info(`endClassMessage from: ${context.sessionId}`)
         const {sessionId, token} = SFU.verifyContext(context)
         const sourceClient = await this.getOrCreateClient(sessionId, token)
@@ -401,6 +418,10 @@ export class SFU {
 
     public async rtpCapabilitiesMessage(context: Context, rtpCapabilities: string) {
         const {sessionId, token} = SFU.verifyContext(context)
+        newrelic.addCustomAttributes({
+            roomId: context.roomId,
+            sessionId: context.sessionId
+        });
         const client = await this.getOrCreateClient(sessionId, token)
         return await client.rtpCapabilitiesMessage(rtpCapabilities)
     }
@@ -470,6 +491,12 @@ export class SFU {
 
     public async muteMessage(context: Context, muteNotification: MuteNotification) {
         const {sessionId: sourceSessionId, token } = SFU.verifyContext(context)
+
+        newrelic.addCustomAttribute('roomId', context.roomId);
+        newrelic.addCustomAttribute('sessionId', context.sessionId);
+        if (muteNotification.audio !== undefined) newrelic.addCustomAttribute('audio', muteNotification.audio);
+        if (muteNotification.video !== undefined) newrelic.addCustomAttribute('video', muteNotification.video);
+        
         Logger.debug(`muteMessage from ${sourceSessionId}`)
         const sourceClient = await this.getOrCreateClient(sourceSessionId, token)
 
@@ -498,14 +525,20 @@ export class SFU {
         if (targetClient.id === sourceClient.id) {
             return await sourceClient.selfMute(roomId, audio, video)
         } else if (sourceClient.teacher) {
-            return await targetClient.teacherMute(roomId, audio, video);
+            return await targetClient.teacherMute(roomId, audio, video)
         }
-        return muteNotification; 
+        return muteNotification
     }
 
     public async globalMuteMutation(context: Context, globalMuteNotification: GlobalMuteNotification) {
         const { roomId, audioGloballyMuted, videoGloballyDisabled } = globalMuteNotification;
         const { sessionId, token } = SFU.verifyContext(context)
+
+        newrelic.addCustomAttribute('roomId', context.roomId);
+        newrelic.addCustomAttribute('sessionId', context.sessionId);
+        if (globalMuteNotification.audioGloballyMuted !== undefined) newrelic.addCustomAttribute('audioGloballyMuted', globalMuteNotification.audioGloballyMuted);
+        if (globalMuteNotification.videoGloballyDisabled !== undefined) newrelic.addCustomAttribute('videoGloballyDisabled', globalMuteNotification.videoGloballyDisabled);
+        
         Logger.debug(`globalMuteMutation requested by ${sessionId}`)
         const sourceClient = await this.getOrCreateClient(sessionId, token)
         if (!sourceClient.teacher) {
@@ -546,7 +579,7 @@ export class SFU {
         }
     }
 
-    public async globalMuteQuery(context: Context, roomId: string) {
+    public async globalMuteQuery(roomId: string) {
         const { audioGloballyMuted, videoGloballyDisabled } = await this.getGlobalMuteStates(roomId);
         return {
             roomId,
