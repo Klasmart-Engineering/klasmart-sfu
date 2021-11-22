@@ -1,7 +1,7 @@
 // TODO: Make this a shared library to prevent inconsistency
 export class RedisKeys {
     private static room(roomId: string): string {
-        return `room:${roomId}`;
+        return `room:{${roomId}}`;
     }
 
     public static roomNotify(roomId: string) {
@@ -21,6 +21,6 @@ export class RedisKeys {
     }
 
     public static sfuStatus(sfuId: string) {
-        return { key: `sfu:${sfuId}:status`, ttl: 5 };
+        return { key: `sfu:{${sfuId}}:status`, ttl: 5 };
     }
 }
