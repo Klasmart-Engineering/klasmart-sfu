@@ -1,4 +1,4 @@
-FROM node:14
+FROM node:16
 RUN mkdir -m 700 ~/.ssh; touch -m 600 ~/.ssh/known_hosts; ssh-keyscan bitbucket.org > ~/.ssh/known_hosts
 WORKDIR /usr/src/app
 COPY ./package*.json ./
