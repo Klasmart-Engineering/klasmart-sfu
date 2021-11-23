@@ -9,6 +9,7 @@ pipelines:
           name: "Build NPM"
           image: node:lts
           script:
+            - apt-get update && apt-get install python3-pip -y
             - npm ci
             - npm run build
           caches:
