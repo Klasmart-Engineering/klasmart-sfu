@@ -2,5 +2,6 @@
 module.exports = {
     preset: "ts-jest",
     testEnvironment: "node",
+    testPathIgnorePatterns: ["/node_modules/", "utils.ts"],
     setupFiles: ["<rootDir>/config/load_vars.ts"],
 };

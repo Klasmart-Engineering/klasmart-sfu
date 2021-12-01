@@ -1,6 +1,6 @@
 import WebSocket from "ws";
-import { ClientV2 } from "./client";
-import { RoomId, Room, newRoomId } from "./room";
+import {ClientV2} from "./client";
+import {RoomId, Room, newRoomId} from "./room";
 import {
     types as MediaSoup
 } from "mediasoup";
@@ -23,10 +23,7 @@ export class SFU {
         room.clients.add(client);
 
         ws.on("close", () => {
-            if (!room) {
-                return;
-            }
-            room.clients.delete(client);
+            room?.clients.delete(client);
             if (room && room.clients.size === 0) {
                 room.end();
                 this.rooms.delete(id);

@@ -49,11 +49,14 @@ export class ClientV2 {
                 throw new Error("Unknown message");
             }
 
-            this.ws.send(response);
+            this.ws.send(JSON.stringify(response));
 
         } catch (error: unknown) {
-            Logger.error(error);
-            this.ws.send(false);
+            Logger.warn(`Error handling message from client(${this.id}): ${error}`);
+            this.ws.send(JSON.stringify({
+                type: "error",
+                message: `Error handling message: ${data.toString()}`,
+            }));
         }
     }
 
