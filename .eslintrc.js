@@ -6,7 +6,6 @@ module.exports = {
     ignorePatterns: ["node_modules/"],
     extends: [
         "eslint:recommended",
-        "plugin:react/recommended",
         "plugin:@typescript-eslint/eslint-recommended",
         "plugin:@typescript-eslint/recommended",
     ],
@@ -19,7 +18,6 @@ module.exports = {
         sourceType: "module",
     },
     plugins: [
-        "react",
         "@typescript-eslint",
     ],
     rules: {
@@ -29,8 +27,7 @@ module.exports = {
         ],
         "indent": [
             "error",
-            4,
-            { indentSwitchCase: false } // To prevent conflict with "editor.formatOnSave" in settings.json
+            4
         ],
         "linebreak-style": [
             "error",

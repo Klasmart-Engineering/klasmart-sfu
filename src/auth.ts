@@ -1,5 +1,5 @@
-import { decode, Secret, verify, VerifyOptions } from "jsonwebtoken"
-import { Logger } from "./entry";
+import { decode, Secret, verify, VerifyOptions } from "jsonwebtoken";
+import {Logger} from "./logger";
 
 const issuers = new Map<
     string,
@@ -68,7 +68,7 @@ const issuers = new Map<
 
 export function checkIssuers() {
     if (process.env.NODE_ENV !== "production" && process.env.DEV_SECRET) {
-        console.warn(`NODE_ENV is not set to 'production'`);
+        console.warn("NODE_ENV is not set to 'production'");
         const issuer = "calmid-debug";
         const secretOrPublicKey = process.env.DEV_SECRET || "iXtZx1D5AqEB0B9pfn";
         console.log(`Allowing JWT tokens issued by '${issuer}' with symmetric secret '${secretOrPublicKey}'`);
@@ -84,7 +84,7 @@ export function checkIssuers() {
                 },
                 secretOrPublicKey,
             }
-        )
+        );
     }
 }
 
@@ -105,38 +105,33 @@ export type JWT = {
 }
 
 export async function checkAuthorizationToken(token?: string): Promise<JWT> {
-    try {
-        if (!token) {
-            Logger.error("Missing JWT Token")
-            throw new Error("Missing JWT token")
-        }
-        const payload = decode(token)
-        if (!payload || typeof payload === "string") {
-            Logger.error("JWT Payload is incorrect")
-            throw new Error("JWT Payload is incorrect")
-        }
-        const issuer = payload["iss"]
-        if (!issuer || typeof issuer !== "string") {
-            Logger.error("JWT Issuer is incorrect")
-            throw new Error("JWT Issuer is incorrect")
-        }
-        const issuerOptions = issuers.get(issuer)
-        if (!issuerOptions) {
-            Logger.error("JWT IssuerOptions are incorrect")
-            throw new Error("JWT IssuerOptions are incorrect")
-        }
-        const { options, secretOrPublicKey } = issuerOptions
-        const verifiedToken = await new Promise<JWT>((resolve, reject) => {
-            verify(token, secretOrPublicKey, options, (err, decoded) => {
-                if (err) { reject(err); return; }
-                if (decoded) { resolve(<JWT>decoded); return; }
-                reject(new Error("Unexpected authorization error"));
-            });
-        });
-        verifiedToken.userid = verifiedToken.userid || (verifiedToken as any).user_id;
-        return verifiedToken;
-    } catch (e) {
-        console.error(e);
-        throw e;
+    if (!token) {
+        Logger.error("Missing JWT Token");
+        throw new Error("Missing JWT token");
     }
+    const payload = decode(token);
+    if (!payload || typeof payload === "string") {
+        Logger.error("JWT Payload is incorrect");
+        throw new Error("JWT Payload is incorrect");
+    }
+    const issuer = payload["iss"];
+    if (!issuer || typeof issuer !== "string") {
+        Logger.error("JWT Issuer is incorrect");
+        throw new Error("JWT Issuer is incorrect");
+    }
+    const issuerOptions = issuers.get(issuer);
+    if (!issuerOptions) {
+        Logger.error("JWT IssuerOptions are incorrect");
+        throw new Error("JWT IssuerOptions are incorrect");
+    }
+    const { options, secretOrPublicKey } = issuerOptions;
+    const verifiedToken = await new Promise<JWT>((resolve, reject) => {
+        verify(token, secretOrPublicKey, options, (err, decoded) => {
+            if (err) { reject(err); return; }
+            if (decoded) { resolve(<JWT>decoded); return; }
+            reject(new Error("Unexpected authorization error"));
+        });
+    });
+    verifiedToken.userid = verifiedToken.userid || (verifiedToken as any).user_id;
+    return verifiedToken;
 }

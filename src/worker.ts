@@ -1,9 +1,9 @@
 import {
     types as MediaSoup,
-} from "mediasoup"
-import {v4 as uuid} from "uuid"
-import {Client} from "./client"
-import {EventEmitter} from "events"
+} from "mediasoup";
+import {v4 as uuid} from "uuid";
+import {Client} from "./client";
+import {EventEmitter} from "events";
 
 export enum WorkerType {
     PRODUCER, // Worker only has producers, no user consumers
@@ -26,42 +26,34 @@ export class Worker {
     ) { }
 
     public numProducers(): number {
-        return this.producers.size
+        return this.producers.size;
     }
 
     public numConsumers(): number {
-        return this.consumers.size
+        return this.consumers.size;
     }
 
     public connect(sessionId: string) {
-        const client = this.clients.get(sessionId)
+        const client = this.clients.get(sessionId);
         if (!client) {
-            return
+            return;
         }
-        client.connect()
+        client.connect();
     }
 
     public disconnect(sessionId: string) {
-        const client = this.clients.get(sessionId)
+        const client = this.clients.get(sessionId);
         if (!client) {
-            return
+            return;
         }
-        client.disconnect()
+        client.disconnect();
     }
 
-    // private getClient(sessionId: string) {
-    //     const client = this.clients.get(sessionId)
-    //     if (!client) {
-    //         throw new Error(`SessionId: ${sessionId} has not yet been registered as a client on worker ${this.id}!`)
-    //     }
-    //     return client;
-    // }
-
     public async subscribe(client: Client) {
-        return client.subscribe()
+        return client.subscribe();
     }
 
     public getRouter(): MediaSoup.Router {
-        return this.router
+        return this.router;
     }
 }

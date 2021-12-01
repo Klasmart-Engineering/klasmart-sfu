@@ -1,378 +1,87 @@
-import newrelic from "newrelic"
-import winstonEnricher from "@newrelic/winston-enricher";
-// custom implementation awaiting official support https://github.com/newrelic/newrelic-node-apollo-server-plugin/issues/71
-import newRelicApolloServerPlugin from "@newrelic/apollo-server-plugin";
-import { hostname } from "os"
-import dotenv from "dotenv"
-import { createLogger, format, transports } from "winston"
-import { createServer } from "http"
-import express from "express"
-import { ApolloServer, AuthenticationError, ForbiddenError } from "apollo-server-express"
-import { SFU } from "./sfu"
-import { schema } from "./schema"
-import {checkAuthorizationToken, checkIssuers, JWT} from "./auth"
-import { getNetworkInterfaceInfo } from "./networkInterfaces"
-import { NetworkInterfaceInfo } from "os"
-import fetch from "node-fetch"
-import EC2 from "aws-sdk/clients/ec2"
-import ECS from "aws-sdk/clients/ecs"
-import cookie from "cookie";
-import { checkToken } from "kidsloop-token-validation";
-// @ts-ignore
-import checkIp = require("check-ip")
-import { setDockerId, setGraphQLConnections, setClusterId, reportConferenceStats } from "./reporting"
-import { register, collectDefaultMetrics, Gauge } from "prom-client"
-import { GlobalMuteNotification, MuteNotification } from "./interfaces"
-import { withTransaction } from './withTransaction';
+import newrelic from "newrelic";
+import dotenv from "dotenv";
+import { SFU } from "./sfu";
+import { checkIssuers } from "./auth";
+import { reportConferenceStats } from "./reporting";
+import { collectDefaultMetrics } from "prom-client";
+import { Logger } from "./logger";
+import { createGauges, getECSTaskENIPublicIP, getIPAddress } from "./cloudUtils";
+import { ApolloNetworkInterface } from "./servers/apollo";
+import { HttpServer } from "./servers/httpServer";
+import { WsServer } from "./servers/wsServer";
+import { createWorker } from "mediasoup";
+import { SFU as SFU2 } from "./v2/sfu";
 
-dotenv.config();
-collectDefaultMetrics({})
-
-const logFormat = format.printf(({ level, message, label, timestamp }) => {
-    return `${timestamp} [${level}]: ${message} service: ${label}`;
-})
-
-const devOutput = [ format.colorize(), format.timestamp(), format.label({ label: 'default' }), logFormat]
-const nrOutput = [ format.timestamp(), format.label({ label: 'default' }), winstonEnricher() ]
-
-export const Logger = createLogger(
-    {
-        level: 'info',
-        format: format.combine(
-            ...(process.env.NEW_RELIC_LICENSE_KEY
-                ? nrOutput
-                : devOutput)
-        ),
-        defaultMeta: { service: 'default' },
-        transports: [
-            new transports.Console(
-                {
-                    level: 'info',
-                }
-            ),
-            new transports.File(
-                {
-                    level: 'info',
-                    filename: `logs/sfu_${new Date().toLocaleDateString("en", {
-                        year: "numeric",
-                        day: "2-digit",
-                        month: "2-digit",
-                        hour: "2-digit",
-                        minute: "2-digit"
-                    })
-                        .replace(/,/g, "")
-                        .replace(/\//g, "-")
-                        .replace(/ /g, "_")
-                        }.log`
-                }
-            )
-        ]
-    }
-)
-
-export interface Context {
-    roomId: string,
-    sessionId: string,
-    token: JWT
-}
-
-const ECSClient = new ECS()
-const EC2Client = new EC2()
-
-async function getECSTaskENIPublicIP() {
-    const ecsMetadataURI = process.env.ECS_CONTAINER_METADATA_URI_V4 || process.env.ECS_CONTAINER_METADATA_URI
-    if (!ecsMetadataURI) {
-        return
-    }
-    Logger.info(ecsMetadataURI)
-    const response = await fetch(`${ecsMetadataURI}`)
-    const ecsMetadata = await response.json()
-    setDockerId(ecsMetadata.DockerId)
-    const clusterARN = ecsMetadata.Labels && ecsMetadata.Labels["com.amazonaws.ecs.cluster"] as string
-    setClusterId(clusterARN)
-    const taskARN = ecsMetadata.Labels && ecsMetadata.Labels["com.amazonaws.ecs.task-arn"] as string
-    if (!taskARN) {
-        return
-    }
-    const tasks = await ECSClient.describeTasks({ cluster: clusterARN, tasks: [taskARN] }).promise()
-    if (!tasks.tasks) {
-        return
-    }
-    for (const task of tasks.tasks) {
-        if (!task.attachments) {
-            continue
-        }
-        for (const attachment of task.attachments) {
-            if (attachment.type !== "ElasticNetworkInterface") {
-                continue
-            }
-            if (attachment.status === "DELETED") {
-                continue
-            }
-            if (!attachment.details) {
-                continue
-            }
-            for (const detail of attachment.details) {
-                if (detail.name !== "networkInterfaceId") {
-                    continue
-                }
-                if (!detail.value) {
-                    continue
-                }
-                const enis = await EC2Client.describeNetworkInterfaces({ NetworkInterfaceIds: [detail.value] }).promise()
-                if (!enis.NetworkInterfaces) {
-                    continue
-                }
-                for (const eni of enis.NetworkInterfaces) {
-                    if (!eni.Association) {
-                        continue
-                    }
-                    if (!eni.Association.PublicIp) {
-                        continue
-                    }
-                    return eni.Association.PublicIp
-                }
-            }
-        }
-    }
-    return
-}
-
-function getIPAddress() {
-    //Sort network interfaces to prioritize external and IPv4 addresses
-    function scoreInterface(info: NetworkInterfaceInfo) {
-        const check: any = checkIp(info.address)
-        let score = 0
-        if (check.isPublic) {
-            score += 4
-        }
-        if (!info.internal) {
-            score += 2
-        }
-        if (info.family === "IPv4") {
-            score += 1
-        }
-        return score
-    }
-
-    const interfaces = getNetworkInterfaceInfo()
-    interfaces.sort((a, b) => scoreInterface(b) - scoreInterface(a))
-    Logger.info(JSON.stringify(interfaces))
-    if (interfaces.length <= 0) {
-        return
-    }
-    return interfaces[0].address
-}
-
-export const connectionCount = new Map<string, number>()
-
-async function main() {
-    checkIssuers();
-    const ip = (await getECSTaskENIPublicIP()) || getIPAddress()
-    if (!ip) {
-        Logger.error("No network interface found");
-        process.exit(-4)
-    }
-    Logger.info(`ip address ${ip}`)
-    const sfu = await SFU.create(ip)
-    setTimeout(() => {
-        reportConferenceStats(sfu)
-    }, 10000)
-    let connectionCount = 0
-
+function attachSignalHandlers() {
     /* Add shutdown listeners to forward New Relic metrics prior to app death */
-    process.on('SIGTERM', () => {
+    process.on("SIGTERM", () => {
         newrelic.shutdown({
             collectPendingData: true
         });
     });
-    process.on('exit', () => {
+    process.on("exit", () => {
         newrelic.shutdown({
             collectPendingData: true
-        })
-    })
-
-    const server = new ApolloServer({
-        typeDefs: schema,
-        subscriptions: {
-            keepAlive: 1000,
-            onConnect: async ({ sessionId, authToken }: any, _webSocket, connectionData: any) => {
-                const token = await checkAuthorizationToken(authToken).catch((e) => {
-                    throw new ForbiddenError(e)
-                });
-                const roomId = String(token.roomid)
-                if (!sfu.roomId || sfu.roomId !== roomId) {
-                    throw new Error(`Room(${token.roomid}) unavailable`)
-                }
-                if(!process.env.DISABLE_AUTH){
-                    const rawCookies = connectionData.request.headers.cookie;
-                    const cookies = rawCookies ? cookie.parse(rawCookies) : undefined;
-                    const authenticationToken = await (checkToken(cookies?.access).catch((e) => {
-                        if (e.name === "TokenExpiredError") { throw new AuthenticationError("AuthenticationExpired"); }
-                        throw new AuthenticationError("AuthenticationInvalid");
-                    }));
-                    if (!authenticationToken.id || authenticationToken.id !== token.userid) {
-                        throw new ForbiddenError("The authorization token does not match your session token");
-                    }
-                }else{
-                    console.warn("skipping AUTHENTICATION");
-                }
-                connectionCount++
-                setGraphQLConnections(connectionCount)
-                stopServerTimeout()
-                Logger.info(`Connection(${connectionCount}) from ${sessionId}`)
-                connectionData.counted = true
-                connectionData.sessionId = sessionId;
-                connectionData.roomId = roomId;
-                return { roomId, sessionId, token } as Context;
-            },
-            onDisconnect: async (_websocket, connectionData) => {
-                if (!(connectionData as any).counted) {
-                    return
-                }
-                connectionCount--
-                setGraphQLConnections(connectionCount)
-                if (connectionCount <= 0) {
-                    startServerTimeout(sfu)
-                }
-                const context: Context = await connectionData.initPromise;
-                Logger.info(`Disconnection(${connectionCount}) from ${context.sessionId}`)
-                await sfu.resetGlobalMute(context)
-                sfu.disconnect(context).catch(e => Logger.error(e))
-            }
-        },
-        resolvers: {
-            Query: {
-                ready: () => withTransaction('ready', () => true),
-                retrieveGlobalMute: (_parent, { roomId }) => withTransaction('retrieveGlobalMute', async () => sfu.globalMuteQuery(roomId).catch(e => Logger.error(e))),
-                retrieveMuteStatuses: (_parent, _args, context: Context) => withTransaction('retrieveMuteStatuses', async () => sfu.muteStatusQuery(context).catch(e => Logger.error(e))),
-            },
-            Mutation: {
-                rtpCapabilities: (_parent, { rtpCapabilities }, context: Context) => withTransaction('rtpCapabilities', async () => sfu.rtpCapabilitiesMessage(context, rtpCapabilities).catch(e => Logger.error(e))),
-                transport: (_parent, { producer, params }, context: Context) => withTransaction('transport', async () => sfu.transportMessage(context, producer, params).catch(e => Logger.error(e))),
-                producer: (_parent, { params }, context: Context) => withTransaction('producers', async () => sfu.producerMessage(context, params).catch(e => Logger.error(e))),
-                consumer: (_parent, { id, pause }, context: Context) => withTransaction('consumer', async () => sfu.consumerMessage(context, id, pause).catch(e => Logger.error(e))),
-                stream: (_parent, { id, producerIds }, context: Context) => withTransaction('stream', async () => sfu.streamMessage(context, id, producerIds).catch(e => Logger.error(e))),
-                close: (_parent, { id }, context: Context) => withTransaction('close', async () => sfu.closeMessage(context, id).catch(e => Logger.error(e))),
-                mute: (_parent, muteNotification: MuteNotification, context: Context) => withTransaction('mute', async () => sfu.muteMessage(context, muteNotification).catch(e => Logger.error(e))),
-                updateGlobalMute: (_parent, globalMuteNotification: GlobalMuteNotification, context: Context) => withTransaction('updateGlobalMute', async () => sfu.globalMuteMutation(context, globalMuteNotification).catch(e => Logger.error(e))),
-                endClass: (_parent, { roomId }, context: Context) => withTransaction('endClass', async () => sfu.endClassMessage(context, roomId).catch(e => Logger.error(e)))
-            },
-            Subscription: {
-                media: {
-                    subscribe: (_parent, { }, context: Context) => withTransaction('subscribe', async () => sfu.subscribe(context).catch(e => Logger.error(e)))
-                },
-            }
-        },
-        context: async ({ req, connection }) => {
-            if (connection) {
-                return connection.context;
-            }
-
-            const authHeader = req.headers.authorization;
-            const rawAuthorizationToken = authHeader?.substr(0, 7).toLowerCase() === "bearer" ? authHeader.substr(7) : authHeader;
-            const token = await checkAuthorizationToken(rawAuthorizationToken).catch((e) => {
-                throw new ForbiddenError(e);
-            });
-            if (!sfu.roomId || token.roomid !== sfu.roomId) {
-                throw new Error(`Room(${token.roomid}) unavailable`)
-            }
-
-            if(!process.env.DISABLE_AUTH){
-                const rawCookies = req.headers.cookie;
-                const cookies = rawCookies ? cookie.parse(rawCookies) : undefined;
-                const authenticationToken = await checkToken(cookies?.access).catch((e) => { throw new AuthenticationError(e); });
-                if (!authenticationToken.id || authenticationToken.id !== token.userid) {
-                    throw new ForbiddenError("The authorization token does not match your session token");
-                }
-            }else{
-                console.warn("skipping AUTHENTICATION");
-            }
-            return { token };
-        },
-        plugins: [
-            // Note - Apollo server plugin should be the last plugin in the list
-            newRelicApolloServerPlugin
-        ]
+        });
     });
-
-    new Gauge({
-        name: 'sfuCount',
-        help: 'Number of SFUs currently connected to the same redis db (shard?)',
-        labelNames: ["type"],
-        async collect() {
-            try {
-                const {
-                    availableCount,
-                    otherCount,
-                } = await sfu.sfuStats()
-                this.labels("available").set(availableCount);
-                this.labels("unavailable").set(otherCount);
-                this.labels("total").set(availableCount + otherCount);
-            } catch (e) {
-                this.labels("available").set(-1);
-                this.labels("unavailable").set(-1);
-                this.labels("total").set(-1);
-                console.log(e)
-            }
-        },
-    });
-
-    const app = express();
-    app.use((req, _res, next) => {
-        newrelic.startWebTransaction(req.path, next);
-    });
-    app.get('/metrics', async (_req, res) => {
-        try {
-            res.set('Content-Type', register.contentType);
-            const metrics = await register.metrics()
-            res.end(metrics);
-        } catch (ex: any) {
-            console.error(ex)
-            res.status(500).end(ex instanceof Error ? ex.toString() : 'Error retrieving metrics');
-        }
-    });
-    server.applyMiddleware({ app })
-    const httpServer = createServer(app)
-    server.installSubscriptionHandlers(httpServer)
-
-    httpServer.listen({ port: process.env.PORT }, () => { Logger.info(`🌎 Server available`); })
-    const address = httpServer.address()
-    if (!address || typeof address === "string") { throw new Error("Unexpected address format") }
-
-
-    const host =
-        process.env.HTTP_ANNOUCE_ADDRESS ||
-        process.env.HOSTNAME_OVERRIDE ||
-        (process.env.USE_IP === "1" ? ip : undefined) ||
-        hostname()
-    const uri = `${host}:${address.port}${server.subscriptionsPath}`
-    console.log(`Announcing address HTTP traffic for webRTC signaling via redis: ${uri}`)
-    await sfu.claimRoom(uri)
 }
 
-let timeout: NodeJS.Timeout | undefined;
+async function main() {
+    dotenv.config();
+    collectDefaultMetrics({});
+    checkIssuers();
 
-export function startServerTimeout(sfu: SFU) {
-    if (timeout) {
-        clearTimeout(timeout)
+    const ip = (await getECSTaskENIPublicIP()) || getIPAddress();
+    if (!ip) {
+        Logger.error("No network interface found");
+        process.exit(-4);
     }
-    let serverTimeoutEnvVar = parseInt(process.env.SERVER_TIMEOUT !== undefined ? process.env.SERVER_TIMEOUT : '')
-    let serverTimeout = !isNaN(serverTimeoutEnvVar) ? serverTimeoutEnvVar : 5
-    timeout = setTimeout(() => {
-        Logger.error(`There have been no new connections after ${serverTimeout} minutes, shutting down`)
-        sfu.shutdown().catch(e => Logger.error(e))
-    }, 1000 * 60 * serverTimeout)
-}
+    Logger.info(`ip address ${ip}`);
+    attachSignalHandlers();
 
-function stopServerTimeout() {
-    if (timeout) {
-        clearTimeout(timeout)
-        timeout = undefined
+    const useApollo = process.env.USE_APOLLO;
+    if (useApollo) {
+        const sfu = await SFU.create(ip);
+        setTimeout(() => {
+            reportConferenceStats(sfu);
+        }, 10000);
+
+        createGauges(sfu);
+
+        const httpServer = new HttpServer();
+        const apolloNetworkInterface = new ApolloNetworkInterface(sfu, httpServer);
+
+        const uri = httpServer.startServer(ip, apolloNetworkInterface.server.graphqlPath);
+
+        await sfu.claimRoom(uri);
+    } else {
+        const worker = await createWorker({
+            logLevel: "warn",
+            rtcMinPort: getConfigPortNumber("RTC_PORT_RANGE_MIN", 10000),
+            rtcMaxPort: getConfigPortNumber("RTC_PORT_RANGE_MAX", 59999),
+        });
+        const announcedIp = process.env.WEBRTC_ANNOUCE_IP || process.env.PUBLIC_ADDRESS || ip;
+        const sfu = new SFU2(worker, [{ip: process.env.WEBRTC_INTERFACE_ADDRESS || "0.0.0.0", announcedIp }]);
+        const wsServer = new WsServer(sfu);
+        wsServer.startServer(ip);
     }
 }
 
 main().catch(e => {
-    Logger.error(e)
-    process.exit(-1)
-})
+    Logger.error(e);
+    process.exit(-1);
+});
+
+function getConfigPortNumber<T=undefined>(variableName:string, defaultValue: T) {
+    const variableValue = process.env[variableName];
+    if(variableValue) {
+        const port = Number.parseInt(variableValue);
+        if(port > 0 && port < 65535) {
+            Logger.info(`'${variableName}': ${port}`);
+            return port;
+        }
+        Logger.warn(`Warning attempted to set '${variableName}' to invalid value '${variableValue}'`);
+    }
+    Logger.warn(`'${variableName}' set to default value '${defaultValue}'`);
+    return defaultValue;
+}

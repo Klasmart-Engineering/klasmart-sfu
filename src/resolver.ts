@@ -5,11 +5,11 @@
 export async function Resolver<T>() {
     return new Promise<{ promise: Promise<T>, resolver: (t: T) => any }>(
         (resolve) => {
-            const result: { promise: Promise<T>, resolver: (t: T) => any } = { promise: undefined, resolver: undefined } as any
+            const result: { promise: Promise<T>, resolver: (t: T) => any } = { promise: undefined, resolver: undefined } as any;
             result.promise = new Promise<T>((resolver) => {
-                result.resolver = resolver
-                resolve(result)
-            })
+                result.resolver = resolver;
+                resolve(result);
+            });
         }
-    )
+    );
 }

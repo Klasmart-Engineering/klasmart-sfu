@@ -34,3 +34,6 @@ Thumbs.db
 
 # IDEs
 .idea/
+
+# Test output
+coverage/

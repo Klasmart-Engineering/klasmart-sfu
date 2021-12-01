@@ -1,54 +1,54 @@
-import Cloudwatch from "aws-sdk/clients/cloudwatch"
-import { Logger } from "./entry";
-import newrelic from 'newrelic';
+import Cloudwatch from "aws-sdk/clients/cloudwatch";
+import newrelic from "newrelic";
 import {
     types as MediaSoup,
 } from "mediasoup";
 import {SFU} from "./sfu";
+import {Logger} from "./logger";
+import {withTransaction} from "./withTransaction";
 const CloudwatchClient = new Cloudwatch({
     region: process.env.AWS_REGION
-})
+});
 
-let _dockerId = "UnknownDockerId"
+let _dockerId = "UnknownDockerId";
 export function setDockerId(dockerId: string) {
-    _dockerId = dockerId
+    _dockerId = dockerId;
 }
 
-let _cluster = "UknownClusterId"
+let _cluster = "UnknownClusterId";
 export function setClusterId(clusterId: string) {
-    _cluster = clusterId
+    _cluster = clusterId;
 }
 
-let _graphQlConnections: number = 0
+let _graphQlConnections = 0;
 export function setGraphQLConnections(count: number) {
-    _graphQlConnections = count
+    _graphQlConnections = count;
 }
 
-let producersCreated: number = 0
-export function incrementProducerCount() { producersCreated++ }
-export function decrementProducerCount() { producersCreated-- }
+let producersCreated = 0;
+export function incrementProducerCount() { producersCreated++; }
+export function decrementProducerCount() { producersCreated--; }
 
-let consumersCreated: number = 0
-export function incrementConsumerCount() { consumersCreated++ }
-export function decrementConsumerCount() { consumersCreated-- }
+let consumersCreated = 0;
+export function incrementConsumerCount() { consumersCreated++; }
+export function decrementConsumerCount() { consumersCreated--; }
 
 
 //Used for autoscaling to know how many servers are standing by available to be assigned to a class
-let _available = 0
+let _available = 0;
 export function setAvailable(available: boolean) {
-    _available = available ? 1 : 0
+    _available = available ? 1 : 0;
 }
 
-
-const reportIntervalMs = 5000
+const reportIntervalMs = 5000;
 async function reporting(invokeTime = Date.now()) {
     try {
 
-        newrelic.recordMetric('producersCreated', producersCreated);
-        newrelic.recordMetric('consumersCreated', consumersCreated);
-        newrelic.recordMetric('graphQlConnections', _graphQlConnections);
-        newrelic.recordMetric('available', _available);
-        newrelic.recordMetric('online', 1)
+        newrelic.recordMetric("producersCreated", producersCreated);
+        newrelic.recordMetric("consumersCreated", consumersCreated);
+        newrelic.recordMetric("graphQlConnections", _graphQlConnections);
+        newrelic.recordMetric("available", _available);
+        newrelic.recordMetric("online", 1);
 
         await CloudwatchClient.putMetricData({
             Namespace: "kidsloop/live/sfu", MetricData: [
@@ -57,7 +57,7 @@ async function reporting(invokeTime = Date.now()) {
                     Value: producersCreated,
                     Unit: "Count",
                     Dimensions: [
-                        { Name: 'ClusterId', Value: _cluster },
+                        { Name: "ClusterId", Value: _cluster },
                     ]
                 },
                 {
@@ -65,7 +65,7 @@ async function reporting(invokeTime = Date.now()) {
                     Value: consumersCreated,
                     Unit: "Count",
                     Dimensions: [
-                        { Name: 'ClusterId', Value: _cluster },
+                        { Name: "ClusterId", Value: _cluster },
                     ]
                 },
                 {
@@ -73,7 +73,7 @@ async function reporting(invokeTime = Date.now()) {
                     Value: _graphQlConnections,
                     Unit: "Count",
                     Dimensions: [
-                        { Name: 'ClusterId', Value: _cluster },
+                        { Name: "ClusterId", Value: _cluster },
                     ]
                 },
                 {
@@ -81,7 +81,7 @@ async function reporting(invokeTime = Date.now()) {
                     Value: _available,
                     Unit: "Count",
                     Dimensions: [
-                        { Name: 'ClusterId', Value: _cluster },
+                        { Name: "ClusterId", Value: _cluster },
                     ]
                 },
                 {
@@ -89,19 +89,16 @@ async function reporting(invokeTime = Date.now()) {
                     Value: 1,
                     Unit: "Count",
                     Dimensions: [
-                        { Name: 'ClusterId', Value: _cluster },
+                        { Name: "ClusterId", Value: _cluster },
                     ]
                 },
             ]
-        }).promise()
-
-
-
+        }).promise();
     } catch (e) {
-        Logger.error(e)
+        Logger.error(e);
     } finally {
-        const waitTime = (invokeTime + reportIntervalMs) - Date.now()
-        setTimeout(() => reporting(), Math.max(0, waitTime))
+        const waitTime = (invokeTime + reportIntervalMs) - Date.now();
+        setTimeout(() => reporting(), Math.max(0, waitTime));
     }
 }
 
@@ -117,7 +114,7 @@ function extractMetrics(stats: MediaSoup.WebRtcTransportStat, clientId: string, 
             {Name: "Transport Id", Value: stats.transportId},
             {Name: "Direction", Value: direction}
         ]
-    }
+    };
     const bytesReceived: Cloudwatch.MetricDatum = {
         MetricName: `Bytes Received (${direction})`,
         Unit: "Bytes",
@@ -129,7 +126,7 @@ function extractMetrics(stats: MediaSoup.WebRtcTransportStat, clientId: string, 
             {Name: "Transport Id", Value: stats.transportId},
             {Name: "Direction", Value: direction}
         ]
-    }
+    };
     const receivingBitrate: Cloudwatch.MetricDatum = {
         MetricName: `Receiving Bitrate (${direction})`,
         Unit: "Bits/Second",
@@ -141,7 +138,7 @@ function extractMetrics(stats: MediaSoup.WebRtcTransportStat, clientId: string, 
             {Name: "Transport Id", Value: stats.transportId},
             {Name: "Direction", Value: direction}
         ]
-    }
+    };
     const sendingBitrate: Cloudwatch.MetricDatum = {
         MetricName: `Sending Bitrate (${direction})`,
         Unit: "Bits/Second",
@@ -153,7 +150,7 @@ function extractMetrics(stats: MediaSoup.WebRtcTransportStat, clientId: string, 
             {Name: "Transport Id", Value: stats.transportId},
             {Name: "Direction", Value: direction}
         ]
-    }
+    };
     const rtpBytesReceived: Cloudwatch.MetricDatum = {
         MetricName: `RTP Bytes Received (${direction})`,
         Unit: "Bytes",
@@ -165,7 +162,7 @@ function extractMetrics(stats: MediaSoup.WebRtcTransportStat, clientId: string, 
             {Name: "Transport Id", Value: stats.transportId},
             {Name: "Direction", Value: direction}
         ]
-    }
+    };
     const rtpBytesSent: Cloudwatch.MetricDatum = {
         MetricName: `RTP Bytes Sent (${direction})`,
         Unit: "Bytes",
@@ -177,7 +174,7 @@ function extractMetrics(stats: MediaSoup.WebRtcTransportStat, clientId: string, 
             {Name: "Transport Id", Value: stats.transportId},
             {Name: "Direction", Value: direction}
         ]
-    }
+    };
     const rtpRecvBitrate: Cloudwatch.MetricDatum = {
         MetricName: `RTP Receiving Bitrate (${direction})`,
         Unit: "Bits/Second",
@@ -189,7 +186,7 @@ function extractMetrics(stats: MediaSoup.WebRtcTransportStat, clientId: string, 
             {Name: "Transport Id", Value: stats.transportId},
             {Name: "Direction", Value: direction}
         ]
-    }
+    };
     const rtpSendBitrate: Cloudwatch.MetricDatum = {
         MetricName: `RTP Sending Bitrate (${direction})`,
         Unit: "Bits/Second",
@@ -201,7 +198,7 @@ function extractMetrics(stats: MediaSoup.WebRtcTransportStat, clientId: string, 
             {Name: "Transport Id", Value: stats.transportId},
             {Name: "Direction", Value: direction}
         ]
-    }
+    };
     const rtxBytesReceived: Cloudwatch.MetricDatum = {
         MetricName: `RTX Bytes Received (${direction})`,
         Unit: "Bytes",
@@ -213,7 +210,7 @@ function extractMetrics(stats: MediaSoup.WebRtcTransportStat, clientId: string, 
             {Name: "Transport Id", Value: stats.transportId},
             {Name: "Direction", Value: direction}
         ]
-    }
+    };
     const rtxBytesSent: Cloudwatch.MetricDatum = {
         MetricName: `RTX Bytes Sent (${direction})`,
         Unit: "Bytes",
@@ -225,7 +222,7 @@ function extractMetrics(stats: MediaSoup.WebRtcTransportStat, clientId: string, 
             {Name: "Transport Id", Value: stats.transportId},
             {Name: "Direction", Value: direction}
         ]
-    }
+    };
     const rtxRecvBitrate: Cloudwatch.MetricDatum = {
         MetricName: `RTX Receiving Bitrate (${direction})`,
         Unit: "Bits/Second",
@@ -237,7 +234,7 @@ function extractMetrics(stats: MediaSoup.WebRtcTransportStat, clientId: string, 
             {Name: "Transport Id", Value: stats.transportId},
             {Name: "Direction", Value: direction}
         ]
-    }
+    };
     const rtxSendBitrate: Cloudwatch.MetricDatum = {
         MetricName: `RTX Sending Bitrate (${direction})`,
         Unit: "Bits/Second",
@@ -249,7 +246,7 @@ function extractMetrics(stats: MediaSoup.WebRtcTransportStat, clientId: string, 
             {Name: "Transport Id", Value: stats.transportId},
             {Name: "Direction", Value: direction}
         ]
-    }
+    };
     const probationBytesSent: Cloudwatch.MetricDatum = {
         MetricName: `Probation Bytes Sent (${direction})`,
         Unit: "Bytes",
@@ -261,7 +258,7 @@ function extractMetrics(stats: MediaSoup.WebRtcTransportStat, clientId: string, 
             {Name: "Transport Id", Value: stats.transportId},
             {Name: "Direction", Value: direction}
         ]
-    }
+    };
     const probationSendBitrate: Cloudwatch.MetricDatum = {
         MetricName: `Probation Send Bitrate (${direction})`,
         Unit: "Bits/Second",
@@ -273,7 +270,7 @@ function extractMetrics(stats: MediaSoup.WebRtcTransportStat, clientId: string, 
             {Name: "Transport Id", Value: stats.transportId},
             {Name: "Direction", Value: direction}
         ]
-    }
+    };
     metricData.push(
         bytesSent,
         bytesReceived,
@@ -289,63 +286,76 @@ function extractMetrics(stats: MediaSoup.WebRtcTransportStat, clientId: string, 
         rtxSendBitrate,
         probationBytesSent,
         probationSendBitrate
-    )
+    );
 }
 
 export async function reportConferenceStats(sfu: SFU) {
     if (!process.env.REPORT_CLOUDWATCH_METRICS) {
-        Logger.warn("Cloudwatch metrics are not enabled")
-        return
+        Logger.warn("Cloudwatch metrics are not enabled");
+        return;
     }
 
     try {
-        let MetricData: Cloudwatch.MetricDatum[] = []
+        let MetricData: Cloudwatch.MetricDatum[] = [];
 
         if (sfu.roomId === undefined) {
-            return
+            return;
         }
 
         for (const client of sfu.clients.values()) {
-            Logger.debug(`Reporting client ${client.id} connection stats`)
+            Logger.debug(`Reporting client ${client.id} connection stats`);
 
-            const producerStats = await client.producerTransport.getStats()
-            const consumerStats = await client.consumerTransport.getStats()
+            const producerStats = await client.producerTransport.getStats();
+            const consumerStats = await client.consumerTransport.getStats();
 
             for (const stats of producerStats){
-                extractMetrics(stats, client.id, MetricData, "Producer")
+                extractMetrics(stats, client.id, MetricData, "Producer");
             }
 
             CloudwatchClient.putMetricData({
                 Namespace: "kidsloop/live/sfu",
                 MetricData
-            })
-            MetricData = []
+            });
+            MetricData = [];
 
             for (const stats of consumerStats) {
-                extractMetrics(stats, client.id, MetricData, "Consumer")
+                extractMetrics(stats, client.id, MetricData, "Consumer");
             }
 
             CloudwatchClient.putMetricData({
                 Namespace: "kidsloop/live/sfu",
                 MetricData
-            })
-            MetricData = []
+            });
+            MetricData = [];
         }
 
         if (MetricData.length > 0) {
             await CloudwatchClient.putMetricData({
                 Namespace: "kidsloop/live/sfu",
                 MetricData
-            }).promise()
+            }).promise();
         }
     } catch(e) {
-        Logger.error(e)
+        Logger.error(e);
     } finally {
-        const waitTime = (reportIntervalMs) - Date.now()
-        setTimeout(() => reportConferenceStats(sfu), Math.max(0, waitTime))
+        const waitTime = (reportIntervalMs) - Date.now();
+        setTimeout(() => reportConferenceStats(sfu), Math.max(0, waitTime));
     }
 }
 
 if (process.env.REPORT_CLOUDWATCH_METRICS) {
-    setTimeout(() => reporting(), reportIntervalMs)
+    setTimeout(() => reporting(), reportIntervalMs);
+}
+
+/// Decorator for newRelic withTransaction.  Use via @newRelicTransaction("path")
+export function newRelicTransaction(path: string) {
+    return (_target: object, _propertyKey: string | symbol, descriptor: PropertyDescriptor) => {
+        const childFunction = descriptor.value;
+        descriptor.value = function (this: SFU, ...args: never[]) {
+            return withTransaction(path, async () => {
+                return childFunction.apply(this, args);
+            });
+        };
+        return descriptor;
+    };
 }
