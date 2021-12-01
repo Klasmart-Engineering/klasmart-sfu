@@ -23,7 +23,7 @@ export class SFU {
         room.clients.add(client);
 
         ws.on("close", () => {
-            room?.clients.delete(client);
+            room?.clients.delete(client); 
             if (room && room.clients.size === 0) {
                 room.end();
                 this.rooms.delete(id);
