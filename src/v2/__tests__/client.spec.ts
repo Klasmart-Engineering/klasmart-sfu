@@ -1,6 +1,5 @@
 import {SFU} from "../sfu";
-import {setupSfu, setupSingleClient, TestWssServer} from "./utils";
-import {Data, WebSocket} from "ws";
+import {setupSfu, setupSingleClient, TestWssServer, WebSocketMessageGenerator} from "./utils";
 import {types as MediaSoup} from "mediasoup";
 import {mediaCodecs} from "../../config";
 
@@ -19,19 +18,15 @@ describe("client", () => {
 
     it("should throw on an malformed message", async () => {
         const client = await setupSingleClient(wss, sfu);
+        const messageGenerator = new WebSocketMessageGenerator(client);
+
         const randomMessage = "random-data";
-
-        const wait = new Promise((resolve) => {
-            async function responseHandler(data: Data) {
-                resolve(JSON.parse(data.toString()));
-            }
-
-            client.on("message", responseHandler);
-        });
 
         client.send(randomMessage);
 
-        await expect(wait).resolves.toEqual(
+        const response = await messageGenerator.nextMessage();
+
+        await expect(response).toEqual(
             {
                 type: "error",
                 message: `Error handling message: ${randomMessage}`
@@ -42,18 +37,17 @@ describe("client", () => {
 
     it("should throw on an unknown message", async () => {
         const client = await setupSingleClient(wss, sfu);
+        const messageGenerator = new WebSocketMessageGenerator(client);
 
         const randomMessage = JSON.stringify({
             randomData: "random-data"
         });
 
-        const wait = waitForResponse(client, (data) => {
-            return JSON.parse(data.toString());
-        });
-
         client.send(randomMessage);
 
-        await expect(wait).resolves.toEqual(
+        const response = await messageGenerator.nextMessage();
+
+        expect(response).toEqual(
             {
                 type: "error",
                 message: `Error handling message: ${randomMessage}`
@@ -64,10 +58,7 @@ describe("client", () => {
 
     it("should handle an rtpCapabilities message", async () => {
         const client = await setupSingleClient(wss, sfu);
-
-        const wait = waitForResponse(client, (data) => {
-            return JSON.parse(data.toString());
-        });
+        const messageGenerator = new WebSocketMessageGenerator(client);
 
         const rtpCapabilities: MediaSoup.RtpCapabilities = {
             codecs: mediaCodecs,
@@ -78,16 +69,15 @@ describe("client", () => {
             rtpCapabilities: rtpCapabilities
         }));
 
-        await expect(wait).resolves.toEqual(true);
+        const response = await messageGenerator.nextMessage();
+
+        expect(response).toEqual(true);
         client.close();
     });
 
     it("should handle a createProducerTransport message", async () => {
         const client = await setupSingleClient(wss, sfu);
-
-        const wait = waitForResponse(client, (data) => {
-            return JSON.parse(JSON.parse(data.toString()));
-        });
+        const messageGenerator = new WebSocketMessageGenerator(client);
 
         const producerTransportMessage = {
             producerTransport: "yes"
@@ -95,7 +85,9 @@ describe("client", () => {
 
         client.send(JSON.stringify(producerTransportMessage));
 
-        await expect(wait).resolves.toMatchObject({
+        const response = await messageGenerator.nextMessage();
+
+        expect(response).toMatchObject({
             producerTransport: {}
         });
         client.close();
@@ -103,10 +95,7 @@ describe("client", () => {
 
     it("should throw when trying to connect to a producer transport prior to creating a producer transport", async () => {
         const client = await setupSingleClient(wss, sfu);
-
-        const wait = waitForResponse(client, (data) => {
-            return JSON.parse(data.toString());
-        });
+        const messageGenerator = new WebSocketMessageGenerator(client);
 
         const producerTransportConnectMessage = JSON.stringify({
             producerTransportConnect: {dtlsParameters: {}}
@@ -114,7 +103,9 @@ describe("client", () => {
 
         client.send(producerTransportConnectMessage);
 
-        await expect(wait).resolves.toEqual(
+        const response = await messageGenerator.nextMessage();
+
+        expect(response).toEqual(
             {
                 type: "error",
                 message: `Error handling message: ${producerTransportConnectMessage}`
@@ -125,10 +116,7 @@ describe("client", () => {
 
     it("should handle a createConsumerTransport message", async () => {
         const client = await setupSingleClient(wss, sfu);
-
-        const wait = waitForResponse(client, (data) => {
-            return JSON.parse(JSON.parse(data.toString()));
-        });
+        const messageGenerator = new WebSocketMessageGenerator(client);
 
         const consumerTransportMessage = {
             consumerTransport: "yes"
@@ -136,7 +124,9 @@ describe("client", () => {
 
         client.send(JSON.stringify(consumerTransportMessage));
 
-        await expect(wait).resolves.toMatchObject({
+        const response = await messageGenerator.nextMessage();
+
+        expect(response).toMatchObject({
             consumerTransport: {}
         });
         client.close();
@@ -144,10 +134,7 @@ describe("client", () => {
 
     it("should throw when trying to connect to a consumer transport prior to creating a consumer transport", async () => {
         const client = await setupSingleClient(wss, sfu);
-
-        const wait = waitForResponse(client, (data) => {
-            return JSON.parse(data.toString());
-        });
+        const messageGenerator = new WebSocketMessageGenerator(client);
 
         const consumerTransportConnectMessage = JSON.stringify({
             consumerTransportConnect: {dtlsParameters: {}}
@@ -155,7 +142,9 @@ describe("client", () => {
 
         client.send(consumerTransportConnectMessage);
 
-        await expect(wait).resolves.toEqual(
+        const response = await messageGenerator.nextMessage();
+
+        expect(response).toEqual(
             {
                 type: "error",
                 message: `Error handling message: ${consumerTransportConnectMessage}`
@@ -166,10 +155,7 @@ describe("client", () => {
 
     it("should throw when trying to create a track prior to creating a producer transport", async () => {
         const client = await setupSingleClient(wss, sfu);
-
-        const wait = waitForResponse(client, (data) => {
-            return JSON.parse(data.toString());
-        });
+        const messageGenerator = new WebSocketMessageGenerator(client);
 
         const createTrackMessage = JSON.stringify({
             createTrack: {
@@ -186,7 +172,9 @@ describe("client", () => {
 
         client.send(createTrackMessage);
 
-        await expect(wait).resolves.toEqual(
+        const response = await messageGenerator.nextMessage();
+
+        expect(response).toEqual(
             {
                 type: "error",
                 message: `Error handling message: ${createTrackMessage}`
@@ -197,10 +185,7 @@ describe("client", () => {
 
     it("should throw when trying to create a consumer prior to exchanging rtpCapabilities", async () => {
         const client = await setupSingleClient(wss, sfu);
-
-        const wait = waitForResponse(client, (data) => {
-            return JSON.parse(data.toString());
-        });
+        const messageGenerator = new WebSocketMessageGenerator(client);
 
         const createConsumerMessage = JSON.stringify({
             createConsumer: {
@@ -210,7 +195,9 @@ describe("client", () => {
 
         client.send(createConsumerMessage);
 
-        await expect(wait).resolves.toEqual(
+        const response = await messageGenerator.nextMessage();
+
+        expect(response).toEqual(
             {
                 type: "error",
                 message: `Error handling message: ${createConsumerMessage}`
@@ -221,10 +208,7 @@ describe("client", () => {
 
     it("should throw when trying to locally pause a track that doesn't exist", async () => {
         const client = await setupSingleClient(wss, sfu);
-
-        const wait = waitForResponse(client, (data) => {
-            return JSON.parse(data.toString());
-        });
+        const messageGenerator = new WebSocketMessageGenerator(client);
 
         const locallyPauseMessage = JSON.stringify({
             locallyPause: {
@@ -235,7 +219,9 @@ describe("client", () => {
 
         client.send(locallyPauseMessage);
 
-        await expect(wait).resolves.toEqual(
+        const response = await messageGenerator.nextMessage();
+
+        expect(response).toEqual(
             {
                 type: "error",
                 message: `Error handling message: ${locallyPauseMessage}`
@@ -246,10 +232,7 @@ describe("client", () => {
 
     it("should throw when trying to globally pause a track and the client is not a teacher", async () => {
         const client = await setupSingleClient(wss, sfu);
-
-        const wait = waitForResponse(client, (data) => {
-            return JSON.parse(data.toString());
-        });
+        const messageGenerator = new WebSocketMessageGenerator(client);
 
         const globallyPauseMessage = JSON.stringify({
             globallyPause: {
@@ -260,7 +243,9 @@ describe("client", () => {
 
         client.send(globallyPauseMessage);
 
-        await expect(wait).resolves.toEqual(
+        const response = await messageGenerator.nextMessage();
+
+        expect(response).toEqual(
             {
                 type: "error",
                 message: `Error handling message: ${globallyPauseMessage}`
@@ -271,10 +256,7 @@ describe("client", () => {
 
     it("should throw when trying to globally pause a track that doesn't exist", async () => {
         const client = await setupSingleClient(wss, sfu, true);
-
-        const wait = waitForResponse(client, (data) => {
-            return JSON.parse(data.toString());
-        });
+        const messageGenerator = new WebSocketMessageGenerator(client);
 
         const globallyPauseMessage = JSON.stringify({
             globallyPause: {
@@ -285,7 +267,9 @@ describe("client", () => {
 
         client.send(globallyPauseMessage);
 
-        await expect(wait).resolves.toEqual(
+        const response = await messageGenerator.nextMessage();
+
+        expect(response).toEqual(
             {
                 type: "error",
                 message: `Error handling message: ${globallyPauseMessage}`
@@ -296,10 +280,7 @@ describe("client", () => {
 
     it("should throw when trying to end a room and the client is not a teacher", async () => {
         const client = await setupSingleClient(wss, sfu);
-
-        const wait = waitForResponse(client, (data) => {
-            return JSON.parse(data.toString());
-        });
+        const messageGenerator = new WebSocketMessageGenerator(client);
 
         const endMessage = JSON.stringify({
             end: true
@@ -307,7 +288,9 @@ describe("client", () => {
 
         client.send(endMessage);
 
-        await expect(wait).resolves.toEqual(
+        const response = await messageGenerator.nextMessage();
+
+        expect(response).toEqual(
             {
                 type: "error",
                 message: `Error handling message: ${endMessage}`
@@ -315,14 +298,24 @@ describe("client", () => {
 
         client.close();
     });
-});
 
-async function waitForResponse(client: WebSocket, func: (data: Data) => unknown) {
-    return new Promise((resolve) => {
-        async function waitFor(data: Data) {
-            resolve(func(data));
+    it("should handle a connectProducerTransport message", async () => {
+        const client = await setupSingleClient(wss, sfu);
+        const messageGenerator = new WebSocketMessageGenerator(client);
+
+        client.send(JSON.stringify({
+            createProducerTransport: "yes"
+        }));
+
+        const data = await messageGenerator.nextMessage();
+
+        if (!data) {
+            expect(data).toBeDefined();
+            return;
         }
 
-        client.on("message", waitFor);
+        // TODO: Finish this test
+
+        client.close();
     });
-}
+});

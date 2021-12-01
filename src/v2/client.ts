@@ -280,14 +280,14 @@ export class ClientV2 {
 }
 
 function serializeTransport(key: string, { id, iceCandidates, iceParameters, dtlsParameters }: MediaSoup.WebRtcTransport) {
-    return JSON.stringify({
+    return {
         [key]: {
             id,
             iceCandidates,
             iceParameters,
             dtlsParameters,
         }
-    });
+    };
 }
 
 export type ClientId = NewType<string, "ClientId">

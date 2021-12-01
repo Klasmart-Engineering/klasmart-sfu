@@ -1,6 +1,6 @@
 import {createWorker} from "mediasoup";
 import {SFU} from "../sfu";
-import {Server, WebSocket} from "ws";
+import {Data, Server, WebSocket} from "ws";
 import {newRoomId} from "../room";
 
 export async function setupSfu() {
@@ -73,4 +73,39 @@ export async function setupSingleClient(wss: TestWssServer, sfu: SFU, isTeacher 
 
     await sfu.addClient(ws, roomId, isTeacher);
     return client;
+}
+
+// A class that wraps a `WebSocket` to allow you to `await` on messages.
+// Useful for blocking until a message is received, and continuing to listen
+// afterward.
+export class WebSocketMessageGenerator {
+    private receivedMessages: Data[] = [];
+    private generator: AsyncGenerator<Data | undefined, void>;
+    constructor(private readonly client: WebSocket) {
+        this.generator = this.messages();
+    }
+
+    private async * messages() {
+        this.client.on("message", (data: Data) => {
+            this.receivedMessages.push(data);
+        });
+
+        while (true) {
+            if (this.receivedMessages.length > 0) {
+                yield this.receivedMessages.shift();
+                continue;
+            }
+            await new Promise((resolve) => setTimeout(resolve, 10));
+        }
+    }
+    public async nextMessage<T>(): Promise<T> {
+        const message = await this.generator.next();
+        if (message.done) {
+            throw new Error("No more messages");
+        }
+        if (!message.value) {
+            throw new Error("No message");
+        }
+        return JSON.parse(message.value.toString());
+    }
 }
