@@ -16,12 +16,12 @@ describe("producer", () => {
         const producer = await Producer.create(transport as unknown as MediaSoup.WebRtcTransport, params);
 
         const waitClose = new Promise<void>((resolve) => {
-            producer.emitter.once("close", () => {
+            producer.emitter.once("closed", () => {
                 resolve();
             });
         });
 
-        transport.trigger("transportclose");
+        transport.triggerProducer("transportclose");
 
         await expect(waitClose).resolves.not.toThrow();
     });

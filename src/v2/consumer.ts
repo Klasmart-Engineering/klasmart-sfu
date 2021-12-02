@@ -14,6 +14,7 @@ export type ConsumerParams = {
 export type ConsumerEvents = {
     "paused": (paused: boolean) => unknown;
     "closed": () => unknown;
+    "layerschange": (layers?: MediaSoup.ConsumerLayers) => unknown;
 }
 
 export class Consumer {
@@ -40,8 +41,9 @@ export class Consumer {
             await this.resume();
         });
 
-        consumer.on("layerschange", (layers) => {
+        consumer.on("layerschange", (layers?: MediaSoup.ConsumerLayers) => {
             Logger.info(`consumerLayerChange(${this.id}): ${JSON.stringify(layers)}`);
+            this.emitter.emit("layerschange", layers);
         });
     }
 

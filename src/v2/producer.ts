@@ -45,7 +45,7 @@ export class Producer {
     public close() {
         if (!this.producer.closed) {
             this.producer.close();
-            this.emitter.emit("close");
+            this.emitter.emit("closed");
         }
     }
 

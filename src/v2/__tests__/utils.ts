@@ -4,7 +4,8 @@ import {Data, Server, WebSocket} from "ws";
 import {newRoomId} from "../room";
 import {newTrackId} from "../track";
 import {newProducerId, Producer, ProducerParams} from "../producer";
-import {ProducerOptions} from "mediasoup/node/lib/Producer";
+import {Consumer, ConsumerParams} from "../consumer";
+import {mediaCodecs} from "../../config";
 
 export async function setupSfu() {
     const worker = await createWorker({
@@ -115,14 +116,32 @@ export class WebSocketMessageGenerator {
 
 export class MockTransport {
     private producer?: MockProducer;
-    public async produce(params: ProducerOptions) {
+    private consumer?: MockConsumer;
+    public async produce(params: MediaSoup.ProducerOptions) {
         const { producer, trigger } = createMockProducer(params.id);
         this.producer = trigger;
         return producer;
     }
 
-    public trigger(event: string) {
+    public async consume(params: MediaSoup.ConsumerOptions) {
+        const { consumer, trigger } = createMockConsumer(params.producerId);
+        this.consumer = trigger;
+        return consumer;
+    }
+
+    public triggerProducer(event: string) {
         return this.producer?.trigger(event);
+    }
+
+    public triggerConsumer(event: string) {
+        return this.consumer?.trigger(event);
+    }
+
+    public setProducerPaused(paused: boolean) {
+        if (!this.consumer) {
+            return;
+        }
+        this.consumer.producerPaused = paused;
     }
 }
 
@@ -157,7 +176,7 @@ class MockProducer {
     }
 
     public get id() {
-        return newProducerId(this._id);
+        return this._id;
     }
 
     public async resume() {
@@ -190,4 +209,64 @@ function createMockProducer(id?: string) {
     const mockProducer = new MockProducer(id);
     return {producer: mockProducer as unknown as MediaSoup.Producer,
         trigger: mockProducer};
+}
+
+export class MockConsumer {
+    public producerPaused = true;
+    public paused = true;
+    public closed = false;
+    private eventHandlers = new Map<string, () => unknown>();
+    public kind = "audio";
+    public rtpParameters = {codecs: mediaCodecs};
+    public producerId: string;
+
+    public constructor(private readonly _id: string) {
+        this.producerId = _id;
+    }
+
+    public get id() {
+        return this._id;
+    }
+
+    public async resume() {
+        this.paused = false;
+    }
+
+    public async pause() {
+        this.paused = true;
+    }
+
+    public close() {
+        this.closed = true;
+    }
+
+    public on(event: string, callback: () => unknown) {
+        this.eventHandlers.set(event, callback);
+    }
+
+    public trigger(event: string) {
+        console.log(JSON.stringify(this));
+        const handler = this.eventHandlers.get(event);
+        if (!handler) {
+            throw new Error(`No handler for event ${event}`);
+        }
+        return handler();
+    }
+}
+
+function createMockConsumer(id: string) {
+    const mockConsumer = new MockConsumer(id);
+    return {consumer: mockConsumer as unknown as MediaSoup.Consumer,
+        trigger: mockConsumer};
+}
+
+export async function setupMockConsumer() {
+    const mockTransport = createMockTransport();
+    const params = mockConsumerParams();
+    return Consumer.create(mockTransport, params);
+}
+
+export function mockConsumerParams(): ConsumerParams {
+    const rtpCapabilities = {codecs: mediaCodecs };
+    return {producerId: newProducerId("id"), rtpCapabilities};
 }
