@@ -1,7 +1,10 @@
-import {createWorker} from "mediasoup";
+import {createWorker, types as MediaSoup} from "mediasoup";
 import {SFU} from "../sfu";
 import {Data, Server, WebSocket} from "ws";
 import {newRoomId} from "../room";
+import {newTrackId} from "../track";
+import {newProducerId, Producer, ProducerParams} from "../producer";
+import {ProducerOptions} from "mediasoup/node/lib/Producer";
 
 export async function setupSfu() {
     const worker = await createWorker({
@@ -108,4 +111,83 @@ export class WebSocketMessageGenerator {
         }
         return JSON.parse(message.value.toString());
     }
+}
+
+export class MockTransport {
+    private producer?: MockProducer;
+    public async produce(params: ProducerOptions) {
+        const { producer, trigger } = createMockProducer(params.id);
+        this.producer = trigger;
+        return producer;
+    }
+
+    public trigger(event: string) {
+        return this.producer?.trigger(event);
+    }
+}
+
+export function createMockTransport() {
+    const mockTransport = new MockTransport();
+    return mockTransport as unknown as MediaSoup.WebRtcTransport;
+}
+
+export async function setupMockProducer() {
+    const mockTransport = createMockTransport();
+    const params = mockProducerParams();
+    return Producer.create(mockTransport, params);
+}
+
+export function mockProducerParams(): ProducerParams {
+    return {id: newTrackId("id"), kind: "audio", rtpParameters: {codecs: []}};
+}
+
+class MockProducer {
+    public paused = true;
+    public closed = false;
+    private eventHandlers = new Map<string, () => unknown>();
+    private readonly _id?: string;
+
+    public constructor(id?: string) {
+        if (id) {
+            this._id = id;
+        }
+        else {
+            this._id = newProducerId();
+        }
+    }
+
+    public get id() {
+        return newProducerId(this._id);
+    }
+
+    public async resume() {
+        this.paused = false;
+    }
+
+    public async pause() {
+        this.paused = true;
+    }
+
+    public close() {
+        this.closed = true;
+    }
+
+    public on(event: string, callback: () => unknown) {
+        this.eventHandlers.set(event, callback);
+    }
+
+    public trigger(event: string) {
+        console.log(JSON.stringify(this));
+        const handler = this.eventHandlers.get(event);
+        if (!handler) {
+            throw new Error(`No handler for event ${event}`);
+        }
+        return handler();
+    }
+}
+
+function createMockProducer(id?: string) {
+    const mockProducer = new MockProducer(id);
+    return {producer: mockProducer as unknown as MediaSoup.Producer,
+        trigger: mockProducer};
 }

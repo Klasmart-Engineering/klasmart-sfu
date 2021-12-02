@@ -304,17 +304,35 @@ describe("client", () => {
         const messageGenerator = new WebSocketMessageGenerator(client);
 
         client.send(JSON.stringify({
-            createProducerTransport: "yes"
+            producerTransport: "yes"
         }));
 
-        const data = await messageGenerator.nextMessage();
+        // TODO: Type message responses
+        const createProducerTransportResponse: any = await messageGenerator.nextMessage();
 
-        if (!data) {
-            expect(data).toBeDefined();
+        if (!createProducerTransportResponse) {
+            expect(createProducerTransportResponse).toBeDefined();
             return;
         }
 
-        // TODO: Finish this test
+        expect(createProducerTransportResponse).toHaveProperty("producerTransport" );
+
+        const { dtlsParameters } = createProducerTransportResponse.producerTransport;
+
+        client.send(JSON.stringify({
+            producerTransportConnect: {
+                dtlsParameters
+            }
+        }));
+
+        const producerTransportConnectResponse = await messageGenerator.nextMessage();
+
+        if (!producerTransportConnectResponse) {
+            expect(producerTransportConnectResponse).toBeDefined();
+            return;
+        }
+
+        expect(producerTransportConnectResponse).toEqual(true);
 
         client.close();
     });
