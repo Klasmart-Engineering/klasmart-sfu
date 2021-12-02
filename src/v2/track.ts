@@ -13,11 +13,16 @@ export class Track {
         private readonly producer: Producer,
     ) {}
     private readonly consumers = new Map<ClientId, Consumer>();
+
     public get producerId() { return this.producer.id; }
+    public get numConsumers() { return this.consumers.size; }
+
     public addConsumer(clientId: ClientId, consumer: Consumer) {
         if(clientId === this.owner) { throw new Error("Owner can not consume a track that it produces"); }
         this.consumers.set(clientId, consumer);
+        consumer.emitter.on("closed", () => this.consumers.delete(clientId));
     }
+
     public consumer(clientId: ClientId) {
         if (clientId === this.owner) { return; }
         return this.consumers.get(clientId);

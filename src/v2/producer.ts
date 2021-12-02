@@ -20,7 +20,7 @@ export type ProducerEvents = {
 export class Producer {
     private _locallyPaused: boolean;
     private _globallyPaused = false;
-    public readonly emitter = new EventEmitter();
+    public readonly emitter = new EventEmitter<ProducerEvents>();
     private constructor(
         private readonly producer: MediaSoup.Producer
     ) {
