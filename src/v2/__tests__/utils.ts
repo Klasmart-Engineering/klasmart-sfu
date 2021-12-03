@@ -87,14 +87,13 @@ export class WebSocketMessageGenerator {
     private wait: Promise<void>;
     private waitResolve?: () => void;
     private generator: AsyncGenerator<Data | undefined, void>;
+    private closed = false;
     constructor(private readonly client: WebSocket) {
         this.generator = this.messages();
         this.wait = new Promise<void>((resolve) => {
             this.waitResolve = resolve;
         });
-    }
 
-    private async * messages() {
         this.client.on("message", (data: Data) => {
             this.receivedMessages.push(data);
             if(!this.waitResolve) {
@@ -106,7 +105,13 @@ export class WebSocketMessageGenerator {
             });
         });
 
-        while (true) {
+        this.client.on("close", () => {
+            this.closed = true;
+        });
+    }
+
+    public async * messages() {
+        while (!this.closed) {
             if (this.receivedMessages.length > 0) {
                 yield this.receivedMessages.shift();
                 continue;
@@ -114,6 +119,7 @@ export class WebSocketMessageGenerator {
             await this.wait;
         }
     }
+
     public async nextMessage<T>(): Promise<T> {
         const message = await this.generator.next();
         if (message.done) {
