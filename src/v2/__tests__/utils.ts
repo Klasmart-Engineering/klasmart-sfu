@@ -84,14 +84,26 @@ export async function setupSingleClient(wss: TestWssServer, sfu: SFU, isTeacher 
 // afterward.
 export class WebSocketMessageGenerator {
     private receivedMessages: Data[] = [];
+    private wait: Promise<void>;
+    private waitResolve?: () => void;
     private generator: AsyncGenerator<Data | undefined, void>;
     constructor(private readonly client: WebSocket) {
         this.generator = this.messages();
+        this.wait = new Promise<void>((resolve) => {
+            this.waitResolve = resolve;
+        });
     }
 
     private async * messages() {
         this.client.on("message", (data: Data) => {
             this.receivedMessages.push(data);
+            if(!this.waitResolve) {
+                throw new Error("waitResolve is undefined");
+            }
+            this.waitResolve();
+            this.wait = new Promise<void>((resolve) => {
+                this.waitResolve = resolve;
+            });
         });
 
         while (true) {
@@ -99,7 +111,7 @@ export class WebSocketMessageGenerator {
                 yield this.receivedMessages.shift();
                 continue;
             }
-            await new Promise((resolve) => setTimeout(resolve, 10));
+            await this.wait;
         }
     }
     public async nextMessage<T>(): Promise<T> {
