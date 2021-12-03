@@ -41,6 +41,7 @@ async function main() {
 
     const useApollo = process.env.USE_APOLLO;
     if (useApollo) {
+        Logger.info("USE_APOLLO is set, using Apollo Server");
         const sfu = await SFU.create(ip);
         setTimeout(() => {
             reportConferenceStats(sfu);
@@ -55,6 +56,7 @@ async function main() {
 
         await sfu.claimRoom(uri);
     } else {
+        Logger.warn("USE_APOLLO is not set, using websocket server");
         const worker = await createWorker({
             logLevel: "warn",
             rtcMinPort: getConfigPortNumber("RTC_PORT_RANGE_MIN", 10000),

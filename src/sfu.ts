@@ -64,7 +64,7 @@ export class SFU {
     }
 
     public static async create(ip: string): Promise<SFU> {
-        Logger.warn(`NUM_CPU_CORES: ${process.env.NUM_CPU_CORES}`);
+        Logger.info(`NUM_CPU_CORES: ${process.env.NUM_CPU_CORES}`);
         const numWorkers = parseInt(process.env.NUM_CPU_CORES ?? "1");
         const producerWorkers: Worker[] = [];
         const consumerWorkers: Worker[] = [];
@@ -109,7 +109,7 @@ export class SFU {
         Logger.info(`🎥 Mediasoup workers initialized: Producer Workers(${producerWorkers.length}), Consumer Workers(${consumerWorkers.length}), Mixed Workers(${mixedWorkers.length})`);
         Logger.info("💠 Mediasoup routers created");
 
-        const redisMode = process.env.REDIS_MODE ?? "NODE";
+        const redisMode: string = process.env.REDIS_MODE ?? "NODE";
         const port = Number(process.env.REDIS_PORT ?? 6379);
         const host = process.env.REDIS_HOST;
         const password = process.env.REDIS_PASS;
@@ -141,6 +141,7 @@ export class SFU {
 
         await redis.connect();
         Logger.info("🔴 Redis database connected");
+        Logger.info(`REDIS_MODE: ${redisMode}`);
 
         const id = uuid();
 
