@@ -42,7 +42,7 @@ describe("track", () => {
         const track = new Track(clientId, producer);
 
         const wait = new Promise<void>((resolve) => {
-            producer.emitter.on("closed", () => {
+            producer.on("closed", () => {
                 resolve();
             });
         });
@@ -59,7 +59,7 @@ describe("track", () => {
         await producer.setLocallyPaused(false);
 
         const paused = new Promise<boolean>((resolve) => {
-            producer.emitter.on("paused", (paused) => {
+            producer.on("paused", (paused) => {
                 resolve(paused);
             });
         });
@@ -80,7 +80,7 @@ describe("track", () => {
         await producer.setLocallyPaused(false);
 
         const paused = new Promise<boolean>((resolve) => {
-            producer.emitter.on("paused", (paused) => {
+            producer.on("paused", (paused) => {
                 resolve(paused);
             });
         });
@@ -159,7 +159,7 @@ describe("track", () => {
         expect(track.numConsumers).toEqual(1);
 
         const wait = new Promise<void>((resolve) => {
-            consumer.emitter.on("closed", () => {
+            consumer.on("closed", () => {
                 resolve();
             });
         });

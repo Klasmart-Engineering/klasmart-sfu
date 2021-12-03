@@ -1,26 +1,71 @@
-import {createWorker} from "mediasoup";
-import {SFU} from "../sfu";
-
-let sfu: SFU;
+import {setupMockProducer} from "./utils";
+import {newClientId} from "../client";
+import {newTrackId, Track} from "../track";
+import {types as MediaSoup} from "mediasoup";
+import {Room} from "../room";
 
 describe("room", () => {
-    beforeEach(async () => {
-        const worker = await createWorker({
-            logLevel: "warn",
-            rtcMinPort: 10000,
-            rtcMaxPort: 59999,
-        });
+    it("should be able to add a track", async () => {
+        const producer = await setupMockProducer();
+        const clientId = newClientId("clientId");
+        const track = new Track(clientId, producer);
+        const router = {
+            close: () => undefined
+        } as unknown as MediaSoup.Router;
+        const room = new Room(router);
+        const trackId = newTrackId("trackId");
 
-        const announcedIp = "127.0.0.1";
+        room.addTrack(trackId, track);
 
-        sfu = new SFU(worker, [{ip: process.env.WEBRTC_INTERFACE_ADDRESS || "0.0.0.0", announcedIp }]);
+        expect(room.track(trackId)).toBe(track);
     });
-    afterEach(() => {
-        sfu.shutdown();
+
+    it("should throw when trying to retrieve a track that doesn't exist", async () => {
+        const router = {
+            close: () => undefined
+        } as unknown as MediaSoup.Router;
+        const room = new Room(router);
+
+        expect(() => {room.track(newTrackId("trackId"));}).toThrow();
     });
 
-    it("should be able to add a track", () => {
-        // TODO: this test
-        // expect(false).toBeTruthy();
+    it("should throw when trying to replace a track", async () => {
+        const producer = await setupMockProducer();
+        const clientId = newClientId("clientId");
+        const track = new Track(clientId, producer);
+        const router = {
+            close: () => undefined
+        } as unknown as MediaSoup.Router;
+        const room = new Room(router);
+        const trackId = newTrackId("trackId");
+
+        room.addTrack(trackId, track);
+
+        expect(() => {room.addTrack(trackId, track);}).toThrow();
+    });
+
+    it("should remove a track", async () => {
+        const producer = await setupMockProducer();
+        const clientId = newClientId("clientId");
+        const track = new Track(clientId, producer);
+        const router = {
+            close: () => undefined
+        } as unknown as MediaSoup.Router;
+        const room = new Room(router);
+        const trackId = newTrackId("trackId");
+
+        room.addTrack(trackId, track);
+        room.removeTrack(trackId);
+
+        expect(() => room.track(trackId)).toThrow();
+    });
+
+    it("should end a room", async () => {
+        const router = {
+            close: () => undefined
+        } as unknown as MediaSoup.Router;
+        const room = new Room(router);
+
+        expect(() => room.end()).not.toThrow();
     });
 });

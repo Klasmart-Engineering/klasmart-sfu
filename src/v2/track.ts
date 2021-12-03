@@ -20,7 +20,7 @@ export class Track {
     public addConsumer(clientId: ClientId, consumer: Consumer) {
         if(clientId === this.owner) { throw new Error("Owner can not consume a track that it produces"); }
         this.consumers.set(clientId, consumer);
-        consumer.emitter.on("closed", () => this.consumers.delete(clientId));
+        consumer.on("closed", () => this.consumers.delete(clientId));
     }
 
     public consumer(clientId: ClientId) {

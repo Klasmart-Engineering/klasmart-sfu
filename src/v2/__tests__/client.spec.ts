@@ -307,8 +307,7 @@ describe("client", () => {
             producerTransport: "yes"
         }));
 
-        // TODO: Type message responses
-        const createProducerTransportResponse: any = await messageGenerator.nextMessage();
+        const createProducerTransportResponse: {producerTransport: {dtlsParameters: MediaSoup.DtlsParameters}} = await messageGenerator.nextMessage();
 
         if (!createProducerTransportResponse) {
             expect(createProducerTransportResponse).toBeDefined();

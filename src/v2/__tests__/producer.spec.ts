@@ -16,7 +16,7 @@ describe("producer", () => {
         const producer = await Producer.create(transport as unknown as MediaSoup.WebRtcTransport, params);
 
         const waitClose = new Promise<void>((resolve) => {
-            producer.emitter.once("closed", () => {
+            producer.once("closed", () => {
                 resolve();
             });
         });

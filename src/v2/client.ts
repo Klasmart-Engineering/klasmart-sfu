@@ -141,10 +141,10 @@ export class ClientV2 {
         const track = new Track(this.id, producer);
         this.room.addTrack(id, track);
 
-        producer.emitter.on("paused", (paused) => {
+        producer.on("paused", (paused) => {
             this.ws.send(JSON.stringify({producerPaused: { id, paused }}));
         });
-        producer.emitter.on("closed", () => {
+        producer.on("closed", () => {
             this.ws.send(JSON.stringify({producerClosed: { id }}));
             this.room.removeTrack(id);
         });
@@ -179,10 +179,10 @@ export class ClientV2 {
         track.addConsumer(this.id, consumer);
         this.ws.send(JSON.stringify({ consumerCreated: consumer.parameters() }));
 
-        consumer.emitter.on("paused", (paused) => {
+        consumer.on("paused", (paused) => {
             this.ws.send(JSON.stringify({ consumerPaused: { trackId, paused } }));
         });
-        consumer.emitter.on("closed", () => {
+        consumer.on("closed", () => {
             this.ws.send(JSON.stringify({ consumerClosed: { trackId } }));
         });
 

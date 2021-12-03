@@ -19,7 +19,7 @@ export type ConsumerEvents = {
 
 export class Consumer {
     public _locallyPaused: boolean;
-    public readonly emitter = new EventEmitter<ConsumerEvents>();
+    private readonly emitter = new EventEmitter<ConsumerEvents>();
     private constructor(
         private readonly consumer: MediaSoup.Consumer
     ) {
@@ -102,6 +102,14 @@ export class Consumer {
             kind: this.consumer.kind,
             rtpParameters: this.consumer.rtpParameters,
         };
+    }
+
+    public on(event: keyof ConsumerEvents, listener: (...args: any[]) => void) {
+        return this.emitter.on(event, listener);
+    }
+
+    public once(event: keyof ConsumerEvents, listener: (...args: any[]) => void) {
+        return this.emitter.once(event, listener);
     }
 }
 

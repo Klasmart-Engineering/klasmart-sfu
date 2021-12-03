@@ -36,7 +36,9 @@ export class Room {
         this.tracks.delete(id);
     }
 
-    public end() { this.router.close(); }
+    public end() {
+        this.router.close();
+    }
 }
 export type RoomId = NewType<string, "RoomId">
 export function newRoomId(id: string) { return id as RoomId; }

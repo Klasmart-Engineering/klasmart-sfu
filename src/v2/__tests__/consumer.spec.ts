@@ -16,7 +16,7 @@ describe("consumer", () => {
         const consumer = await Consumer.create(transport as unknown as MediaSoup.WebRtcTransport, params);
 
         const waitClose = new Promise<void>((resolve) => {
-            consumer.emitter.once("closed", () => {
+            consumer.once("closed", () => {
                 resolve();
             });
         });
@@ -32,7 +32,7 @@ describe("consumer", () => {
         const consumer = await Consumer.create(transport as unknown as MediaSoup.WebRtcTransport, params);
 
         const waitClose = new Promise<void>((resolve) => {
-            consumer.emitter.once("closed", () => {
+            consumer.once("closed", () => {
                 resolve();
             });
         });
@@ -68,7 +68,7 @@ describe("consumer", () => {
         await consumer.setLocallyPaused(false);
 
         const waitPause = new Promise((resolve) => {
-            consumer.emitter.once("paused", (paused) => {
+            consumer.once("paused", (paused) => {
                 resolve(paused);
             });
         });
@@ -87,7 +87,7 @@ describe("consumer", () => {
         transport.setProducerPaused(false);
 
         const waitPause = new Promise((resolve) => {
-            consumer.emitter.once("paused", (paused) => {
+            consumer.once("paused", (paused) => {
                 resolve(paused);
             });
         });
@@ -103,7 +103,7 @@ describe("consumer", () => {
         const consumer = await Consumer.create(transport as unknown as MediaSoup.WebRtcTransport, params);
 
         const waitLayersChange = new Promise((resolve) => {
-            consumer.emitter.once("layerschange", (layers) => {
+            consumer.once("layerschange", (layers) => {
                 resolve(layers);
             });
         });
