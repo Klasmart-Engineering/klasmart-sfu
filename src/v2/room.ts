@@ -2,8 +2,9 @@ import {
     types as MediaSoup
 } from "mediasoup";
 import { NewType } from "./newType";
-import { TrackId, Track } from "./track";
-import { ClientV2 } from "./client";
+import { Track } from "./track";
+import { ClientV2, ClientId } from "./client";
+import { ProducerId } from "./track";
 
 export class Room {
     public readonly clients = new Set<ClientV2>();
@@ -11,29 +12,20 @@ export class Room {
         public readonly router: MediaSoup.Router,
     ) { }
 
-    private readonly tracks = new Map<TrackId, Track>();
-    public track(trackId: TrackId) {
-        const track = this.tracks.get(trackId);
-
-        // In all cases, if you are trying to do something with a track that doesn't exist,
-        // you can't recover from it.
-        if (!track) {
-            throw new Error(`Track ${trackId} not found`);
-        }
-
+    private readonly tracks = new Map<ProducerId, Track>();
+    
+    public track(id: ProducerId) {
+        const track = this.tracks.get(id);
+        if (!track) { throw new Error(`Track ${id} not found`); }
         return track;
     }
-    public addTrack(id: TrackId, track: Track) {
-        // Don't silently replace a track.
-        if (this.tracks.has(id)) {
-            throw new Error(`Track ${id} already exists`);
-        }
 
+    public async createTrack(owner: ClientId, transport: MediaSoup.WebRtcTransport, kind: MediaSoup.MediaKind, rtpParameters: MediaSoup.RtpParameters) {
+        const track = await Track.create(this.router, owner, transport, kind, rtpParameters);
+        const id = track.producerId;
         this.tracks.set(id, track);
-    }
-
-    public removeTrack(id: TrackId) {
-        this.tracks.delete(id);
+        track.on("closed",() => this.tracks.delete(id));
+        return track;
     }
 
     public end() {

@@ -5,22 +5,67 @@ import {
 import WebSocket from "ws";
 import { Logger } from "../logger";
 import { Room } from "./room";
-import { newTrackId, Track, TrackId } from "./track";
+import { ProducerId } from "./track";
 import { NewType } from "./newType";
-import { Producer } from "./producer";
-import { Consumer } from "./consumer";
+import { ConsumerId} from "./consumer";
 
-type WsMessage = {
+type RequestId = NewType<string, "requestId">
+
+type Request = {
+    id: RequestId;
     rtpCapabilities?: MediaSoup.RtpCapabilities;
-    producerTransport?: string;
+    producerTransport?: unknown;
     producerTransportConnect?: { dtlsParameters: MediaSoup.DtlsParameters };
     createTrack?: { kind: MediaSoup.MediaKind, rtpParameters: MediaSoup.RtpParameters };
-    consumerTransport?: string;
+    consumerTransport?: unknown;
     consumerTransportConnect?: { dtlsParameters: MediaSoup.DtlsParameters };
-    createConsumer?: { producerId: TrackId };
-    locallyPause?: { paused: boolean, trackId: TrackId };
-    globallyPause?: { paused: boolean, trackId: TrackId };
-    end?: { end: boolean };
+    createConsumer?: { producerId: ProducerId };
+    locallyPause?: { paused: boolean, id: ProducerId };
+    globallyPause?: { paused: boolean, id: ProducerId };
+    end?: unknown;
+}
+
+type NetworkMessage = {
+    response?: Response,
+    consumerCreated?: {
+        id: ConsumerId,
+        producerId: ProducerId,
+        kind: MediaSoup.MediaKind,
+        rtpParameters: MediaSoup.RtpParameters,
+        paused: boolean,
+    },
+    consumerPaused?: {
+        id: ConsumerId,
+        local: boolean,
+        global: boolean,
+    },
+    producerPaused?: {
+        id: ProducerId,
+        local: boolean,
+        global: boolean,
+    },
+    consumerClosed?: {
+        id: ConsumerId,
+    },
+    producerClosed?: {
+        id: ProducerId,
+    },
+}
+
+type Response = {
+    id: RequestId;
+    error: string,
+} | {
+    id: RequestId;
+    result: Result|void,
+}
+
+
+export type WebRtcTransportResult = Pick<MediaSoup.WebRtcTransport, "id" | "iceCandidates" |"iceParameters" |"dtlsParameters">;
+
+type Result = {
+    producerTransport?: WebRtcTransportResult;
+    consumerTransport?: WebRtcTransportResult;
 }
 
 export class ClientV2 {
@@ -40,27 +85,35 @@ export class ClientV2 {
     }
 
     private async onMessage(data: WebSocket.RawData) {
+        const message = this.parse(data);
+        if(!message) { this.ws.close(4400, "Invalid request"); return;}
+        const {id} = message;
         try {
-            const message: WsMessage = JSON.parse(data.toString());
-            const response = await this.handleMessage(message);
-
-            if (!response) {
-                // noinspection ExceptionCaughtLocallyJS
-                throw new Error("Unknown message");
-            }
-
-            this.ws.send(JSON.stringify(response));
-
+            const result = await this.handleMessage(message);
+            this.send({response: {id, result }});
         } catch (error: unknown) {
-            Logger.warn(`Error handling message from client(${this.id}): ${error}`);
-            this.ws.send(JSON.stringify({
-                type: "error",
-                message: `Error handling message: ${data.toString()}`,
-            }));
+            this.send({response: {id, error: `${error}`}});
         }
     }
 
-    private async handleMessage(message: WsMessage) {
+    private parse(data: WebSocket.RawData) {
+        try {
+            const request = JSON.parse(data.toString()) as Request;
+            if(typeof request !== "object") {throw new Error(`Recieved request of type '${typeof request}'`); }
+            if(!request) {throw new Error("Recieved null request"); }
+            if(!request.id) {throw new Error("Recieved request without id"); }
+            return request;
+        } catch(e: unknown) {
+            Logger.warn(`Error parsing message from client(${this.id}): ${e}`);
+        }
+        return;
+    }
+
+    private send(message: NetworkMessage) {
+        this.ws.send(JSON.stringify(message));
+    }
+
+    private async handleMessage(message: Request) {
         const {
             rtpCapabilities,
             producerTransport,
@@ -107,86 +160,72 @@ export class ClientV2 {
             return await this.globallyPauseMessage(globallyPause);
         } else if (end) {
             Logger.info(`end: ${end}`);
-            return await this.endMessage(end);
+            return await this.endMessage();
         }
 
         return;
     }
 
     private onClose() {
-        this._producerTransport?.close();
-        this._consumerTransport?.close();
+        this.producerTransport?.close();
+        this.consumerTransport?.close();
     }
 
     // Network messages
-    private async rtpCapabilitiesMessage(rtpCapabilities: MediaSoup.RtpCapabilities) {
+    private rtpCapabilitiesMessage(rtpCapabilities: MediaSoup.RtpCapabilities) {
         this.rtpCapabilities = rtpCapabilities;
-        return true;
     }
 
-    private async createProducerTransportMessage() {
+    private async createProducerTransportMessage(): Promise<Result> {
         this.producerTransport = await this.createTransport(this.listenIps);
         this.producerTransport.on("routerclose", () => this.ws.send({producerTransportClosed: {}}));
-        return serializeTransport("producerTransport", this.producerTransport);
+        return {
+            producerTransport: {
+                id: this.producerTransport.id,
+                iceCandidates: this.producerTransport.iceCandidates,
+                iceParameters: this.producerTransport.iceParameters,
+                dtlsParameters: this.producerTransport.dtlsParameters,
+            }
+        };
     }
 
     private async connectProducerTransportMessage(dtlsParameters: MediaSoup.DtlsParameters) {
         await this.producerTransport.connect({ dtlsParameters });
-        return true;
     }
 
     private async createTrackMessage(kind: MediaSoup.MediaKind, rtpParameters: MediaSoup.RtpParameters) {
-        const id = newTrackId();
-        const producer = await Producer.create(this.producerTransport, { id, kind, rtpParameters });
-        const track = new Track(this.id, producer);
-        this.room.addTrack(id, track);
+        const track = await this.room.createTrack(
+            this.id,
+            this.producerTransport,
+            kind,
+            rtpParameters,
+        );
 
-        producer.on("paused", (paused) => {
-            this.ws.send(JSON.stringify({producerPaused: { id, paused }}));
-        });
-        producer.on("closed", () => {
-            this.ws.send(JSON.stringify({producerClosed: { id }}));
-            this.room.removeTrack(id);
-        });
-
-        return true;
+        const id = track.producerId;
+        track.on("paused", (local, global) => this.send({producerPaused: { id, local, global }}));
+        track.on("closed",() => this.send({producerClosed: { id }}));
     }
 
     private async createConsumerTransportMessage() {
         this.consumerTransport = await this.createTransport(this.listenIps);
         this.consumerTransport.on("routerclose", () => this.ws.send({consumerTransportClosed: {}}));
-        return serializeTransport("consumerTransport", this.consumerTransport);
     }
 
     private async connectConsumerTransportMessage(dtlsParameters: MediaSoup.DtlsParameters) {
         await this.consumerTransport.connect({ dtlsParameters });
-        return true;
     }
 
-    private async createConsumerMessage(trackId: TrackId) {
-        const rtpCapabilities = this.rtpCapabilities;
-        const track = this.room.track(trackId);
-
-        if (track.consumer(this.id)) { throw new Error("Already consuming track"); }
-
-        const producerId = track.producerId;
-
-        if (!this.room.router.canConsume({rtpCapabilities, producerId})) {
-            throw new Error("Client is not capable of consuming this producer");
-        }
-
-        const consumer = await Consumer.create(this.consumerTransport, {producerId, rtpCapabilities});
-        track.addConsumer(this.id, consumer);
-        this.ws.send(JSON.stringify({ consumerCreated: consumer.parameters() }));
-
-        consumer.on("paused", (paused) => {
-            this.ws.send(JSON.stringify({ consumerPaused: { trackId, paused } }));
-        });
-        consumer.on("closed", () => {
-            this.ws.send(JSON.stringify({ consumerClosed: { trackId } }));
-        });
-
-        return true;
+    private async createConsumerMessage(producerId: ProducerId) {
+        const consumer = await this.room.track(producerId).consume(
+            this.id,
+            this.consumerTransport,
+            this.rtpCapabilities
+        );
+        
+        const id = consumer.id;
+        consumer.on("paused", (local, global) => this.send({ consumerPaused: { id, local, global } }));
+        consumer.on("closed", () => this.send({ consumerClosed: { id} }));
+        this.send({ consumerCreated: consumer.parameters() });
     }
 
     private async createTransport(listenIps: MediaSoup.TransportListenIp[]) {
@@ -197,36 +236,27 @@ export class ClientV2 {
             preferUdp: true,
         });
 
-        transport.on("routerclose", () => {
-            transport.close();
-        });
+        transport.on("routerclose", () => transport.close());
 
         return transport;
     }
 
     @ClientV2.onlyTeacher("Only teachers can end the room")
-    private async endMessage(end: { end: boolean }) {
-        if (end.end) {
-            this.room.end();
-            return true;
-        }
-
-        return false;
+    private async endMessage() {
+        this.room.end();
     }
 
     @ClientV2.onlyTeacher("Only teachers can globally pause a track")
-    private async globallyPauseMessage(globallyPause: { paused: boolean; trackId: TrackId }) {
-        const { paused, trackId } = globallyPause;
-        const track = this.room.track(trackId);
+    private async globallyPauseMessage(globallyPause: { paused: boolean; id: ProducerId }) {
+        const { paused, id } = globallyPause;
+        const track = this.room.track(id);
         await track.globalPause(paused);
-        return true;
     }
 
-    private async locallyPauseMessage(locallyPause: { paused: boolean; trackId: TrackId }) {
-        const { paused, trackId } = locallyPause;
-        const track = this.room.track(trackId);
+    private async locallyPauseMessage(locallyPause: { paused: boolean; id: ProducerId }) {
+        const { paused, id } = locallyPause;
+        const track = this.room.track(id);
         await track.localPause(this.id, paused);
-        return true;
     }
 
     // Getters & Setters
@@ -249,6 +279,9 @@ export class ClientV2 {
     }
 
     private set consumerTransport(transport: MediaSoup.WebRtcTransport) {
+        if (this._consumerTransport) {
+            throw new Error("Consumer Transport has already been created");
+        }
         this._consumerTransport = transport;
     }
 
@@ -260,6 +293,9 @@ export class ClientV2 {
     }
 
     private set producerTransport(transport: MediaSoup.WebRtcTransport) {
+        if (this._producerTransport) {
+            throw new Error("Producer Transport has already created");
+        }
         this._producerTransport = transport;
     }
 
@@ -277,17 +313,6 @@ export class ClientV2 {
             return descriptor;
         };
     }
-}
-
-function serializeTransport(key: string, { id, iceCandidates, iceParameters, dtlsParameters }: MediaSoup.WebRtcTransport) {
-    return {
-        [key]: {
-            id,
-            iceCandidates,
-            iceParameters,
-            dtlsParameters,
-        }
-    };
 }
 
 export type ClientId = NewType<string, "ClientId">

@@ -4,54 +4,30 @@ import {
 import {EventEmitter} from "eventemitter3";
 import {NewType} from "./newType";
 import {Logger} from "../logger";
-import {ProducerId} from "./producer";
-
-export type ConsumerParams = {
-    producerId: ProducerId;
-    rtpCapabilities: MediaSoup.RtpCapabilities;
-}
-
-export type ConsumerEvents = {
-    "paused": (paused: boolean) => unknown;
-    "closed": () => unknown;
-    "layerschange": (layers?: MediaSoup.ConsumerLayers) => unknown;
-}
-
+import { ProducerId } from "./track";
 export class Consumer {
     public _locallyPaused: boolean;
-    private readonly emitter = new EventEmitter<ConsumerEvents>();
+    private readonly emitter = new EventEmitter<ConsumerEventMap>();
+    public readonly on = this.emitter.on.bind(this);
+    public readonly once = this.emitter.once.bind(this);
+
     private constructor(
         private readonly consumer: MediaSoup.Consumer
     ) {
         this._locallyPaused = consumer.paused;
 
-        consumer.on("transportclose", () => {
-            this.close();
-        });
-
-        consumer.on("producerclose", () => {
-            this.close();
-        });
-
-        consumer.on("producerpause", async () => {
-            await this.pause();
-        });
-
-        consumer.on("producerresume", async () => {
-            await this.resume();
-        });
-
-        consumer.on("layerschange", (layers?: MediaSoup.ConsumerLayers) => {
-            Logger.info(`consumerLayerChange(${this.id}): ${JSON.stringify(layers)}`);
-            this.emitter.emit("layerschange", layers);
-        });
+        consumer.on("transportclose", () => this.close());
+        consumer.on("producerclose", () => this.close());
+        consumer.on("producerpause", () => this.updatePauseStatus());
+        consumer.on("producerresume", async () => this.updatePauseStatus());
+        consumer.on("layerschange", (layers) => Logger.info(`consumerLayerChange(${this.id}): ${JSON.stringify(layers)}`));
     }
 
     public get id() {
         return newConsumerId(this.consumer.id);
     }
 
-    public static async create(consumerTransport: MediaSoup.WebRtcTransport, {rtpCapabilities, producerId}: ConsumerParams) {
+    public static async create(consumerTransport: MediaSoup.WebRtcTransport, producerId: ProducerId, rtpCapabilities: MediaSoup.RtpCapabilities) {
         const consumer = await consumerTransport.consume({
             rtpCapabilities,
             producerId,
@@ -69,48 +45,44 @@ export class Consumer {
     }
 
     public get locallyPaused() { return this._locallyPaused; }
-    private set locallyPaused(paused: boolean) { this._locallyPaused = paused; }
 
     public async setLocallyPaused(paused: boolean) {
-        this.locallyPaused = paused;
-        if (this.locallyPaused) {
-            await this.pause();
-        } else {
-            await this.resume();
-        }
+        this._locallyPaused = paused;
+        await this.updatePauseStatus();
     }
 
-    private async pause() {
-        if (!this.consumer.paused) {
+    private async updatePauseStatus() {
+        const consumerShouldBePaused = this.consumer.producerPaused || this.locallyPaused;
+        if (consumerShouldBePaused && !this.consumer.paused) {
             await this.consumer.pause();
-            this.emitter.emit("paused", true);
-        }
-    }
-
-    private async resume() {
-        const shouldBePaused = this.consumer.producerPaused || this.locallyPaused;
-        if (this.consumer.paused && !shouldBePaused) {
+        } else if (!consumerShouldBePaused && this.consumer.paused) {
             await this.consumer.resume();
-            this.emitter.emit("paused", false);
         }
+        this.emitter.emit("paused", this.locallyPaused, this.consumer.producerPaused);
     }
 
-    public parameters() {
+    public parameters(): ConsumerParameters {
         return {
             id: this.id,
-            producerId: this.consumer.producerId,
+            producerId: this.consumer.producerId as ProducerId,
             kind: this.consumer.kind,
             rtpParameters: this.consumer.rtpParameters,
+            paused: this.consumer.paused,
         };
     }
+}
 
-    public on(event: keyof ConsumerEvents, listener: (...args: any[]) => void) {
-        return this.emitter.on(event, listener);
-    }
+export type ConsumerEventMap = {
+    paused: (local: boolean, global: boolean) => unknown;
+    closed: () => unknown;
+}
 
-    public once(event: keyof ConsumerEvents, listener: (...args: any[]) => void) {
-        return this.emitter.once(event, listener);
-    }
+export type ConsumerParameters = {
+    id: ConsumerId;
+    producerId: ProducerId;
+    kind: MediaSoup.MediaKind;
+    rtpParameters: MediaSoup.RtpParameters;
+    paused: boolean;
 }
 
 export type ConsumerId = NewType<string, "ConsumerId">
