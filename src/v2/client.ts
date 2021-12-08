@@ -11,8 +11,12 @@ import { ConsumerId} from "./consumer";
 
 type RequestId = NewType<string, "requestId">
 
+type RequestMessage = {
+    id: RequestId,
+    request: Request,
+}
+
 type Request = {
-    id: RequestId;
     rtpCapabilities?: MediaSoup.RtpCapabilities;
     producerTransport?: unknown;
     producerTransportConnect?: { dtlsParameters: MediaSoup.DtlsParameters };
@@ -25,33 +29,6 @@ type Request = {
     end?: unknown;
 }
 
-type NetworkMessage = {
-    response?: Response,
-    consumerCreated?: {
-        id: ConsumerId,
-        producerId: ProducerId,
-        kind: MediaSoup.MediaKind,
-        rtpParameters: MediaSoup.RtpParameters,
-        paused: boolean,
-    },
-    consumerPaused?: {
-        id: ConsumerId,
-        local: boolean,
-        global: boolean,
-    },
-    producerPaused?: {
-        id: ProducerId,
-        local: boolean,
-        global: boolean,
-    },
-    consumerClosed?: {
-        id: ConsumerId,
-    },
-    producerClosed?: {
-        id: ProducerId,
-    },
-}
-
 type Response = {
     id: RequestId;
     error: string,
@@ -60,12 +37,37 @@ type Response = {
     result: Result|void,
 }
 
+type ResponseMessage = {
+    response?: Response,
+    consumerPaused?: PauseMessage,
+    producerPaused?: PauseMessage,
+    consumerClosed?: ProducerId
+    producerClosed?: ProducerId
+}
 
-export type WebRtcTransportResult = Pick<MediaSoup.WebRtcTransport, "id" | "iceCandidates" |"iceParameters" |"dtlsParameters">;
+export type PauseMessage = {
+    id: ProducerId,
+    localPause: boolean,
+    globalPause: boolean,
+}
+
+export type WebRtcTransportResult = {
+    id: string,
+    iceCandidates: MediaSoup.IceCandidate[],
+    iceParameters: MediaSoup.IceParameters,
+    dtlsParameters: MediaSoup.DtlsParameters,
+}
 
 type Result = {
     producerTransport?: WebRtcTransportResult;
     consumerTransport?: WebRtcTransportResult;
+    consumerCreated?: {
+        id: ConsumerId,
+        producerId: ProducerId,
+        kind: MediaSoup.MediaKind,
+        rtpParameters: MediaSoup.RtpParameters,
+        paused: boolean,
+    },
 }
 
 export class ClientV2 {
@@ -87,18 +89,18 @@ export class ClientV2 {
     private async onMessage(data: WebSocket.RawData) {
         const message = this.parse(data);
         if(!message) { this.ws.close(4400, "Invalid request"); return;}
-        const {id} = message;
+        const {id, request} = message;
         try {
-            const result = await this.handleMessage(message);
+            const result = await this.handleMessage(request);
             this.send({response: {id, result }});
         } catch (error: unknown) {
             this.send({response: {id, error: `${error}`}});
         }
     }
 
-    private parse(data: WebSocket.RawData) {
+    private parse(data: WebSocket.RawData): RequestMessage|undefined {
         try {
-            const request = JSON.parse(data.toString()) as Request;
+            const request = JSON.parse(data.toString()) as RequestMessage;
             if(typeof request !== "object") {throw new Error(`Recieved request of type '${typeof request}'`); }
             if(!request) {throw new Error("Recieved null request"); }
             if(!request.id) {throw new Error("Recieved request without id"); }
@@ -109,7 +111,7 @@ export class ClientV2 {
         return;
     }
 
-    private send(message: NetworkMessage) {
+    private send(message: ResponseMessage) {
         this.ws.send(JSON.stringify(message));
     }
 
@@ -202,8 +204,8 @@ export class ClientV2 {
         );
 
         const id = track.producerId;
-        track.on("paused", (local, global) => this.send({producerPaused: { id, local, global }}));
-        track.on("closed",() => this.send({producerClosed: { id }}));
+        track.on("paused", (localPause, globalPause) => this.send({producerPaused: { id, localPause, globalPause }}));
+        track.on("closed",() => this.send({producerClosed: id}));
     }
 
     private async createConsumerTransportMessage() {
@@ -222,10 +224,10 @@ export class ClientV2 {
             this.rtpCapabilities
         );
         
-        const id = consumer.id;
-        consumer.on("paused", (local, global) => this.send({ consumerPaused: { id, local, global } }));
-        consumer.on("closed", () => this.send({ consumerClosed: { id} }));
-        this.send({ consumerCreated: consumer.parameters() });
+        const id = producerId;
+        consumer.on("paused", (localPause, globalPause) => this.send({ consumerPaused: { id, localPause, globalPause } }));
+        consumer.on("closed", () => this.send({ consumerClosed: id }));
+        return { consumerCreated: consumer.parameters() };
     }
 
     private async createTransport(listenIps: MediaSoup.TransportListenIp[]) {
