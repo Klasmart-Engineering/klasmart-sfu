@@ -21,7 +21,12 @@ export class WsServer {
     public constructor(private sfu: SFU) {
         this.httpServer.initializeServer();
         this.wss = new Server({ server: this.httpServer.server });
-        this.wss.on("connection", (ws, req) => this.handleConnection(ws, req));
+        if(process.env.DISABLE_AUTH) {
+            Logger.warn("RUNNING IN DEBUG MODE - SKIPPING AUTHENTICATION AND AUTHORIZATION");
+            this.wss.on("connection", (ws) => this.sfu.addClient(ws, "test-room", true));
+        } else {
+            this.wss.on("connection", (ws, req) => this.handleConnection(ws, req));
+        }
     }
 
     private async handleConnection(ws: WebSocket, req: IncomingMessage) {
