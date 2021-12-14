@@ -11,6 +11,7 @@ import { HttpServer } from "./servers/httpServer";
 import { WsServer } from "./servers/wsServer";
 import { createWorker } from "mediasoup";
 import { SFU as SFU2 } from "./v2/sfu";
+import Redis, {Cluster, Redis as IORedis} from "ioredis";
 
 function attachSignalHandlers() {
     /* Add shutdown listeners to forward New Relic metrics prior to app death */
@@ -63,7 +64,40 @@ async function main() {
             rtcMaxPort: getConfigPortNumber("RTC_PORT_RANGE_MAX", 59999),
         });
         const announcedIp = process.env.WEBRTC_ANNOUCE_IP || process.env.PUBLIC_ADDRESS || ip;
-        const sfu = new SFU2(worker, [{ip: process.env.WEBRTC_INTERFACE_ADDRESS || "0.0.0.0", announcedIp }]);
+
+        const redisMode: string = process.env.REDIS_MODE ?? "NODE";
+        const port = Number(process.env.REDIS_PORT ?? 6379);
+        const host = process.env.REDIS_HOST;
+        const password = process.env.REDIS_PASS;
+        const lazyConnect = true;
+        let redis: IORedis | Cluster;
+
+        if (redisMode === "CLUSTER") {
+            redis = new Cluster([
+                {
+                    port,
+                    host
+                }
+            ],
+            {
+                lazyConnect,
+                redisOptions: {
+                    password
+                }
+            });
+        } else {
+            redis = new Redis({
+                host,
+                port,
+                password,
+                lazyConnect: true,
+                reconnectOnError: (err) => err.message.includes("READONLY"),
+            });
+        }
+
+        await redis.connect();
+
+        const sfu = new SFU2(worker, [{ip: process.env.WEBRTC_INTERFACE_ADDRESS || "0.0.0.0", announcedIp }], redis);
         const wsServer = new WsServer(sfu);
         wsServer.startServer(ip);
     }

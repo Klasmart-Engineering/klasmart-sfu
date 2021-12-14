@@ -5,13 +5,33 @@ import {
     types as MediaSoup
 } from "mediasoup";
 import {mediaCodecs} from "../config";
+import {Cluster, Redis as IORedis} from "ioredis";
+import {NewType} from "./newType";
+import {nanoid} from "nanoid";
+import {Logger} from "../logger";
 
 export class SFU {
     private readonly rooms = new Map<RoomId, Room>();
+    private readonly id: SfuId = newSfuId();
     constructor(
         private readonly worker: MediaSoup.Worker,
         private readonly listenIps: MediaSoup.TransportListenIp[],
-    ) { }
+        private redis: IORedis | Cluster,
+    ) {
+        this.redisStatus().then(() => {
+            Logger.info(`SFU ${this.id} registered in redis with ${JSON.stringify(this.listenIps)}`);
+        });
+    }
+
+    private async redisStatus() {
+        try {
+            await this.redis.set(this.id, JSON.stringify(this.listenIps), "EX", 15);
+        } catch (e) {
+            Logger.error(e);
+        } finally {
+            setTimeout(() => this.redisStatus(), 5000);
+        }
+    }
 
     public async addClient(ws: WebSocket, roomId: string, isTeacher: boolean) {
         const id = newRoomId(roomId);
@@ -47,3 +67,6 @@ export class SFU {
         this.worker.close();
     }
 }
+
+export type SfuId = NewType<string, "SfuId">
+export function newSfuId(id: string = nanoid()) { return id as SfuId; }
