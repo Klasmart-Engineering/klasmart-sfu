@@ -10,6 +10,16 @@ import {NewType} from "./newType";
 import {nanoid} from "nanoid";
 import {Logger} from "../logger";
 
+class RedisKeys {
+    public static sfuId(id: SfuId) {
+        return `sfu:{${id}}`;
+    }
+
+    public static onlineSfus() {
+        return "sfus";
+    }
+}
+
 export class SFU {
     private readonly rooms = new Map<RoomId, Room>();
     private readonly id: SfuId = newSfuId();
@@ -18,18 +28,27 @@ export class SFU {
         private readonly listenIps: MediaSoup.TransportListenIp[],
         private redis: IORedis | Cluster,
     ) {
-        this.redisStatus().then(() => {
+        this.updateStatus().then(() => {
             Logger.info(`SFU ${this.id} registered in redis with ${JSON.stringify(this.listenIps)}`);
         });
     }
 
-    private async redisStatus() {
+    private async updateStatus() {
         try {
-            await this.redis.set(this.id, JSON.stringify(this.listenIps), "EX", 15);
+            const sfuKey = RedisKeys.sfuId(this.id);
+            await this.redis.set(sfuKey, JSON.stringify(this.listenIps), "EX", 15);
+            const sfusKey = RedisKeys.onlineSfus();
+
+            await this.redis.zadd(sfusKey, "GT", Date.now(), this.id);
+            // Expire entries not updated in the last minute
+            const update = await this.redis.zremrangebyscore(sfusKey, 0, Date.now() - 60 * 1000);
+            if (update > 0) {
+                Logger.info(`Deleted ${update} outdated SFU entries from redis`);
+            }
         } catch (e) {
             Logger.error(e);
         } finally {
-            setTimeout(() => this.redisStatus(), 5000);
+            setTimeout(() => this.updateStatus(), 5000);
         }
     }
 
