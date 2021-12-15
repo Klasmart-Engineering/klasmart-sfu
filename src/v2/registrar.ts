@@ -42,7 +42,11 @@ export class RedisRegistrar implements Registrar {
 
     public async registerTrack(roomId: RoomId, track: WebRtcTrack) {
         const roomTracks = RedisKeys.roomTracks(roomId);
+        // We might want to delete trackIds that are not in use anymore.  However, we don't have
+        // any "keepAlive" logic for unpaused tracks, so just leave them in the list for now.
         await this.redis.zadd(roomTracks, "NX", Date.now(), track.producerId);
+        // Ensures tracks do not live forever in the event of ungraceful shutdown
+        await this.redis.expire(roomTracks, 60 * 60 * 24);
         const trackKey = RedisKeys.trackInfo(track.producerId);
         await this.redis.set(trackKey, JSON.stringify(track), "EX", 60 * 60 * 24);
     }
