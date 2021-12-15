@@ -40,7 +40,7 @@ export class SFU {
         if (!room) {
             room = await this.createRoom(id);
         }
-        const client = new ClientV2(ws, this.listenIps, room, isTeacher, this.registrar, id);
+        const client = new ClientV2(ws, this.listenIps, room, isTeacher, this.registrar, id, this.id);
         room.clients.add(client);
 
         ws.on("close", () => {

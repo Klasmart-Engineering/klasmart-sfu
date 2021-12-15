@@ -9,6 +9,7 @@ import { ProducerId } from "./track";
 import { NewType } from "./newType";
 import { ConsumerId} from "./consumer";
 import {Registrar} from "./registrar";
+import {SfuId} from "./sfu";
 
 export type RequestID = NewType<string, "requestId">
 
@@ -88,7 +89,8 @@ export class ClientV2 {
         public readonly room: Room,
         public readonly isTeacher: boolean,
         private readonly registrar: Registrar,
-        private readonly roomId: RoomId
+        private readonly roomId: RoomId,
+        private readonly sfuId: SfuId
     ) {
         this.ws.on("message", e => this.onMessage(e));
         this.ws.on("close", () => this.onClose());
@@ -221,12 +223,13 @@ export class ClientV2 {
         );
 
         const id = track.producerId;
-        await this.registrar.registerTrack(this.roomId, id);
+        // TODO: Do we still need the group for a track?
+        await this.registrar.registerTrack(this.roomId, id, this.sfuId, "");
 
         track.on("paused", (localPause, globalPause) => {
             this.send({producerPaused: { id, localPause, globalPause }});
             // Update the track's last updated time
-            this.registrar.updateTrack(this.roomId, id);
+            this.registrar.updateTrack(this.roomId, id, this.sfuId, "", track.globallyPaused);
         });
         track.on("closed",() => {
             this.send({producerClosed: id});

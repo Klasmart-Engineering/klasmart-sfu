@@ -1,6 +1,7 @@
 // TODO: Make this a shared library to prevent inconsistency
 import {SfuId} from "./v2/sfu";
 import {RoomId} from "./v2/room";
+import {ProducerId} from "./v2/track";
 
 export class RedisKeys {
     private static room(roomId: string): string {
@@ -37,5 +38,9 @@ export class RedisKeys {
 
     public static roomTracks(roomId: RoomId) {
         return `${RedisKeys.room(roomId)}:tracks`;
+    }
+
+    public static trackInfo(trackId: ProducerId) {
+        return `track:{${trackId}}`;
     }
 }
