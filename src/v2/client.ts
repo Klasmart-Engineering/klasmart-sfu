@@ -67,6 +67,8 @@ export type WebRtcTransportResult = {
 type Result = {
   routerRtpCapabilities?: MediaSoup.RtpCapabilities;
   producerTransport?: WebRtcTransportResult;
+  createTrack?: ProducerId
+
   consumerTransport?: WebRtcTransportResult;
   consumerCreated?: {
     id: ConsumerId,
@@ -221,7 +223,7 @@ export class ClientV2 {
             kind,
             rtpParameters,
         );
-
+        
         const id = track.producerId;
         const webRtcTrack: WebRtcTrack = {
             producerId: id,
@@ -242,6 +244,8 @@ export class ClientV2 {
             this.send({producerClosed: id});
             this.registrar.unregisterTrack(this.roomId, id);
         });
+        
+        return { createTrack: id };
     }
 
     private async createConsumerTransportMessage() {
