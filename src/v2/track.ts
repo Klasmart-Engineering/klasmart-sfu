@@ -32,10 +32,11 @@ export class Track {
     public get producerId() { return this.producer.id as ProducerId; }
     public get numConsumers() { return this.consumers.size; }
     
-    public readonly emitter = new EventEmitter<TrackEventMap>();
-    public readonly on = this.emitter.on.bind(this);
-    public readonly once = this.emitter.once.bind(this);
-    
+    private readonly emitter = new EventEmitter<TrackEventMap>();
+    public readonly on: TrackEventEmitter["on"] = (event, listener) => this.emitter.on(event, listener);
+    public readonly off: TrackEventEmitter["off"] = (event, listener) => this.emitter.off(event, listener);
+    public readonly once: TrackEventEmitter["once"] = (event, listener) => this.emitter.once(event, listener);
+
     private constructor(
         public readonly owner: ClientId,
         private readonly producer: MediaSoup.Producer,
@@ -90,6 +91,8 @@ export class Track {
         this.emitter.emit("paused", this.locallyPaused, this.globallyPaused);
     }
 }
+
+export type TrackEventEmitter = Track["emitter"];
 
 export type TrackEventMap = {
     paused: (local: boolean, global: boolean) => void,

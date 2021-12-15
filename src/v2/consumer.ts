@@ -8,8 +8,9 @@ import { ProducerId } from "./track";
 export class Consumer {
     public _locallyPaused: boolean;
     private readonly emitter = new EventEmitter<ConsumerEventMap>();
-    public readonly on = this.emitter.on.bind(this);
-    public readonly once = this.emitter.once.bind(this);
+    public readonly on: ConsumerEventEmitter["on"] = (event, listener) => this.emitter.on(event, listener);
+    public readonly off: ConsumerEventEmitter["off"] = (event, listener) => this.emitter.off(event, listener);
+    public readonly once: ConsumerEventEmitter["once"] = (event, listener) => this.emitter.once(event, listener);
 
     private constructor(
         private readonly consumer: MediaSoup.Consumer
@@ -71,6 +72,8 @@ export class Consumer {
         };
     }
 }
+
+export type ConsumerEventEmitter = Consumer["emitter"]
 
 export type ConsumerEventMap = {
     paused: (local: boolean, global: boolean) => unknown;
