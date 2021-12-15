@@ -5,6 +5,7 @@ import {RoomId} from "./room";
 import {RedisKeys} from "../redisKeys";
 import {Logger} from "../logger";
 
+// TODO: Do we still need the group for a track?
 export type WebRtcTrack = {
     producerId: ProducerId,
     sfuId: SfuId,
@@ -15,8 +16,8 @@ export type WebRtcTrack = {
 export interface Registrar {
     registerSfuAddress(id: SfuId, address: string): Promise<void>;
     registerSfuStatus(id: SfuId): Promise<void>;
-    registerTrack(roomId: RoomId, producerId: ProducerId, sfuId: SfuId, group: string, isPausedForAllConsumers?: boolean): Promise<void>;
-    updateTrack(roomId: RoomId, producerId: ProducerId, sfuId: SfuId, group: string, isPausedForAllConsumers: boolean): Promise<void>;
+    registerTrack(roomId: RoomId, track: WebRtcTrack): Promise<void>;
+    updateTrack(roomId: RoomId, track: WebRtcTrack): Promise<void>;
     unregisterTrack(roomId: RoomId, producerId: ProducerId): Promise<void>;
 }
 
@@ -39,17 +40,11 @@ export class RedisRegistrar implements Registrar {
         }
     }
 
-    public async registerTrack(roomId: RoomId, producerId: ProducerId, sfuId: SfuId, group: string, isPausedForAllConsumers = false) {
+    public async registerTrack(roomId: RoomId, track: WebRtcTrack) {
         const roomTracks = RedisKeys.roomTracks(roomId);
-        await this.redis.zadd(roomTracks, "NX", Date.now(), producerId);
-        const trackInfoKey = RedisKeys.trackInfo(producerId);
-        const trackInfo: WebRtcTrack = {
-            producerId,
-            sfuId,
-            group,
-            isPausedForAllConsumers
-        };
-        await this.redis.set(trackInfoKey, JSON.stringify(trackInfo), "EX", 60 * 60 * 24);
+        await this.redis.zadd(roomTracks, "NX", Date.now(), track.producerId);
+        const trackKey = RedisKeys.trackInfo(track.producerId);
+        await this.redis.set(trackKey, JSON.stringify(track), "EX", 60 * 60 * 24);
     }
 
     public async unregisterTrack(roomId: RoomId, producerId: ProducerId) {
@@ -59,9 +54,9 @@ export class RedisRegistrar implements Registrar {
         await this.redis.del(trackInfoKey);
     }
 
-    public async updateTrack(roomId: RoomId, producerId: ProducerId, sfuId: SfuId, group: string, isPausedForAllConsumers: boolean) {
+    public async updateTrack(roomId: RoomId, track: WebRtcTrack) {
         const roomTracks = RedisKeys.roomTracks(roomId);
-        await this.redis.zadd(roomTracks, "XX", "GT", Date.now(), producerId);
-        await this.registerTrack(roomId, producerId, sfuId, group, isPausedForAllConsumers);
+        await this.redis.zadd(roomTracks, "XX", "GT", Date.now(), track.producerId);
+        await this.registerTrack(roomId, track);
     }
 }

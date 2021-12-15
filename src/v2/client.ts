@@ -8,7 +8,7 @@ import {Room, RoomId} from "./room";
 import { ProducerId } from "./track";
 import { NewType } from "./newType";
 import { ConsumerId} from "./consumer";
-import {Registrar} from "./registrar";
+import {Registrar, WebRtcTrack} from "./registrar";
 import {SfuId} from "./sfu";
 
 export type RequestID = NewType<string, "requestId">
@@ -223,13 +223,19 @@ export class ClientV2 {
         );
 
         const id = track.producerId;
-        // TODO: Do we still need the group for a track?
-        await this.registrar.registerTrack(this.roomId, id, this.sfuId, "");
+        const webRtcTrack: WebRtcTrack = {
+            producerId: id,
+            sfuId: this.sfuId,
+            group: "",
+            isPausedForAllConsumers:
+            track.globallyPaused
+        };
+        await this.registrar.registerTrack(this.roomId, webRtcTrack);
 
         track.on("paused", (localPause, globalPause) => {
             this.send({producerPaused: { id, localPause, globalPause }});
             // Update the track's last updated time
-            this.registrar.updateTrack(this.roomId, id, this.sfuId, "", track.globallyPaused);
+            this.registrar.updateTrack(this.roomId, webRtcTrack);
         });
         track.on("closed",() => {
             this.send({producerClosed: id});
