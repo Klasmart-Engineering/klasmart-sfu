@@ -1,4 +1,7 @@
 // TODO: Make this a shared library to prevent inconsistency
+import {SfuId} from "./v2/sfu";
+import {RoomId} from "./v2/room";
+
 export class RedisKeys {
     private static room(roomId: string): string {
         return `room:{${roomId}}`;
@@ -22,5 +25,17 @@ export class RedisKeys {
 
     public static sfuStatus(sfuId: string) {
         return { key: `sfu:{${sfuId}}:status`, ttl: 5 };
+    }
+
+    public static sfuId(id: SfuId) {
+        return `sfu:{${id}}`;
+    }
+
+    public static onlineSfus() {
+        return "sfus";
+    }
+
+    public static roomTracks(roomId: RoomId) {
+        return `${RedisKeys.room(roomId)}:tracks`;
     }
 }

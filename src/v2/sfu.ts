@@ -9,16 +9,7 @@ import {Cluster, Redis as IORedis} from "ioredis";
 import {NewType} from "./newType";
 import {nanoid} from "nanoid";
 import {Logger} from "../logger";
-
-class RedisKeys {
-    public static sfuId(id: SfuId) {
-        return `sfu:{${id}}`;
-    }
-
-    public static onlineSfus() {
-        return "sfus";
-    }
-}
+import {RedisKeys} from "../redisKeys";
 
 export class SFU {
     private readonly rooms = new Map<RoomId, Room>();
@@ -58,7 +49,7 @@ export class SFU {
         if (!room) {
             room = await this.createRoom(id);
         }
-        const client = new ClientV2(ws, this.listenIps, room, isTeacher);
+        const client = new ClientV2(ws, this.listenIps, room, isTeacher, this.redis, id);
         room.clients.add(client);
 
         ws.on("close", () => {
@@ -87,5 +78,5 @@ export class SFU {
     }
 }
 
-export type SfuId = NewType<string, "SfuId">
+export type SfuId = NewType<string, "SfuId">;
 export function newSfuId(id: string = nanoid()) { return id as SfuId; }

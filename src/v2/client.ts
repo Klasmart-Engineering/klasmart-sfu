@@ -4,10 +4,12 @@ import {
 } from "mediasoup";
 import WebSocket from "ws";
 import { Logger } from "../logger";
-import { Room } from "./room";
+import {Room, RoomId} from "./room";
 import { ProducerId } from "./track";
 import { NewType } from "./newType";
 import { ConsumerId} from "./consumer";
+import {Cluster, Redis as IORedis} from "ioredis";
+import {RedisKeys} from "../redisKeys";
 
 export type SfuID = NewType<string, "sfuId">
 export type RequestID = NewType<string, "requestId">
@@ -86,7 +88,9 @@ export class ClientV2 {
         private readonly ws: WebSocket,
         private readonly listenIps: MediaSoup.TransportListenIp[],
         public readonly room: Room,
-        public readonly isTeacher: boolean
+        public readonly isTeacher: boolean,
+        private readonly redis: IORedis | Cluster,
+        private readonly roomId: RoomId
     ) {
         this.ws.on("message", e => this.onMessage(e));
         this.ws.on("close", () => this.onClose());
@@ -219,8 +223,18 @@ export class ClientV2 {
         );
 
         const id = track.producerId;
-        track.on("paused", (localPause, globalPause) => this.send({producerPaused: { id, localPause, globalPause }}));
-        track.on("closed",() => this.send({producerClosed: id}));
+        const roomTracks = RedisKeys.roomTracks(this.roomId);
+        await this.redis.zadd(roomTracks, Date.now(), id);
+
+        track.on("paused", (localPause, globalPause) => {
+            this.send({producerPaused: { id, localPause, globalPause }});
+            // Update the track's last updated time
+            this.redis.zadd(roomTracks, "XX", "GT", Date.now(), id);
+        });
+        track.on("closed",() => {
+            this.send({producerClosed: id});
+            this.redis.zrem(roomTracks, id);
+        });
     }
 
     private async createConsumerTransportMessage() {
@@ -247,7 +261,7 @@ export class ClientV2 {
             this.consumerTransport,
             this.rtpCapabilities
         );
-        
+
         const id = producerId;
         consumer.on("paused", (localPause, globalPause) => this.send({ consumerPaused: { id, localPause, globalPause } }));
         consumer.on("closed", () => this.send({ consumerClosed: id }));
