@@ -10,7 +10,6 @@ import { NewType } from "./newType";
 import { ConsumerId} from "./consumer";
 import {Registrar} from "./registrar";
 
-export type SfuID = NewType<string, "sfuId">
 export type RequestID = NewType<string, "requestId">
 
 type RequestMessage = {
@@ -95,9 +94,9 @@ export class ClientV2 {
         this.ws.on("close", () => this.onClose());
     }
 
-    private async onMessage(messsage: WebSocket.RawData) {
-        if(!messsage) {return;}
-        const messageString = messsage.toString();
+    private async onMessage(rawMessage: WebSocket.RawData) {
+        if(!rawMessage) {return;}
+        const messageString = rawMessage.toString();
         if(messageString.length <= 0) {return;}
         const message = ClientV2.parse(messageString);
         if(!message) { this.ws.close(4400, "Invalid request"); return;}
@@ -110,7 +109,7 @@ export class ClientV2 {
         }
     }
 
-    private static parse(message: string): RequestMessage|undefined {
+    private static parse(message: string): RequestMessage | undefined {
         const request = JSON.parse(message) as RequestMessage;
         if(typeof request !== "object") { console.error(`Received request of type '${typeof request}'`); return; }
         if(!request) { console.error("Received null request"); return; }
