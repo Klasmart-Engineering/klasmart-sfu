@@ -235,7 +235,7 @@ export class ClientV2 {
         track.on("paused", (localPause, globalPause) => {
             this.send({producerPaused: { id, localPause, globalPause }});
             // Update the track's last updated time
-            webRtcTrack.isPausedForAllConsumers = globalPause;
+            webRtcTrack.isPausedForAllConsumers = globalPause || localPause;
             this.registrar.updateTrack(this.roomId, webRtcTrack);
         });
         track.on("closed",() => {
