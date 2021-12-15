@@ -5,11 +5,10 @@ import {
     types as MediaSoup
 } from "mediasoup";
 import {mediaCodecs} from "../config";
-import {Cluster, Redis as IORedis} from "ioredis";
 import {NewType} from "./newType";
 import {nanoid} from "nanoid";
 import {Logger} from "../logger";
-import {RedisKeys} from "../redisKeys";
+import {Registrar} from "./registrar";
 
 export class SFU {
     private readonly rooms = new Map<RoomId, Room>();
@@ -17,7 +16,7 @@ export class SFU {
     constructor(
         private readonly worker: MediaSoup.Worker,
         private readonly listenIps: MediaSoup.TransportListenIp[],
-        private redis: IORedis | Cluster,
+        private registrar: Registrar
     ) {
         this.updateStatus().then(() => {
             Logger.info(`SFU ${this.id} registered in redis with ${JSON.stringify(this.listenIps)}`);
@@ -26,16 +25,8 @@ export class SFU {
 
     private async updateStatus() {
         try {
-            const sfuKey = RedisKeys.sfuId(this.id);
-            await this.redis.set(sfuKey, JSON.stringify(this.listenIps), "EX", 15);
-            const sfusKey = RedisKeys.onlineSfus();
-
-            await this.redis.zadd(sfusKey, "GT", Date.now(), this.id);
-            // Expire entries not updated in the last minute
-            const update = await this.redis.zremrangebyscore(sfusKey, 0, Date.now() - 60 * 1000);
-            if (update > 0) {
-                Logger.info(`Deleted ${update} outdated SFU entries from redis`);
-            }
+            await this.registrar.registerSfuAddress(this.id, JSON.stringify(this.listenIps));
+            await this.registrar.registerSfuStatus(this.id);
         } catch (e) {
             Logger.error(e);
         } finally {
@@ -49,11 +40,11 @@ export class SFU {
         if (!room) {
             room = await this.createRoom(id);
         }
-        const client = new ClientV2(ws, this.listenIps, room, isTeacher, this.redis, id);
+        const client = new ClientV2(ws, this.listenIps, room, isTeacher, this.registrar, id);
         room.clients.add(client);
 
         ws.on("close", () => {
-            room?.clients.delete(client); 
+            room?.clients.delete(client);
             if (room && room.clients.size === 0) {
                 room.end();
                 this.rooms.delete(id);

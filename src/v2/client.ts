@@ -8,8 +8,7 @@ import {Room, RoomId} from "./room";
 import { ProducerId } from "./track";
 import { NewType } from "./newType";
 import { ConsumerId} from "./consumer";
-import {Cluster, Redis as IORedis} from "ioredis";
-import {RedisKeys} from "../redisKeys";
+import {Registrar} from "./registrar";
 
 export type SfuID = NewType<string, "sfuId">
 export type RequestID = NewType<string, "requestId">
@@ -24,12 +23,12 @@ type Request = {
   producerTransport?: unknown;
   producerTransportConnect?: { dtlsParameters: MediaSoup.DtlsParameters };
   createTrack?: { kind: MediaSoup.MediaKind, rtpParameters: MediaSoup.RtpParameters };
-  
+
   rtpCapabilities?: MediaSoup.RtpCapabilities;
   consumerTransport?: unknown;
   consumerTransportConnect?: { dtlsParameters: MediaSoup.DtlsParameters };
   createConsumer?: { producerId: ProducerId };
-  
+
   locallyPause?: { paused: boolean, id: ProducerId };
   globallyPause?: { paused: boolean, id: ProducerId };
   end?: unknown;
@@ -89,7 +88,7 @@ export class ClientV2 {
         private readonly listenIps: MediaSoup.TransportListenIp[],
         public readonly room: Room,
         public readonly isTeacher: boolean,
-        private readonly redis: IORedis | Cluster,
+        private readonly registrar: Registrar,
         private readonly roomId: RoomId
     ) {
         this.ws.on("message", e => this.onMessage(e));
@@ -100,7 +99,7 @@ export class ClientV2 {
         if(!messsage) {return;}
         const messageString = messsage.toString();
         if(messageString.length <= 0) {return;}
-        const message = this.parse(messageString);
+        const message = ClientV2.parse(messageString);
         if(!message) { this.ws.close(4400, "Invalid request"); return;}
         const {id, request} = message;
         try {
@@ -111,11 +110,11 @@ export class ClientV2 {
         }
     }
 
-    private parse(message: string): RequestMessage|undefined {
+    private static parse(message: string): RequestMessage|undefined {
         const request = JSON.parse(message) as RequestMessage;
-        if(typeof request !== "object") { console.error(`Recieved request of type '${typeof request}'`); return; }
-        if(!request) { console.error("Recieved null request"); return; }
-        if(!request.id) { console.error("Recieved request without id"); return; }
+        if(typeof request !== "object") { console.error(`Received request of type '${typeof request}'`); return; }
+        if(!request) { console.error("Received null request"); return; }
+        if(!request.id) { console.error("Received request without id"); return; }
         return request;
     }
 
@@ -223,17 +222,16 @@ export class ClientV2 {
         );
 
         const id = track.producerId;
-        const roomTracks = RedisKeys.roomTracks(this.roomId);
-        await this.redis.zadd(roomTracks, Date.now(), id);
+        await this.registrar.registerTrack(this.roomId, id);
 
         track.on("paused", (localPause, globalPause) => {
             this.send({producerPaused: { id, localPause, globalPause }});
             // Update the track's last updated time
-            this.redis.zadd(roomTracks, "XX", "GT", Date.now(), id);
+            this.registrar.updateTrack(this.roomId, id);
         });
         track.on("closed",() => {
             this.send({producerClosed: id});
-            this.redis.zrem(roomTracks, id);
+            this.registrar.unregisterTrack(this.roomId, id);
         });
     }
 

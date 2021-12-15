@@ -12,6 +12,7 @@ import { WsServer } from "./servers/wsServer";
 import { createWorker } from "mediasoup";
 import { SFU as SFU2 } from "./v2/sfu";
 import Redis, {Cluster, Redis as IORedis} from "ioredis";
+import {RedisRegistrar} from "./v2/registrar";
 
 function attachSignalHandlers() {
     /* Add shutdown listeners to forward New Relic metrics prior to app death */
@@ -97,7 +98,9 @@ async function main() {
 
         await redis.connect();
 
-        const sfu = new SFU2(worker, [{ip: process.env.WEBRTC_INTERFACE_ADDRESS || "0.0.0.0", announcedIp }], redis);
+        const registrar = new RedisRegistrar(redis);
+
+        const sfu = new SFU2(worker, [{ip: process.env.WEBRTC_INTERFACE_ADDRESS || "0.0.0.0", announcedIp }], registrar);
         const wsServer = new WsServer(sfu);
         wsServer.startServer(ip);
     }
