@@ -54,6 +54,7 @@ export class RedisRegistrar implements Registrar {
     public async unregisterTrack(roomId: RoomId, producerId: ProducerId) {
         const roomTracks = RedisKeys.roomTracks(roomId);
         await this.redis.zrem(roomTracks, producerId);
+        await this.redis.expire(roomTracks, 60 * 60 * 24);
         const trackInfoKey = RedisKeys.trackInfo(producerId);
         await this.redis.del(trackInfoKey);
     }
@@ -61,6 +62,7 @@ export class RedisRegistrar implements Registrar {
     public async updateTrack(roomId: RoomId, track: WebRtcTrack) {
         const roomTracks = RedisKeys.roomTracks(roomId);
         await this.redis.zadd(roomTracks, "XX", "GT", Date.now(), track.producerId);
+        await this.redis.expire(roomTracks, 60 * 60 * 24);
         await this.registerTrack(roomId, track);
     }
 }
