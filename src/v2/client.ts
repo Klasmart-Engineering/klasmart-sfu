@@ -2,7 +2,6 @@ import {nanoid} from "nanoid";
 import {
     types as MediaSoup
 } from "mediasoup";
-import WebSocket from "ws";
 import {Logger} from "../logger";
 import {Room, RoomId} from "./room";
 import {ProducerId} from "./track";
@@ -13,7 +12,7 @@ import {SfuId} from "./sfu";
 
 export type RequestID = NewType<string, "requestId">
 
-type RequestMessage = {
+export type RequestMessage = {
   id: RequestID,
   request: Request,
 }
@@ -46,8 +45,10 @@ type ResponseMessage = {
   response?: Response,
   consumerPaused?: PauseMessage,
   producerPaused?: PauseMessage,
-  consumerClosed?: ProducerId
-  producerClosed?: ProducerId
+  consumerClosed?: ProducerId,
+  producerClosed?: ProducerId,
+  consumerTransportClosed?: unknown,
+  producerTransportClosed?: unknown,
 }
 
 export type PauseMessage = {
@@ -67,7 +68,8 @@ export type WebRtcTransportResult = {
 type Result = {
   routerRtpCapabilities?: MediaSoup.RtpCapabilities;
   producerTransport?: WebRtcTransportResult;
-  createTrack?: ProducerId
+  createTrack?: ProducerId;
+  locallyPauseTrack?: boolean;
 
   consumerTransport?: WebRtcTransportResult;
   consumerCreated?: {
@@ -86,51 +88,23 @@ export class ClientV2 {
     private _consumerTransport?: MediaSoup.WebRtcTransport;
 
     constructor(
-        private readonly ws: WebSocket,
         private readonly listenIps: MediaSoup.TransportListenIp[],
         public readonly room: Room,
         public readonly isTeacher: boolean,
         private readonly registrar: Registrar,
         private readonly roomId: RoomId,
-        private readonly sfuId: SfuId
+        private readonly sfuId: SfuId,
+        private readonly send: (message: ResponseMessage) => void,
     ) {
-        this.ws.on("message", e => this.onMessage(e));
-        this.ws.on("close", () => this.onClose());
-        this.keepAlive();
     }
 
-    private keepAlive() {
-        this.ws.send(JSON.stringify({
-            type: "ka"
-        }));
-        setTimeout(() => this.keepAlive(), 1000);
-    }
-
-    private async onMessage(rawMessage: WebSocket.RawData) {
-        if(!rawMessage) {return;}
-        const messageString = rawMessage.toString();
-        if(messageString.length <= 0) {return;}
-        const message = ClientV2.parse(messageString);
-        if(!message) { this.ws.close(4400, "Invalid request"); return;}
-        const {id, request} = message;
+    public async onMessage({id, request}: RequestMessage) {
         try {
             const result = await this.handleMessage(request);
             this.send({response: {id, result }});
         } catch (error: unknown) {
             this.send({response: {id, error: `${error}`}});
         }
-    }
-
-    private static parse(message: string): RequestMessage | undefined {
-        const request = JSON.parse(message) as RequestMessage;
-        if(typeof request !== "object") { console.error(`Received request of type '${typeof request}'`); return; }
-        if(!request) { console.error("Received null request"); return; }
-        if(!request.id) { console.error("Received request without id"); return; }
-        return request;
-    }
-
-    private send(message: ResponseMessage) {
-        this.ws.send(JSON.stringify(message));
     }
 
     private async handleMessage(message: Request) {
@@ -150,7 +124,7 @@ export class ClientV2 {
 
         if (rtpCapabilities) {
             Logger.info(`rtpCapabilities: ${rtpCapabilities}`);
-            return await this.rtpCapabilitiesMessage(rtpCapabilities);
+            return this.rtpCapabilitiesMessage(rtpCapabilities);
         } else if(routerRtpCapabilities) {
             Logger.info(`routerRtpCapabilities: ${JSON.stringify(routerRtpCapabilities)}`);
             return await this.routerRtpCapabilitiesMessage();
@@ -190,7 +164,7 @@ export class ClientV2 {
         return;
     }
 
-    private onClose() {
+    public onClose() {
         this.producerTransport?.close();
         this.consumerTransport?.close();
     }
@@ -208,7 +182,7 @@ export class ClientV2 {
 
     private async createProducerTransportMessage(): Promise<Result> {
         this.producerTransport = await this.createTransport(this.listenIps);
-        this.producerTransport.on("routerclose", () => this.ws.send({producerTransportClosed: {}}));
+        this.producerTransport.on("routerclose", () => this.send({producerTransportClosed: {}}));
         return {
             producerTransport: {
                 id: this.producerTransport.id,
@@ -258,7 +232,7 @@ export class ClientV2 {
 
     private async createConsumerTransportMessage() {
         this.consumerTransport = await this.createTransport(this.listenIps);
-        this.consumerTransport.on("routerclose", () => this.ws.send({consumerTransportClosed: {}}));
+        this.consumerTransport.on("routerclose", () => this.send({consumerTransportClosed: {}}));
         return {
             consumerTransport: {
                 id: this.consumerTransport.id,
@@ -312,10 +286,13 @@ export class ClientV2 {
         await track.globalPause(paused);
     }
 
-    private async locallyPauseMessage(locallyPause: { paused: boolean; id: ProducerId }) {
+    private async locallyPauseMessage(locallyPause: { paused: boolean; id: ProducerId }): Promise<Result> {
         const { paused, id } = locallyPause;
         const track = this.room.track(id);
         await track.localPause(this.id, paused);
+        return {
+            locallyPauseTrack: true
+        };
     }
 
     // Getters & Setters
