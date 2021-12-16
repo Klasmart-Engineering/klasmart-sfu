@@ -3,13 +3,15 @@ import {
 } from "mediasoup";
 import { NewType } from "./newType";
 import { Track } from "./track";
-import { ClientV2, ClientId } from "./client";
+import { ClientId, ClientV2 } from "./client";
 import { ProducerId } from "./track";
 
 export class Room {
     public readonly clients = new Set<ClientV2>();
     constructor(
+        public readonly id: RoomId,
         public readonly router: MediaSoup.Router,
+        private readonly onClose: (room: Room) => unknown
     ) { }
 
     private readonly tracks = new Map<ProducerId, Track>();
@@ -28,8 +30,17 @@ export class Room {
         return track;
     }
 
+    public addClient(client: ClientV2) {
+        this.clients.add(client);
+        client.on("close", () => {
+            this.clients.delete(client);
+            if(this.clients.size === 0) { this.end(); }
+        });
+    }
+
     public end() {
         this.router.close();
+        this.onClose(this);
     }
 }
 export type RoomId = NewType<string, "RoomId">

@@ -13,18 +13,22 @@ export type WebRtcTrack = {
     isPausedForAllConsumers: boolean
 };
 
-export interface Registrar {
+export interface SfuRegistrar {
     registerSfuAddress(id: SfuId, address: string): Promise<void>;
     registerSfuStatus(id: SfuId): Promise<void>;
+}
+
+export interface TrackRegistrar {
     registerTrack(roomId: RoomId, track: WebRtcTrack): Promise<void>;
     updateTrack(roomId: RoomId, track: WebRtcTrack): Promise<void>;
     unregisterTrack(roomId: RoomId, producerId: ProducerId): Promise<void>;
 }
 
-export class RedisRegistrar implements Registrar {
+export class RedisRegistrar implements SfuRegistrar, TrackRegistrar {
     constructor(private readonly redis: IORedis | Cluster) {}
 
     public async registerSfuAddress(id: SfuId, address: string) {
+        Logger.info(`SFU ${id} registered in redis with ${address}`);
         const sfuKey = RedisKeys.sfuId(id);
         await this.redis.set(sfuKey, address, "EX", 15);
     }
@@ -66,3 +70,13 @@ export class RedisRegistrar implements Registrar {
         await this.registerTrack(roomId, track);
     }
 }
+
+export const MockRegistrar: TrackRegistrar & SfuRegistrar = {
+    /* eslint-disable @typescript-eslint/no-empty-function */
+    registerTrack: async () => {},
+    unregisterTrack: async () => {},
+    updateTrack: async () => {},
+    registerSfuAddress: async () => {},
+    registerSfuStatus: async () => {},
+    /* eslint-enable @typescript-eslint/no-empty-function */
+};

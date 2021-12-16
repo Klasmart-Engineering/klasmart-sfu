@@ -3,12 +3,13 @@ import {
     types as MediaSoup
 } from "mediasoup";
 import {Logger} from "../logger";
-import {Room, RoomId} from "./room";
+import {Room} from "./room";
 import {ProducerId} from "./track";
 import {NewType} from "./newType";
 import {ConsumerId} from "./consumer";
-import {Registrar, WebRtcTrack} from "./registrar";
-import {SfuId} from "./sfu";
+import {TrackRegistrar, WebRtcTrack} from "./registrar";
+import {SFU} from "./sfu";
+import { EventEmitter } from "eventemitter3";
 
 export type RequestID = NewType<string, "requestId">
 
@@ -33,15 +34,7 @@ type Request = {
   end?: unknown;
 }
 
-type Response = {
-  id: RequestID;
-  error: string,
-} | {
-  id: RequestID;
-  result: Result | void,
-}
-
-type ResponseMessage = {
+export type ResponseMessage = {
   response?: Response,
   consumerPaused?: PauseMessage,
   producerPaused?: PauseMessage,
@@ -50,6 +43,14 @@ type ResponseMessage = {
   consumerTransportClosed?: unknown,
   producerTransportClosed?: unknown,
 }
+
+type Response = {
+    id: RequestID;
+    error: string,
+  } | {
+    id: RequestID;
+    result: Result | void,
+  }
 
 export type PauseMessage = {
   id: ProducerId,
@@ -83,27 +84,30 @@ type Result = {
 
 export class ClientV2 {
     public readonly id = newClientId();
+
+    private readonly emitter = new EventEmitter<ClientEventMap>();
+    public readonly on: ClientEventEmitter["on"] = (event, listener) => this.emitter.on(event, listener);
+    public readonly off: ClientEventEmitter["off"] = (event, listener) => this.emitter.off(event, listener);
+    public readonly once: ClientEventEmitter["once"] = (event, listener) => this.emitter.once(event, listener);
+
     private _rtpCapabilities?: MediaSoup.RtpCapabilities;
     private _producerTransport?: MediaSoup.WebRtcTransport;
     private _consumerTransport?: MediaSoup.WebRtcTransport;
 
     constructor(
-        private readonly listenIps: MediaSoup.TransportListenIp[],
+        private readonly sfu: SFU,
+        private readonly registrar: TrackRegistrar,
         public readonly room: Room,
         public readonly isTeacher: boolean,
-        private readonly registrar: Registrar,
-        private readonly roomId: RoomId,
-        private readonly sfuId: SfuId,
-        private readonly send: (message: ResponseMessage) => void,
     ) {
     }
 
     public async onMessage({id, request}: RequestMessage) {
         try {
             const result = await this.handleMessage(request);
-            this.send({response: {id, result }});
+            this.emitter.emit("response", {id, result});
         } catch (error: unknown) {
-            this.send({response: {id, error: `${error}`}});
+            this.emitter.emit("response", {id, error: `${error}`});
         }
     }
 
@@ -167,6 +171,7 @@ export class ClientV2 {
     public onClose() {
         this.producerTransport?.close();
         this.consumerTransport?.close();
+        this.emitter.emit("close");
     }
 
     // Network messages
@@ -181,8 +186,8 @@ export class ClientV2 {
     }
 
     private async createProducerTransportMessage(): Promise<Result> {
-        this.producerTransport = await this.createTransport(this.listenIps);
-        this.producerTransport.on("routerclose", () => this.send({producerTransportClosed: {}}));
+        this.producerTransport = await this.createTransport(this.sfu.listenIps);
+        this.producerTransport.on("routerclose", () => this.emitter.emit("producerTransportClosed"));
         return {
             producerTransport: {
                 id: this.producerTransport.id,
@@ -206,33 +211,32 @@ export class ClientV2 {
             rtpParameters,
         );
 
-        const id = track.producerId;
         const webRtcTrack: WebRtcTrack = {
-            producerId: id,
-            sfuId: this.sfuId,
+            producerId: track.producerId,
+            sfuId: this.sfu.id,
             group: "",
             isPausedForAllConsumers:
             track.globallyPaused
         };
-        await this.registrar.registerTrack(this.roomId, webRtcTrack);
+        await this.registrar.registerTrack(this.room.id, webRtcTrack);
 
         track.on("paused", (localPause, globalPause) => {
-            this.send({producerPaused: { id, localPause, globalPause }});
+            this.emitter.emit("producerPaused", {id: track.producerId, localPause, globalPause});
             // Update the track's last updated time
             webRtcTrack.isPausedForAllConsumers = globalPause || localPause;
-            this.registrar.updateTrack(this.roomId, webRtcTrack);
+            this.registrar.updateTrack(this.room.id, webRtcTrack);
         });
         track.on("closed",() => {
-            this.send({producerClosed: id});
-            this.registrar.unregisterTrack(this.roomId, id);
+            this.emitter.emit("producerClosed", track.producerId);
+            this.registrar.unregisterTrack(this.room.id, track.producerId);
         });
 
-        return { createTrack: id };
+        return { createTrack: track.producerId };
     }
 
     private async createConsumerTransportMessage() {
-        this.consumerTransport = await this.createTransport(this.listenIps);
-        this.consumerTransport.on("routerclose", () => this.send({consumerTransportClosed: {}}));
+        this.consumerTransport = await this.createTransport(this.sfu.listenIps);
+        this.consumerTransport.on("routerclose", () => this.emitter.emit("consumerTransportClosed"));
         return {
             consumerTransport: {
                 id: this.consumerTransport.id,
@@ -255,9 +259,8 @@ export class ClientV2 {
             this.rtpCapabilities
         );
 
-        const id = producerId;
-        consumer.on("paused", (localPause, globalPause) => this.send({ consumerPaused: { id, localPause, globalPause } }));
-        consumer.on("closed", () => this.send({ consumerClosed: id }));
+        consumer.on("paused", (localPause, globalPause) => this.emitter.emit("consumerPaused", {id: producerId, localPause, globalPause}));
+        consumer.on("closed", () => this.emitter.emit("consumerClosed", producerId));
         return { consumerCreated: consumer.parameters() };
     }
 
@@ -349,6 +352,19 @@ export class ClientV2 {
             return descriptor;
         };
     }
+}
+
+export type ClientEventEmitter = ClientV2["emitter"];
+
+export type ClientEventMap = {
+    close: () => void,
+    response: (response: Response) => void,
+    consumerPaused: (consumerPaused: PauseMessage) => void,
+    producerPaused: (producerPaused: PauseMessage) => void,
+    consumerClosed: (producerId: ProducerId) => void,
+    producerClosed: (producerId: ProducerId) => void,
+    consumerTransportClosed: () => void,
+    producerTransportClosed: () => void,
 }
 
 export type ClientId = NewType<string, "ClientId">
