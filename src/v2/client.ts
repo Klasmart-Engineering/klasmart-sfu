@@ -1,13 +1,13 @@
-import { nanoid } from "nanoid";
+import {nanoid} from "nanoid";
 import {
     types as MediaSoup
 } from "mediasoup";
 import WebSocket from "ws";
-import { Logger } from "../logger";
+import {Logger} from "../logger";
 import {Room, RoomId} from "./room";
-import { ProducerId } from "./track";
-import { NewType } from "./newType";
-import { ConsumerId} from "./consumer";
+import {ProducerId} from "./track";
+import {NewType} from "./newType";
+import {ConsumerId} from "./consumer";
 import {Registrar, WebRtcTrack} from "./registrar";
 import {SfuId} from "./sfu";
 
@@ -96,6 +96,14 @@ export class ClientV2 {
     ) {
         this.ws.on("message", e => this.onMessage(e));
         this.ws.on("close", () => this.onClose());
+        this.keepAlive();
+    }
+
+    private keepAlive() {
+        this.ws.send(JSON.stringify({
+            type: "ka"
+        }));
+        setTimeout(() => this.keepAlive(), 1000);
     }
 
     private async onMessage(rawMessage: WebSocket.RawData) {
@@ -144,38 +152,38 @@ export class ClientV2 {
             Logger.info(`rtpCapabilities: ${rtpCapabilities}`);
             return await this.rtpCapabilitiesMessage(rtpCapabilities);
         } else if(routerRtpCapabilities) {
-            Logger.info(`routerRtpCapabilities: ${routerRtpCapabilities}`);
+            Logger.info(`routerRtpCapabilities: ${JSON.stringify(routerRtpCapabilities)}`);
             return await this.routerRtpCapabilitiesMessage();
         } else if (producerTransport) {
-            Logger.info(`producerTransport: ${producerTransport}`);
+            Logger.info(`producerTransport: ${JSON.stringify(producerTransport)}`);
             return await this.createProducerTransportMessage();
         } else if (producerTransportConnect) {
-            Logger.info(`producerTransportConnect: ${producerTransportConnect}`);
+            Logger.info(`producerTransportConnect: ${JSON.stringify(producerTransportConnect)}`);
             const {dtlsParameters} = producerTransportConnect;
             return await this.connectProducerTransportMessage(dtlsParameters);
         } else if (consumerTransport) {
-            Logger.info(`consumerTransport: ${consumerTransport}`);
+            Logger.info(`consumerTransport: ${JSON.stringify(consumerTransport)}`);
             return await this.createConsumerTransportMessage();
         } else if (consumerTransportConnect) {
-            Logger.info(`consumerTransportConnect: ${consumerTransportConnect}`);
+            Logger.info(`consumerTransportConnect: ${JSON.stringify(consumerTransportConnect)}`);
             const {dtlsParameters} = consumerTransportConnect;
             return await this.connectConsumerTransportMessage(dtlsParameters);
         } else if (createTrack) {
-            Logger.info(`createTrack: ${createTrack}`);
+            Logger.info(`createTrack: ${JSON.stringify(createTrack)}`);
             const {kind, rtpParameters} = createTrack;
             return await this.createTrackMessage(kind, rtpParameters);
         } else if (createConsumer) {
-            Logger.info(`createConsumer: ${createConsumer}`);
+            Logger.info(`createConsumer: ${JSON.stringify(createConsumer)}`);
             const {producerId} = createConsumer;
             return await this.createConsumerMessage(producerId);
         } else if (locallyPause) {
-            Logger.info(`locallyPause: ${locallyPause}`);
+            Logger.info(`locallyPause: ${JSON.stringify(locallyPause)}`);
             return await this.locallyPauseMessage(locallyPause);
         } else if (globallyPause) {
-            Logger.info(`globallyPause: ${globallyPause}`);
+            Logger.info(`globallyPause: ${JSON.stringify(globallyPause)}`);
             return await this.globallyPauseMessage(globallyPause);
         } else if (end) {
-            Logger.info(`end: ${end}`);
+            Logger.info(`end: ${JSON.stringify(end)}`);
             return await this.endMessage();
         }
 
@@ -223,7 +231,7 @@ export class ClientV2 {
             kind,
             rtpParameters,
         );
-        
+
         const id = track.producerId;
         const webRtcTrack: WebRtcTrack = {
             producerId: id,
@@ -244,7 +252,7 @@ export class ClientV2 {
             this.send({producerClosed: id});
             this.registrar.unregisterTrack(this.roomId, id);
         });
-        
+
         return { createTrack: id };
     }
 
