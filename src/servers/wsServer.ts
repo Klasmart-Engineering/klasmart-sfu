@@ -18,7 +18,7 @@ export class WsServer {
     public constructor(sfu: SFU) {
         this.httpServer.initializeServer();
         this.wss = new Server({ server: this.httpServer.server });
-        this.wss.on("connection", (ws, req) => new WSTransport(sfu, ws, req, ));
+        this.wss.on("connection", (ws, req) => new WSTransport(sfu, ws, req, null));
     }
 
     public startServer(ip: string) {
@@ -40,10 +40,12 @@ export class WSTransport {
         private receiveMessageTimeoutMs: number|null = 5000,
         private sendMessageTimeoutMs: number|null = 1000
     ) {
+        const {promise, resolve} = createDecoupledPromise<ClientV2>();
+        this.client = promise;
         ws.on("message", (e) => this.onMessage(e));
         ws.on("close", () => this.onClose());
         ws.on("error", (e) =>  this.onError(e));
-        this.client = this.createClient(request);
+        resolve(this.createClient(request));
     }
 
     private send(message: ResponseMessage) {
@@ -73,7 +75,7 @@ export class WSTransport {
         Logger.error(e);
     }
 
-    private async createClient(req: IncomingMessage): Promise<ClientV2> {
+    private async createClient(req: IncomingMessage) {
         try {
             this.resetNetworkSendTimeout();
             this.resetNetworkReceiveTimeout();
@@ -157,5 +159,32 @@ async function handleAuth(req: IncomingMessage) {
     return {
         roomId: newRoomId(authorizationToken.roomid),
         isTeacher: authorizationToken.teacher || false,
+    };
+}
+
+type DecoupledPromise<T> = {
+    promise: Promise<T>;
+    resolve: (value: T | PromiseLike<T>) => void;
+    reject: (e?:unknown) => void;
+};
+
+export function createDecoupledPromise<T>(): DecoupledPromise<T> {
+    let resolve: ((value:T | PromiseLike<T>) => void) | undefined = undefined;
+    let reject: ((e?:unknown) => void) | undefined = undefined;
+
+    const promise = new Promise<T>((_resolve, _reject) => {
+        resolve = _resolve;
+        reject = _reject;
+    });
+
+    // With the current Promise implmentation
+    // 'reject' will always have been set
+    // and the following line should never throw
+    if(!resolve || !reject) { throw new Error("Could not extract callbacks from promise"); }
+    
+    return {
+        promise,
+        resolve,
+        reject,
     };
 }
