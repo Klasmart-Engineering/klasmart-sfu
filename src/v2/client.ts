@@ -169,8 +169,8 @@ export class ClientV2 {
     }
 
     public onClose() {
-        this.producerTransport?.close();
-        this.consumerTransport?.close();
+        this._producerTransport?.close();
+        this._consumerTransport?.close();
         this.emitter.emit("close");
     }
 
@@ -289,13 +289,11 @@ export class ClientV2 {
         await track.globalPause(paused);
     }
 
-    private async locallyPauseMessage(locallyPause: { paused: boolean; id: ProducerId }): Promise<Result> {
+    private async locallyPauseMessage(locallyPause: { paused: boolean; id: ProducerId }) {
         const { paused, id } = locallyPause;
         const track = this.room.track(id);
+        console.log(`locallyPauseMessage Track(${id}) paused(${paused})`);
         await track.localPause(this.id, paused);
-        return {
-            locallyPauseTrack: true
-        };
     }
 
     // Getters & Setters
