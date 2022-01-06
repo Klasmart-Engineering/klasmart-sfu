@@ -295,6 +295,9 @@ export class ClientV2 {
     @ClientV2.onlyTeacher("Only teachers can end the room")
     private async endRoom() {
         this.room.end();
+        return {
+            end: true
+        };
     }
 
     @ClientV2.onlyTeacher("Only teachers can pause for everyone")

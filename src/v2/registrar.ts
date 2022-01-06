@@ -28,12 +28,15 @@ export class RedisRegistrar implements SfuRegistrar, TrackRegistrar {
     constructor(private readonly redis: IORedis | Cluster) {}
 
     public async registerSfuAddress(id: SfuId, address: string) {
-        Logger.info(`SFU ${id} registered in redis with ${address}`);
         const sfuKey = RedisKeys.sfuId(id);
+        const exists = await this.redis.get(sfuKey);
         await this.redis.set(sfuKey, address, "EX", 15);
+        if (!exists) {
+            Logger.info(`SFU ${id} registered in redis with ${address}`);
+        }
     }
 
-    public async registerSfuStatus(id: SfuId): Promise<void> {
+    public async registerSfuStatus(id: SfuId) {
         const sfusKey = RedisKeys.onlineSfus();
 
         await this.redis.zadd(sfusKey, "GT", Date.now(), id);
