@@ -23,12 +23,12 @@ export class Track {
     }
 
     private readonly consumers = new Map<ClientId, Consumer>();
-    private _broadcastIsPaused = false;
-    private _sourceIsPaused = false;
+    private _pausedByAdmin = false;
+    private _pausedByOwner = false;
 
-    public get producerId() { return this.broadcast.id as ProducerId; }
+    public get producerId() { return this.producer.id as ProducerId; }
     public get numConsumers() { return this.consumers.size; }
-    
+
     private readonly emitter = new EventEmitter<TrackEventMap>();
     public readonly on: TrackEventEmitter["on"] = (event, listener) => this.emitter.on(event, listener);
     public readonly off: TrackEventEmitter["off"] = (event, listener) => this.emitter.off(event, listener);
@@ -36,10 +36,10 @@ export class Track {
 
     private constructor(
         public readonly owner: ClientId,
-        private readonly broadcast: MediaSoup.Producer,
+        private readonly producer: MediaSoup.Producer,
         private readonly router: MediaSoup.Router,
     ) {
-        this.broadcast.on("close", () => this.emitter.emit("closed"));
+        this.producer.on("close", () => this.emitter.emit("closed"));
     }
 
     public async consume(clientId: ClientId, transport: MediaSoup.WebRtcTransport, rtpCapabilities: MediaSoup.RtpCapabilities) {
@@ -53,11 +53,11 @@ export class Track {
         return consumer;
     }
 
-    public end() { return this.broadcast.close(); }
+    public end() { return this.producer.close(); }
 
     public async pauseClient(client: ClientV2, paused: boolean) {
         if (this.owner === client.id) {
-            await this.setSourcePaused(paused);
+            await this.setPausedByOwner(paused);
         } else {
             const consumer = this.consumers.get(client.id);
             if (!consumer) { throw new Error("Consumer not found"); }
@@ -65,29 +65,29 @@ export class Track {
         }
     }
 
-    public get broadcastIsPaused() { return this._broadcastIsPaused; }
-    public async setBroadcastPaused(paused: boolean) {
-        if(this._broadcastIsPaused !== paused) { return; }
-        this._broadcastIsPaused = paused;
-        await this.updateBroadcastPauseState();
-        this.emitter.emit("broadcastPaused", paused);
+    public get pausedByAdmin() { return this._pausedByAdmin; }
+    public async setPausedByAdmin(paused: boolean) {
+        if(this._pausedByAdmin !== paused) { return; }
+        this._pausedByAdmin = paused;
+        await this.updateProducerPauseState();
+        this.emitter.emit("pausedByAdmin", paused);
     }
 
-    public get sourceIsPaused() { return this._sourceIsPaused; }
-    private async setSourcePaused(paused: boolean) {
-        if(this._sourceIsPaused !== paused) { return; }
-        this._sourceIsPaused = paused;
-        await this.updateBroadcastPauseState();
-        this.emitter.emit("sourcePaused", paused);
+    public get pausedByOwner() { return this._pausedByOwner; }
+    private async setPausedByOwner(paused: boolean) {
+        if(this._pausedByOwner !== paused) { return; }
+        this._pausedByOwner = paused;
+        await this.updateProducerPauseState();
+        this.emitter.emit("pausedByOwner", paused);
     }
 
-    private async updateBroadcastPauseState() {
-        const broadcastShouldBePaused = this._sourceIsPaused || this._broadcastIsPaused;
-        if(broadcastShouldBePaused === this.broadcast.paused) { return; }
-        if(this.broadcast.paused) {
-            await this.broadcast.resume();
+    private async updateProducerPauseState() {
+        const producerShouldBePaused = this._pausedByOwner || this._pausedByAdmin;
+        if(producerShouldBePaused === this.producer.paused) { return; }
+        if(this.producer.paused) {
+            await this.producer.resume();
         } else {
-            await this.broadcast.pause();
+            await this.producer.pause();
         }
     }
 }
@@ -95,7 +95,7 @@ export class Track {
 export type TrackEventEmitter = Track["emitter"];
 
 export type TrackEventMap = {
-    sourcePaused: (paused: boolean) => void,
-    broadcastPaused: (paused: boolean) => void,
+    pausedByOwner: (paused: boolean) => void,
+    pausedByAdmin: (paused: boolean) => void,
     closed: () => void
 }

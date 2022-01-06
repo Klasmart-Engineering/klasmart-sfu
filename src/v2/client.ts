@@ -223,15 +223,16 @@ export class ClientV2 {
         const webRtcTrack: WebRtcTrack = {
             producerId,
             sfuId: this.sfu.id,
-            name,
+            group: name,
+            isPausedForAllConsumers: true
         };
-        
-        track.on("broadcastPaused", paused => this.emitter.emit("broadcastPaused", {producerId, paused}));
+
+        track.on("pausedByAdmin", paused => this.emitter.emit("pausedByAdmin", {producerId, paused}));
         track.on("closed", () => {
             this.emitter.emit("producerClosed", producerId);
             this.registrar.unregisterTrack(this.room.id, producerId);
         });
-        this.emitter.emit("broadcastPaused", {producerId, paused: track.broadcastIsPaused});
+        this.emitter.emit("pausedByAdmin", {producerId, paused: track.pausedByAdmin});
         await this.registrar.registerTrack(this.room.id, webRtcTrack);
         return track.producerId;
     }
@@ -258,24 +259,24 @@ export class ClientV2 {
         if (!this.rtpCapabilities) { throw new Error("RTP Capabilities has not been initialized"); }
         if (!this.consumerTransport) { throw new Error("Consumer transport has not been initialized"); }
         const track = this.room.track(producerId);
-        
+
         const consumer = await track.consume(
             this.id,
             this.consumerTransport,
             this.rtpCapabilities,
         );
-                
+
         consumer.on("closed", () => this.emitter.emit("consumerClosed", producerId));
-        
+
         consumer.on("paused", paused => this.emitter.emit("sinkPauseEvent", {producerId, paused}));
         this.emitter.emit("sinkPauseEvent", {producerId, paused: consumer.sinkIsPaused});
-        
-        track.on("broadcastPaused", paused => this.emitter.emit("broadcastPaused", {producerId, paused}));
-        this.emitter.emit("broadcastPaused", {producerId, paused: track.broadcastIsPaused});
-        
-        track.on("sourcePaused", paused => this.emitter.emit("sourcePaused", {producerId, paused}));
-        this.emitter.emit("sourcePaused", {producerId, paused: track.sourceIsPaused});
-        
+
+        track.on("pausedByAdmin", paused => this.emitter.emit("pausedByAdmin", {producerId, paused}));
+        this.emitter.emit("pausedByAdmin", {producerId, paused: track.pausedByAdmin});
+
+        track.on("pausedByOwner", paused => this.emitter.emit("pausedByOwner", {producerId, paused}));
+        this.emitter.emit("pausedByOwner", {producerId, paused: track.pausedByOwner});
+
         return consumer.parameters();
     }
 
@@ -303,7 +304,7 @@ export class ClientV2 {
     @ClientV2.onlyTeacher("Only teachers can pause for everyone")
     private async pauseForEveryone({ paused, id }: PauseRequest) {
         const track = this.room.track(id);
-        await track.setBroadcastPaused(paused);
+        await track.setPausedByAdmin(paused);
     }
 
     private async pause({ paused, id }: PauseRequest) {
@@ -332,8 +333,8 @@ export type ClientEventMap = {
     close: () => void,
     response: (response: Response) => void,
 
-    sourcePaused: (pauseEvent: PauseEvent) => void,
-    broadcastPaused: (pauseEvent: PauseEvent) => void,
+    pausedByOwner: (pauseEvent: PauseEvent) => void,
+    pausedByAdmin: (pauseEvent: PauseEvent) => void,
     sinkPauseEvent: (pauseEvent: PauseEvent) => void,
 
     consumerClosed: (producerId: ProducerId) => void,

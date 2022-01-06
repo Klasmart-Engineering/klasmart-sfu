@@ -38,7 +38,9 @@
     "paths": {}
   },
   "exclude": [
-    "node_modules"
+    "node_modules",
+    "**/*.spec.ts",
+    "**/__tests__/*.ts"
   ],
   "include": [
     "./src/**/*.tsx",

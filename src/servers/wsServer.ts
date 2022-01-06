@@ -50,7 +50,7 @@ export class WSTransport {
 
     private send(message: ResponseMessage) {
         this.resetNetworkSendTimeout();
-        const data = JSON.stringify(message); 
+        const data = JSON.stringify(message);
         this.ws.send(data);
     }
 
@@ -63,7 +63,7 @@ export class WSTransport {
         if(!message) { this.ws.close(4400, "Invalid request"); return;}
 
         const client = await this.client;
-        client.onMessage(message);
+        await client.onMessage(message);
     }
 
     private async onClose() {
@@ -85,14 +85,14 @@ export class WSTransport {
                 isTeacher,
             );
             client.on("response", (response) => this.send({response}));
-            
-            client.on("sourcePaused", (sourcePauseEvent) => this.send({sourcePauseEvent}));
-            client.on("broadcastPaused", (broadcastPauseEvent) => this.send({broadcastPauseEvent}));
+
+            client.on("pausedByOwner", (pausedByOwner) => this.send({sourcePauseEvent: pausedByOwner}));
+            client.on("pausedByAdmin", (pausedByAdmin) => this.send({broadcastPauseEvent: pausedByAdmin}));
             client.on("sinkPauseEvent", (sinkPauseEvent) => this.send({sinkPauseEvent}));
-            
+
             client.on("consumerClosed", (consumerClosed) => this.send({consumerClosed}));
             client.on("producerClosed", (producerClosed) => this.send({producerClosed}));
-            
+
             client.on("consumerTransportClosed", () => this.send({consumerTransportClosed: {}}));
             client.on("producerTransportClosed", () => this.send({producerTransportClosed: {}}));
             return client;
@@ -184,7 +184,7 @@ export function createDecoupledPromise<T>(): DecoupledPromise<T> {
     // With the current Promise implmentation 'reject' will always have been set
     // as such the following line should never throw, unless the behavior of Promise changes
     if(!resolve || !reject) { throw new Error("Could not extract callbacks from promise"); }
-    
+
     return {
         promise,
         resolve,
