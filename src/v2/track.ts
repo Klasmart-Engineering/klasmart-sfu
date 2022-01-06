@@ -1,4 +1,4 @@
-import { ClientId } from "./client";
+import { ClientId, ClientV2 } from "./client";
 import { Consumer } from "./consumer";
 import {
     types as MediaSoup
@@ -17,19 +17,16 @@ export class Track {
             id,
             kind,
             rtpParameters,
-            paused: true
         });
         producer.on("transportclose", () => { producer.close(); });
         return new Track(owner, producer, router);
     }
 
     private readonly consumers = new Map<ClientId, Consumer>();
-    private _globallyPaused = false;
-    private _locallyPaused: boolean;
+    private _broadcastIsPaused = false;
+    private _sourceIsPaused = false;
 
-    public get globallyPaused() { return this._globallyPaused; }
-    public get locallyPaused() { return this._locallyPaused; }
-    public get producerId() { return this.producer.id as ProducerId; }
+    public get producerId() { return this.broadcast.id as ProducerId; }
     public get numConsumers() { return this.consumers.size; }
     
     private readonly emitter = new EventEmitter<TrackEventMap>();
@@ -39,62 +36,66 @@ export class Track {
 
     private constructor(
         public readonly owner: ClientId,
-        private readonly producer: MediaSoup.Producer,
+        private readonly broadcast: MediaSoup.Producer,
         private readonly router: MediaSoup.Router,
     ) {
-        this._locallyPaused = producer.paused;
-        this.producer.on("close", () => this.emitter.emit("closed"));
+        this.broadcast.on("close", () => this.emitter.emit("closed"));
     }
-
 
     public async consume(clientId: ClientId, transport: MediaSoup.WebRtcTransport, rtpCapabilities: MediaSoup.RtpCapabilities) {
         if(clientId === this.owner) { throw new Error("Owner can not consume a track that it produces"); }
         if (this.consumers.get(clientId)) { throw new Error("Already consuming track"); }
         const producerId = this.producerId;
-
-        if (!this.router.canConsume({rtpCapabilities, producerId})) {
-            throw new Error("Client is not capable of consuming this producer");
-        }
+        if (!this.router.canConsume({rtpCapabilities, producerId})) { throw new Error("Client is not capable of consuming this producer"); }
 
         const consumer = await Consumer.create(transport, producerId, rtpCapabilities);
         this.consumers.set(clientId, consumer);
         return consumer;
     }
 
-    public end() {
-        this.producer.close();
-    }
+    public end() { return this.broadcast.close(); }
 
-    public async globalPause(paused: boolean) {
-        this._globallyPaused = paused;
-        await this.updateProducerPauseState();
-    }
-
-    public async localPause(clientId: ClientId, paused: boolean) {
-        if (this.owner === clientId) {
-            this._locallyPaused = paused;
-            await this.updateProducerPauseState();
+    public async pauseClient(client: ClientV2, paused: boolean) {
+        if (this.owner === client.id) {
+            await this.setSourcePaused(paused);
         } else {
-            const consumer = this.consumers.get(clientId);
+            const consumer = this.consumers.get(client.id);
             if (!consumer) { throw new Error("Consumer not found"); }
-            await consumer.setLocallyPaused(paused);
+            await consumer.setSinkPaused(paused);
         }
     }
 
-    private async updateProducerPauseState() {
-        const producerShouldBePaused = this.locallyPaused || this.globallyPaused;
-        if (producerShouldBePaused && !this.producer.paused) {
-            await this.producer.pause();
-        } else if (!producerShouldBePaused && this.producer.paused) {
-            await this.producer.resume();
+    public get broadcastIsPaused() { return this._broadcastIsPaused; }
+    public async setBroadcastPaused(paused: boolean) {
+        if(this._broadcastIsPaused !== paused) { return; }
+        this._broadcastIsPaused = paused;
+        await this.updateBroadcastPauseState();
+        this.emitter.emit("broadcastPaused", paused);
+    }
+
+    public get sourceIsPaused() { return this._sourceIsPaused; }
+    private async setSourcePaused(paused: boolean) {
+        if(this._sourceIsPaused !== paused) { return; }
+        this._sourceIsPaused = paused;
+        await this.updateBroadcastPauseState();
+        this.emitter.emit("sourcePaused", paused);
+    }
+
+    private async updateBroadcastPauseState() {
+        const broadcastShouldBePaused = this._sourceIsPaused || this._broadcastIsPaused;
+        if(broadcastShouldBePaused === this.broadcast.paused) { return; }
+        if(this.broadcast.paused) {
+            await this.broadcast.resume();
+        } else {
+            await this.broadcast.pause();
         }
-        this.emitter.emit("paused", this.locallyPaused, this.globallyPaused);
     }
 }
 
 export type TrackEventEmitter = Track["emitter"];
 
 export type TrackEventMap = {
-    paused: (local: boolean, global: boolean) => void,
+    sourcePaused: (paused: boolean) => void,
+    broadcastPaused: (paused: boolean) => void,
     closed: () => void
 }

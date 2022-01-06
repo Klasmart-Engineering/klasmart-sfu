@@ -4,29 +4,25 @@ import {
 import {EventEmitter} from "eventemitter3";
 import {NewType} from "./newType";
 import {Logger} from "../logger";
-import { ProducerId } from "./track";
+import { newProducerId, ProducerId } from "./track";
 export class Consumer {
-    public _locallyPaused: boolean;
     private readonly emitter = new EventEmitter<ConsumerEventMap>();
     public readonly on: ConsumerEventEmitter["on"] = (event, listener) => this.emitter.on(event, listener);
     public readonly off: ConsumerEventEmitter["off"] = (event, listener) => this.emitter.off(event, listener);
     public readonly once: ConsumerEventEmitter["once"] = (event, listener) => this.emitter.once(event, listener);
 
     private constructor(
-        private readonly consumer: MediaSoup.Consumer
+        private readonly sender: MediaSoup.Consumer,
+        private _sinkIsPaused = sender.paused,
     ) {
-        this._locallyPaused = consumer.paused;
-
-        consumer.on("transportclose", () => this.close());
-        consumer.on("producerclose", () => this.close());
-        consumer.on("producerpause", () => this.updatePauseStatus());
-        consumer.on("producerresume", async () => this.updatePauseStatus());
-        consumer.on("layerschange", (layers) => Logger.info(`consumerLayerChange(${this.id}): ${JSON.stringify(layers)}`));
+        sender.on("transportclose", () => this.close());
+        sender.on("producerclose", () => this.close());
+        sender.on("producerpause", () => this.updatePauseStatus());
+        sender.on("producerresume", () => this.updatePauseStatus());
+        sender.on("layerschange", (layers) => Logger.info(`consumerLayerChange(${this.id}): ${JSON.stringify(layers)}`));
     }
 
-    public get id() {
-        return newConsumerId(this.consumer.id);
-    }
+    public get id() { return newConsumerId(this.sender.id); }
 
     public static async create(consumerTransport: MediaSoup.WebRtcTransport, producerId: ProducerId, rtpCapabilities: MediaSoup.RtpCapabilities) {
         const consumer = await consumerTransport.consume({
@@ -39,36 +35,36 @@ export class Consumer {
     }
 
     public close() {
-        if (!this.consumer.closed) {
-            this.consumer.close();
-            this.emitter.emit("closed");
-        }
+        if (this.sender.closed) { return; }
+        this.sender.close();
+        this.emitter.emit("closed");
     }
 
-    public get locallyPaused() { return this._locallyPaused; }
-
-    public async setLocallyPaused(paused: boolean) {
-        this._locallyPaused = paused;
+    public get sinkIsPaused() { return this._sinkIsPaused; }
+    public async setSinkPaused(paused: boolean) {
+        if(this._sinkIsPaused !== paused) { return; }
+        this._sinkIsPaused = paused;
         await this.updatePauseStatus();
+        this.emitter.emit("paused", paused);
     }
 
     private async updatePauseStatus() {
-        const consumerShouldBePaused = this.consumer.producerPaused || this.locallyPaused;
-        if (consumerShouldBePaused && !this.consumer.paused) {
-            await this.consumer.pause();
-        } else if (!consumerShouldBePaused && this.consumer.paused) {
-            await this.consumer.resume();
+        const shouldBePaused = this.sender.producerPaused || this._sinkIsPaused;
+        if(shouldBePaused === this.sender.paused) { return; }
+        if(this.sender.paused) {
+            await this.sender.resume();
+        } else {
+            await this.sender.pause();
         }
-        this.emitter.emit("paused", this.locallyPaused, this.consumer.producerPaused);
     }
 
     public parameters(): ConsumerParameters {
         return {
             id: this.id,
-            producerId: this.consumer.producerId as ProducerId,
-            kind: this.consumer.kind,
-            rtpParameters: this.consumer.rtpParameters,
-            paused: this.consumer.paused,
+            kind: this.sender.kind,
+            paused: this.sender.paused,
+            rtpParameters: this.sender.rtpParameters,
+            producerId: newProducerId(this.sender.producerId),
         };
     }
 }
@@ -76,8 +72,8 @@ export class Consumer {
 export type ConsumerEventEmitter = Consumer["emitter"]
 
 export type ConsumerEventMap = {
-    paused: (local: boolean, global: boolean) => unknown;
     closed: () => unknown;
+    paused: (paused: boolean) => unknown;
 }
 
 export type ConsumerParameters = {

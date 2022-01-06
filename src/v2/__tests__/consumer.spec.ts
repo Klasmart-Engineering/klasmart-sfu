@@ -50,13 +50,13 @@ describe("consumer", () => {
 
     it("should set a locallyPaused state", async () => {
         const consumer = await setupMockConsumer();
-        expect(consumer.locallyPaused).toEqual(true);
+        expect(consumer.desiredPauseState).toEqual(true);
 
-        await consumer.setLocallyPaused(false);
-        expect(consumer.locallyPaused).toEqual(false);
+        await consumer.setSinkPaused(false);
+        expect(consumer.desiredPauseState).toEqual(false);
 
-        await consumer.setLocallyPaused(true);
-        expect(consumer.locallyPaused).toEqual(true);
+        await consumer.setSinkPaused(true);
+        expect(consumer.desiredPauseState).toEqual(true);
     });
 
     it("should pause when the producer pauses", async () => {
@@ -65,7 +65,7 @@ describe("consumer", () => {
         const consumer = await Consumer.create(transport as unknown as MediaSoup.WebRtcTransport, params);
 
         transport.setProducerPaused(false);
-        await consumer.setLocallyPaused(false);
+        await consumer.setSinkPaused(false);
 
         const waitPause = new Promise((resolve) => {
             consumer.once("paused", (paused) => {
@@ -83,7 +83,7 @@ describe("consumer", () => {
         const params = mockConsumerParams();
         const consumer = await Consumer.create(transport as unknown as MediaSoup.WebRtcTransport, params);
 
-        await consumer.setLocallyPaused(false);
+        await consumer.setSinkPaused(false);
         transport.setProducerPaused(false);
 
         const waitPause = new Promise((resolve) => {

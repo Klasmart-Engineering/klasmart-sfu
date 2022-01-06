@@ -101,11 +101,11 @@ describe("track", () => {
 
         track.addConsumer(consumerId, consumer);
 
-        await consumer.setLocallyPaused(false);
+        await consumer.setSinkPaused(false);
 
         await track.localPause(consumerId, true);
 
-        expect(consumer.locallyPaused).toBe(true);
+        expect(consumer.desiredPauseState).toBe(true);
     });
 
     it("should throw if an owner is trying to consume its own producer", async () => {

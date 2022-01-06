@@ -82,15 +82,19 @@ export class WSTransport {
             const {roomId, isTeacher} = await handleAuth(req);
             const client = await this.sfu.createClient(
                 roomId,
-                isTeacher
+                isTeacher,
             );
-            client.on("consumerClosed", (consumerClosed) => this.send({consumerClosed}));
-            client.on("consumerPaused", (consumerPaused) => this.send({consumerPaused}));
-            client.on("consumerTransportClosed", () => this.send({consumerTransportClosed: {}}));
-            client.on("producerClosed", (producerClosed) => this.send({producerClosed}));
-            client.on("producerPaused", (producerPaused) => this.send({producerPaused}));
-            client.on("producerTransportClosed", () => this.send({producerTransportClosed: {}}));
             client.on("response", (response) => this.send({response}));
+            
+            client.on("sourcePaused", (sourcePauseEvent) => this.send({sourcePauseEvent}));
+            client.on("broadcastPaused", (broadcastPauseEvent) => this.send({broadcastPauseEvent}));
+            client.on("sinkPauseEvent", (sinkPauseEvent) => this.send({sinkPauseEvent}));
+            
+            client.on("consumerClosed", (consumerClosed) => this.send({consumerClosed}));
+            client.on("producerClosed", (producerClosed) => this.send({producerClosed}));
+            
+            client.on("consumerTransportClosed", () => this.send({consumerTransportClosed: {}}));
+            client.on("producerTransportClosed", () => this.send({producerTransportClosed: {}}));
             return client;
         } catch (e: unknown) {
             Logger.error(e);
@@ -177,9 +181,8 @@ export function createDecoupledPromise<T>(): DecoupledPromise<T> {
         reject = _reject;
     });
 
-    // With the current Promise implmentation
-    // 'reject' will always have been set
-    // and the following line should never throw
+    // With the current Promise implmentation 'reject' will always have been set
+    // as such the following line should never throw, unless the behavior of Promise changes
     if(!resolve || !reject) { throw new Error("Could not extract callbacks from promise"); }
     
     return {
