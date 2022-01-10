@@ -43,4 +43,7 @@ export class RedisKeys {
     public static trackInfo(trackId: ProducerId) {
         return `track:{${trackId}}`;
     }
+    public static roomTracksStream(roomId: RoomId) {
+        return `${RedisKeys.roomTracks(roomId)}:stream`;
+    }
 }

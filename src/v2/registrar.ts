@@ -56,6 +56,10 @@ export class RedisRegistrar implements SfuRegistrar, TrackRegistrar {
         await this.redis.expire(roomTracks, 60 * 60 * 24);
         const trackKey = RedisKeys.trackInfo(track.producerId);
         await this.redis.set(trackKey, JSON.stringify(track), "EX", 60 * 60 * 24);
+        const tracksStreamKey = RedisKeys.roomTracksStream(roomId);
+        await this.redis.xadd(tracksStreamKey, "*", track.producerId, JSON.stringify(track));
+        // Expire streams after 8 hours
+        await this.redis.expire(tracksStreamKey, 60 * 60 * 8);
     }
 
     public async unregisterTrack(roomId: RoomId, producerId: ProducerId) {
