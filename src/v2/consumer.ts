@@ -42,7 +42,7 @@ export class Consumer {
 
     public get sinkIsPaused() { return this._sinkIsPaused; }
     public async setSinkPaused(paused: boolean) {
-        if(this._sinkIsPaused !== paused) { return; }
+        if(this._sinkIsPaused === paused) { return; }
         this._sinkIsPaused = paused;
         await this.updatePauseStatus();
         this.emitter.emit("paused", paused);
@@ -50,11 +50,16 @@ export class Consumer {
 
     private async updatePauseStatus() {
         const shouldBePaused = this.sender.producerPaused || this._sinkIsPaused;
-        if(shouldBePaused === this.sender.paused) { return; }
-        if(this.sender.paused) {
-            await this.sender.resume();
-        } else {
+        if(shouldBePaused === this.sender.paused) {
+            console.info(`updatePauseStatus Consumer(${this.id}) - no change`);
+            return;
+        }
+        if(shouldBePaused) {
+            console.info(`updatePauseStatus Consumer(${this.id}) - pause`);
             await this.sender.pause();
+        } else {
+            console.info(`updatePauseStatus Consumer(${this.id}) - resume`);
+            await this.sender.resume();
         }
     }
 

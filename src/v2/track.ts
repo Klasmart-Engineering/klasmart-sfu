@@ -49,6 +49,7 @@ export class Track {
         if (!this.router.canConsume({rtpCapabilities, producerId})) { throw new Error("Client is not capable of consuming this producer"); }
 
         const consumer = await Consumer.create(transport, producerId, rtpCapabilities);
+        console.log(`Consumer created for Track(${this.producerId}).Client(${clientId})`);
         this.consumers.set(clientId, consumer);
         return consumer;
     }
@@ -60,14 +61,18 @@ export class Track {
             await this.setSourcePaused(paused);
         } else {
             const consumer = this.consumers.get(client.id);
-            if (!consumer) { throw new Error("Consumer not found"); }
+            if (!consumer) {
+                console.log(`Consumer not found in Track(${this.producerId}) for Client(${client.id})`);
+                throw new Error("Consumer not found");
+            }
             await consumer.setSinkPaused(paused);
         }
     }
 
     public get broadcastIsPaused() { return this._broadcastIsPaused; }
     public async setBroadcastPaused(paused: boolean) {
-        if(this._broadcastIsPaused !== paused) { return; }
+        console.log(`setBroadcastPaused Track(${this.producerId}) - ${paused}`);
+        if(this._broadcastIsPaused === paused) { return; }
         this._broadcastIsPaused = paused;
         await this.updateBroadcastPauseState();
         this.emitter.emit("broadcastPaused", paused);
@@ -75,19 +80,25 @@ export class Track {
 
     public get sourceIsPaused() { return this._sourceIsPaused; }
     private async setSourcePaused(paused: boolean) {
-        if(this._sourceIsPaused !== paused) { return; }
+        console.log(`setSourcePaused Track(${this.producerId}) - ${paused}`);
+        if(this._sourceIsPaused === paused) { return; }
         this._sourceIsPaused = paused;
         await this.updateBroadcastPauseState();
         this.emitter.emit("sourcePaused", paused);
     }
 
     private async updateBroadcastPauseState() {
-        const broadcastShouldBePaused = this._sourceIsPaused || this._broadcastIsPaused;
-        if(broadcastShouldBePaused === this.broadcast.paused) { return; }
-        if(this.broadcast.paused) {
-            await this.broadcast.resume();
-        } else {
+        const shouldBePaused = this._sourceIsPaused || this._broadcastIsPaused;
+        if(shouldBePaused === this.broadcast.paused) {
+            console.info(`updateBroadcastPauseState Track(${this.producerId}) - no change`);
+            return;
+        }
+        if(shouldBePaused) {
+            console.info(`updateBroadcastPauseState Track(${this.producerId}) - pause`);
             await this.broadcast.pause();
+        } else {
+            console.info(`updateBroadcastPauseState Track(${this.producerId}) - resume`);
+            await this.broadcast.resume();
         }
     }
 }
