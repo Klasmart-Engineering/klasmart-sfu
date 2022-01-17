@@ -1,53 +1,94 @@
+definitions:
+  caches:
+    nodemodules: ./node_modules
+  steps:
+    - step: &slack-notification
+        name: Slack Notification
+        script:
+          - pipe: atlassian/slack-notify:1.0.1
+            variables:
+              WEBHOOK_URL: ''
+              MESSAGE: '($BITBUCKET_COMMIT) for "$BITBUCKET_BRANCH"'
+    - step: &step-secret-check
+        name: Atlassian Security Secrets Scan
+        script:
+          - pipe: atlassian/git-secrets-scan:0.5.1
+    - step: &step-build-npm
+        name: "Build NPM"
+        image: node:lts
+        script:
+          - apt-get update && apt-get install python3-pip -y
+          - npm ci
+          - npm run build
+        caches:
+          - nodemodules
+        artifacts:
+          - node_modules/**
+          - dist/**
+    - step: &step-build-docker
+        name: "Docker build & push to docker image"
+        image: python:3.9-alpine
+        script:
+          - pip3 install -U awscli
+
+          - export BRANCH_TAG=$(echo "$BITBUCKET_BRANCH" | sed -E 's/([^0-9a-zA-Z]+)/-/g' | awk '{print tolower($0)}')
+          - export REPO=$DOCKER_REPO_URL/kidsloop-sfu # DOCKER_REPO_URL is workspace wide variable
+          - export COMMIT_TAG=$(echo $BITBUCKET_COMMIT | cut -c1-7)
+          - printf '"Git tag":"%s", "Git commit":"%s" "ECR repo":"%s"' $BRANCH_TAG $COMMIT_TAG $REPO
+
+          - aws ecr get-login-password --region eu-west-2 | docker login --username AWS --password-stdin $DOCKER_REPO_URL
+
+          - cp deploy/Dockerfile.bitbucket-pipeline .
+          - cp deploy/nodesource.gpg.key .
+          - docker build -t kidsloop-sfu -f Dockerfile.bitbucket-pipeline .
+
+          - docker tag kidsloop-sfu:latest $REPO:$BRANCH_TAG
+          - docker tag kidsloop-sfu:latest $REPO:$BRANCH_TAG-latest
+          - docker tag kidsloop-sfu:latest $REPO:$BRANCH_TAG-$BITBUCKET_BUILD_NUMBER
+          - docker tag kidsloop-sfu:latest $REPO:$BRANCH_TAG-$COMMIT_TAG
+
+          - docker push $REPO:$BRANCH_TAG
+          - docker push $REPO:$BRANCH_TAG-latest
+          - docker push $REPO:$BRANCH_TAG-$BITBUCKET_BUILD_NUMBER
+          - docker push $REPO:$BRANCH_TAG-$COMMIT_TAG
+
+        services:
+          - docker
+        caches:
+          - docker
+    - step: &step-build-docker-loadtest
+        name: "Docker build & push to docker image"
+        image: python:3.9-alpine
+        script:
+          - pip3 install -U awscli
+          - export BRANCH_TAG=$(echo "$BITBUCKET_BRANCH" | sed -E 's/([^0-9a-zA-Z]+)/-/g' | awk '{print tolower($0)}')
+          - export REPO=$DOCKER_REPO_URL/kidsloop-sfu # DOCKER_REPO_URL is workspace wide variable
+          - export COMMIT_TAG=$(echo $BITBUCKET_COMMIT | cut -c1-7)
+          - printf '"Git tag":"%s", "Git commit":"%s" "ECR repo":"%s"' $BRANCH_TAG $COMMIT_TAG $REPO
+          - aws ecr get-login-password --region eu-west-2 | docker login --username AWS --password-stdin $DOCKER_REPO_URL
+
+          - cp deploy/Dockerfile.lt.bitbucket-pipeline .
+          - cp deploy/nodesource.gpg.key .
+          - cp config/.env.loadtest ./.env
+          - docker build -t kidsloop-sfu -f Dockerfile.bitbucket-pipeline .
+
+          - docker tag kidsloop-sfu:latest $REPO:lt-$BRANCH_TAG-$COMMIT_TAG
+          - docker push $REPO:lt-$BRANCH_TAG-$COMMIT_TAG
+        services:
+          - docker
+        caches:
+          - docker
+
 pipelines:
   branches:
+    wip/loadtest:
+      - step: *step-secret-check
+      - step: *step-build-npm
+      - step: *step-build-docker-loadtest
     master:
-      - step: &step-secret-check
-          name: Atlassian Security Secrets Scan
-          script:
-            - pipe: atlassian/git-secrets-scan:0.5.1
-      - step: &step-build-npm
-          name: "Build NPM"
-          image: node:lts
-          script:
-            - apt-get update && apt-get install python3-pip -y
-            - npm ci
-            - npm run build
-          caches:
-            - nodemodules
-          artifacts:
-            - node_modules/**
-            - dist/**
-      - step: &step-build-docker
-          name: "Docker build & push to docker image"
-          image: python:3.9-alpine
-          script:
-            - pip3 install -U awscli
-
-            - export BRANCH_TAG=$(echo "$BITBUCKET_BRANCH" | sed -E 's/([^0-9a-zA-Z]+)/-/g' | awk '{print tolower($0)}')
-            - export REPO=$DOCKER_REPO_URL/kidsloop-sfu # DOCKER_REPO_URL is workspace wide variable
-            - export COMMIT_TAG=$(echo $BITBUCKET_COMMIT | cut -c1-7)
-            - printf '"Git tag":"%s", "Git commit":"%s" "ECR repo":"%s"' $BRANCH_TAG $COMMIT_TAG $REPO
-
-            - aws ecr get-login-password --region eu-west-2 | docker login --username AWS --password-stdin $DOCKER_REPO_URL
-
-            - cp deploy/Dockerfile.bitbucket-pipeline .
-            - cp deploy/nodesource.gpg.key .
-            - docker build -t kidsloop-sfu -f Dockerfile.bitbucket-pipeline .
-
-            - docker tag kidsloop-sfu:latest $REPO:$BRANCH_TAG
-            - docker tag kidsloop-sfu:latest $REPO:$BRANCH_TAG-latest
-            - docker tag kidsloop-sfu:latest $REPO:$BRANCH_TAG-$BITBUCKET_BUILD_NUMBER
-            - docker tag kidsloop-sfu:latest $REPO:$BRANCH_TAG-$COMMIT_TAG
-
-            - docker push $REPO:$BRANCH_TAG
-            - docker push $REPO:$BRANCH_TAG-latest
-            - docker push $REPO:$BRANCH_TAG-$BITBUCKET_BUILD_NUMBER
-            - docker push $REPO:$BRANCH_TAG-$COMMIT_TAG
-
-          services:
-            - docker
-          caches:
-            - docker
+      - step: *step-secret-check
+      - step: *step-build-npm
+      - step: *step-build-docker
 
     alpha:
       - step: *step-secret-check
@@ -64,7 +105,3 @@ pipelines:
   custom:
     deploy-alpha:
       - step: *step-deploy-alpha
-
-definitions:
-  caches:
-    nodemodules: ./node_modules

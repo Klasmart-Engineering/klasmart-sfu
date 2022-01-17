@@ -14,6 +14,12 @@ RUN echo "deb https://deb.nodesource.com/setup_16.x focal main" | tee /etc/apt/s
 RUN apt-get update && apt-get --yes upgrade
 RUN apt-get install --yes nodejs build-essential
 
+# LOADTEST
+RUN node --version
+COPY ./.env .env
+RUN set -o allexport; source .env; set +o allexport
+RUN env
+
 # Install SFU and dependencies
 WORKDIR /usr/src/app
 COPY ./package*.json ./
