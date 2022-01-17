@@ -9,7 +9,7 @@ COPY ./nodesource.gpg.key .
 RUN apt-key add nodesource.gpg.key
 
 # RUN echo "deb https://deb.nodesource.com/node_14.x focal main" | tee /etc/apt/sources.list.d/nodesource.list
-RUN echo "deb https://deb.nodesource.com/setup_16.x focal main" | tee /etc/apt/sources.list.d/nodesource.list
+RUN echo "deb https://deb.nodesource.com/setup_14.x focal main" | tee /etc/apt/sources.list.d/nodesource.list
 
 RUN apt-get update && apt-get --yes upgrade
 RUN apt-get install --yes nodejs build-essential
