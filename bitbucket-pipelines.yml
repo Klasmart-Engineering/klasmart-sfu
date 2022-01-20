@@ -72,7 +72,7 @@ definitions:
           - cp config/.env.loadtest ./.env
           - docker build -t kidsloop-sfu -f Dockerfile.lt.bitbucket-pipeline .
 
-          - docker tag kidsloop-sfu:lt-$BRANCH_TAG-$COMMIT_TAG $REPO:lt-$BRANCH_TAG-$COMMIT_TAG
+          - docker tag kidsloop-sfu:latest $REPO:lt-$BRANCH_TAG-$COMMIT_TAG
           - docker push $REPO:lt-$BRANCH_TAG-$COMMIT_TAG
         services:
           - docker
