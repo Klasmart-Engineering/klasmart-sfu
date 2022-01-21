@@ -2,10 +2,10 @@ import {createWorker, types as MediaSoup} from "mediasoup";
 import {SFU} from "../sfu";
 import {Data, Server, WebSocket} from "ws";
 import {newRoomId} from "../room";
-import {newTrackId} from "../track";
-import {newProducerId, Producer, ProducerParams} from "../producer";
-import {Consumer, ConsumerParams} from "../consumer";
+import {Consumer} from "../consumer";
 import {mediaCodecs} from "../../config";
+import {MockRegistrar} from "../registrar";
+import {newProducerId} from "../track";
 
 export async function setupSfu() {
     const worker = await createWorker({
@@ -16,7 +16,7 @@ export async function setupSfu() {
 
     const announcedIp = "127.0.0.1";
 
-    return new SFU(worker, [{ip: process.env.WEBRTC_INTERFACE_ADDRESS || "0.0.0.0", announcedIp }]);
+    return new SFU(worker, [{ip: process.env.WEBRTC_INTERFACE_ADDRESS || "0.0.0.0", announcedIp }], MockRegistrar);
 }
 
 export async function newClient(wss: TestWssServer) {
@@ -69,14 +69,9 @@ export class TestWssServer {
     }
 }
 
-export async function setupSingleClient(wss: TestWssServer, sfu: SFU, isTeacher = false) {
-    const client = await newClient(wss);
-
+export async function setupSingleClient(sfu: SFU, isTeacher = false) {
     const roomId = newRoomId("test-room");
-    const ws = wss.getSocket(0);
-
-    await sfu.addClient(ws, roomId, isTeacher);
-    return client;
+    return await sfu.createClient(roomId, isTeacher);
 }
 
 // A class that wraps a `WebSocket` to allow you to `await` on messages.
@@ -166,16 +161,6 @@ export class MockTransport {
 export function createMockTransport() {
     const mockTransport = new MockTransport();
     return mockTransport as unknown as MediaSoup.WebRtcTransport;
-}
-
-export async function setupMockProducer() {
-    const mockTransport = createMockTransport();
-    const params = mockProducerParams();
-    return Producer.create(mockTransport, params);
-}
-
-export function mockProducerParams(): ProducerParams {
-    return {id: newTrackId("id"), kind: "audio", rtpParameters: {codecs: []}};
 }
 
 class MockProducer {
@@ -280,11 +265,7 @@ function createMockConsumer(id: string) {
 
 export async function setupMockConsumer() {
     const mockTransport = createMockTransport();
-    const params = mockConsumerParams();
-    return Consumer.create(mockTransport, params);
-}
-
-export function mockConsumerParams(): ConsumerParams {
-    const rtpCapabilities = {codecs: mediaCodecs };
-    return {producerId: newProducerId("id"), rtpCapabilities};
+    const producerId = newProducerId();
+    const rtpCapabilities = {codecs: mediaCodecs};
+    return Consumer.create(mockTransport, producerId, rtpCapabilities);
 }

@@ -19,7 +19,7 @@ export type RequestMessage = {
     request: Request,
 }
 
-type Request = {
+export type Request = {
     getRouterRtpCapabilities?: unknown;
     createProducerTransport?: unknown;
     connectProducerTransport?: TransportConnectRequest;
@@ -54,7 +54,7 @@ export type ResponseMessage = {
     producerTransportClosed?: unknown,
 }
 
-type Response = {
+export type Response = {
     id: RequestId;
     error: string,
 } | {
@@ -70,7 +70,7 @@ export type WebRtcTransportResult = {
     sctpParameters?: MediaSoup.SctpParameters,
 }
 
-type Result = {
+export type Result = {
     routerRtpCapabilities?: MediaSoup.RtpCapabilities;
 
     producerTransportCreated?: WebRtcTransportResult;
