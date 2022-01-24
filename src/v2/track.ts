@@ -49,11 +49,17 @@ export class Track {
         if (!this.router.canConsume({rtpCapabilities, producerId})) { throw new Error("Client is not capable of consuming this producer"); }
 
         const consumer = await Consumer.create(transport, producerId, rtpCapabilities);
+        consumer.on("closed", () => {
+            this.consumers.delete(clientId);
+        });
         this.consumers.set(clientId, consumer);
         return consumer;
     }
 
-    public end() { return this.producer.close(); }
+    public end() {
+        this.producer.close();
+        this.emitter.emit("closed");
+    }
 
     public async pauseClient(client: ClientV2, paused: boolean) {
         if (this.owner === client.id) {
@@ -67,7 +73,7 @@ export class Track {
 
     public get pausedByAdmin() { return this._pausedByAdmin; }
     public async setPausedByAdmin(paused: boolean) {
-        if(this._pausedByAdmin !== paused) { return; }
+        if(this._pausedByAdmin === paused) { return; }
         this._pausedByAdmin = paused;
         await this.updateProducerPauseState();
         this.emitter.emit("pausedByAdmin", paused);
@@ -75,7 +81,7 @@ export class Track {
 
     public get pausedByOwner() { return this._pausedByOwner; }
     private async setPausedByOwner(paused: boolean) {
-        if(this._pausedByOwner !== paused) { return; }
+        if(this._pausedByOwner === paused) { return; }
         this._pausedByOwner = paused;
         await this.updateProducerPauseState();
         this.emitter.emit("pausedByOwner", paused);

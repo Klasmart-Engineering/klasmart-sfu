@@ -1,48 +1,94 @@
 import {Track} from "../track";
 import {newClientId} from "../client";
-import {setupMockConsumer, setupMockProducer} from "./utils";
+import {MockRouter, MockTransport, setupSfu, setupSingleClient} from "./utils";
+import {types as MediaSoup} from "mediasoup";
+import {RtpCapabilities, RtpParameters} from "mediasoup/node/lib/RtpParameters";
+import {SFU} from "../sfu";
+
+const rtpParameters: RtpParameters = {
+    codecs: [{
+        mimeType: "video/VP8",
+        payloadType: 100,
+        clockRate: 90000,
+        channels: 1,
+        parameters: {},
+    }],
+    headerExtensions: [],
+    encodings: [{
+        ssrc: 100,
+        codecPayloadType: 100,
+        rtx: {
+            ssrc: 200,
+        },
+    }],
+};
+
+const rtpCapabilities: RtpCapabilities = {
+    codecs: [{
+        mimeType: "video/VP8",
+        kind: "video",
+        clockRate: 90000,
+        channels: 1,
+        parameters: {},
+    }],
+    headerExtensions: [],
+};
+
+let sfu: SFU;
 
 describe("track", () => {
+    beforeEach(async () => {
+        sfu = await setupSfu();
+    });
+    afterEach(() => {
+        sfu.shutdown();
+    });
     it("should be able to be created", async () => {
         const clientId = newClientId("client");
-        const producer = await setupMockProducer();
-        const track = new Track(clientId, producer);
+        const transport = new MockTransport() as unknown as MediaSoup.WebRtcTransport;
+        const router = new MockRouter() as unknown as MediaSoup.Router;
+
+        const track = await Track.create(router, clientId, transport, "video", rtpParameters);
 
         expect(track).toBeDefined();
     });
 
     it("should be able to add a consumer", async () => {
         const clientId = newClientId("client");
-        const producer = await setupMockProducer();
-        const track = new Track(clientId, producer);
-        const consumer = await setupMockConsumer();
+        const transport = new MockTransport() as unknown as MediaSoup.WebRtcTransport;
+        const router = new MockRouter() as unknown as MediaSoup.Router;
+
+        const track = await Track.create(router, clientId, transport, "video", rtpParameters);
         const consumerId = newClientId("consumer");
-        const consumer2 = await setupMockConsumer();
         const consumer2Id = newClientId("consumer2");
 
-        track.addConsumer(consumerId, consumer);
-        track.addConsumer(consumer2Id, consumer2);
+        const consumer = await track.consume(consumerId, transport, rtpCapabilities);
+        const consumer2 = await track.consume(consumer2Id, transport, rtpCapabilities);
 
+        expect(consumer).toBeDefined();
+        expect(consumer2).toBeDefined();
         expect(track.numConsumers).toBe(2);
-        expect(track.consumer(consumerId)).toBe(consumer);
-        expect(track.consumer(consumer2Id)).toBe(consumer2);
     });
 
-    it("should report the consumer id", async () => {
+    it("should report the producer id", async () => {
         const clientId = newClientId("client");
-        const producer = await setupMockProducer();
-        const track = new Track(clientId, producer);
+        const transport = new MockTransport() as unknown as MediaSoup.WebRtcTransport;
+        const router = new MockRouter() as unknown as MediaSoup.Router;
 
-        expect(track.producerId).toEqual("id");
+        const track = await Track.create(router, clientId, transport, "video", rtpParameters);
+
+        expect(track.producerId).toBeDefined();
     });
 
     it("should close a producer when ending", async () => {
         const clientId = newClientId("client");
-        const producer = await setupMockProducer();
-        const track = new Track(clientId, producer);
+        const transport = new MockTransport() as unknown as MediaSoup.WebRtcTransport;
+        const router = new MockRouter() as unknown as MediaSoup.Router;
+
+        const track = await Track.create(router, clientId, transport, "video", rtpParameters);
 
         const wait = new Promise<void>((resolve) => {
-            producer.on("closed", () => {
+            track.on("closed", () => {
                 resolve();
             });
         });
@@ -51,93 +97,93 @@ describe("track", () => {
         await expect(wait).resolves.not.toThrow();
     });
 
-    it("should set a producer to globallyPaused", async () => {
-        const clientId = newClientId("client");
-        const producer = await setupMockProducer();
-        const track = new Track(clientId, producer);
+    it("should set a producer to pausedByAdmin", async () => {
+        const transport = new MockTransport() as unknown as MediaSoup.WebRtcTransport;
+        const client = await setupSingleClient(sfu);
+        const clientId = client.id;
+        const router = new MockRouter() as unknown as MediaSoup.Router;
+        const track = await Track.create(router, clientId, transport, "video", rtpParameters);
 
-        await producer.setLocallyPaused(false);
+        await track.pauseClient(client, false);
 
         const paused = new Promise<boolean>((resolve) => {
-            producer.on("paused", (paused) => {
+            track.on("pausedByAdmin", (paused) => {
                 resolve(paused);
             });
         });
 
-        await track.globalPause(true);
+        await track.setPausedByAdmin(true);
 
-        expect(producer.globallyPaused).toBe(true);
+        expect(track.pausedByAdmin).toBe(true);
 
         await expect(paused).resolves.toEqual(true);
     });
 
-    it("should set a producer to locallyPaused", async () => {
-        const clientId = newClientId("client");
-        const producer = await setupMockProducer();
-        const track = new Track(clientId, producer);
+    it("should set a track to pausedByOwner", async () => {
+        const transport = new MockTransport() as unknown as MediaSoup.WebRtcTransport;
+        const client = await setupSingleClient(sfu);
+        const clientId = client.id;
+        const router = new MockRouter() as unknown as MediaSoup.Router;
+        const track = await Track.create(router, clientId, transport, "video", rtpParameters);
 
-        await producer.setGloballyPaused(false);
-        await producer.setLocallyPaused(false);
+        await track.setPausedByAdmin(false);
+        await track.pauseClient(client, false);
 
         const paused = new Promise<boolean>((resolve) => {
-            producer.on("paused", (paused) => {
+            track.on("pausedByOwner", (paused) => {
                 resolve(paused);
             });
         });
 
-        await track.localPause(clientId, true);
+        await track.pauseClient(client, true);
 
-        expect(producer.locallyPaused).toBe(true);
+        expect(track.pausedByOwner).toBe(true);
 
         await expect(paused).resolves.toEqual(true);
     });
 
-    it("should set a consumer to locallyPaused", async () => {
-        const clientId = newClientId("client");
-        const producer = await setupMockProducer();
-        const track = new Track(clientId, producer);
-        const consumer = await setupMockConsumer();
-        const consumerId = newClientId("consumer");
+    it("should set a consumer to pausedByOwner", async () => {
+        const transport = new MockTransport() as unknown as MediaSoup.WebRtcTransport;
+        const client = await setupSingleClient(sfu);
+        const clientId = client.id;
+        const consumerClient = await setupSingleClient(sfu);
+        const consumerId = consumerClient.id;
+        const router = new MockRouter() as unknown as MediaSoup.Router;
+        const track = await Track.create(router, clientId, transport, "video", rtpParameters);
 
-        track.addConsumer(consumerId, consumer);
+        const consumer = await track.consume(consumerId, transport, rtpCapabilities);
 
         await consumer.setSinkPaused(false);
 
-        await track.localPause(consumerId, true);
+        await track.pauseClient(consumerClient, true);
 
-        expect(consumer.desiredPauseState).toBe(true);
+        expect(consumer.sinkIsPaused).toBe(true);
     });
 
     it("should throw if an owner is trying to consume its own producer", async () => {
-        const clientId = newClientId("client");
-        const producer = await setupMockProducer();
-        const track = new Track(clientId, producer);
-        const consumer = await setupMockConsumer();
-        const wait = new Promise<void>((resolve) => {
-            track.addConsumer(clientId, consumer);
-            resolve();
-        });
+        const transport = new MockTransport() as unknown as MediaSoup.WebRtcTransport;
+        const client = await setupSingleClient(sfu);
+        const clientId = client.id;
+        const router = new MockRouter() as unknown as MediaSoup.Router;
+        const track = await Track.create(router, clientId, transport, "video", rtpParameters);
+
+        const wait = track.consume(clientId, transport, rtpCapabilities);
 
         await expect(wait).rejects.toThrow();
     });
 
-    it("should return undefined if the clientId matches the owner", async () => {
-        const clientId = newClientId("client");
-        const producer = await setupMockProducer();
-        const track = new Track(clientId, producer);
-
-        expect(track.consumer(clientId)).toBeUndefined();
-    });
-
     it("should throw if trying to locally pause a consumer that doesn't exist", async () => {
-        const clientId = newClientId("client");
-        const producer = await setupMockProducer();
-        const track = new Track(clientId, producer);
+        const transport = new MockTransport() as unknown as MediaSoup.WebRtcTransport;
+        const client = await setupSingleClient(sfu);
+        const clientId = client.id;
+        const consumerClient = await setupSingleClient(sfu);
+        const router = new MockRouter() as unknown as MediaSoup.Router;
+        const track = await Track.create(router, clientId, transport, "video", rtpParameters);
 
         expect(track.numConsumers).toEqual(0);
 
         const wait = new Promise<void>((resolve, reject) => {
-            track.localPause(newClientId("consumerId"), true).catch((error) => {
+            track.pauseClient(consumerClient, true).catch((error) => {
                 reject(error);
             }).then(() => {
                 resolve();
@@ -148,13 +194,15 @@ describe("track", () => {
     });
 
     it("should remove a consumer when it closes", async () => {
-        const clientId = newClientId("client");
-        const producer = await setupMockProducer();
-        const track = new Track(clientId, producer);
-        const consumer = await setupMockConsumer();
-        const consumerId = newClientId("consumer");
+        const transport = new MockTransport() as unknown as MediaSoup.WebRtcTransport;
+        const client = await setupSingleClient(sfu);
+        const clientId = client.id;
+        const consumerClient = await setupSingleClient(sfu);
+        const consumerId = consumerClient.id;
+        const router = new MockRouter() as unknown as MediaSoup.Router;
+        const track = await Track.create(router, clientId, transport, "video", rtpParameters);
 
-        track.addConsumer(consumerId, consumer);
+        const consumer = await track.consume(consumerId, transport, rtpCapabilities);
 
         expect(track.numConsumers).toEqual(1);
 

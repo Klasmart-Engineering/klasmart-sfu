@@ -1,6 +1,6 @@
 import {createWorker, types as MediaSoup} from "mediasoup";
 import {SFU} from "../sfu";
-import {Data, Server, WebSocket} from "ws";
+import {Server, WebSocket} from "ws";
 import {newRoomId} from "../room";
 import {Consumer} from "../consumer";
 import {mediaCodecs} from "../../config";
@@ -72,59 +72,6 @@ export class TestWssServer {
 export async function setupSingleClient(sfu: SFU, isTeacher = false) {
     const roomId = newRoomId("test-room");
     return await sfu.createClient(roomId, isTeacher);
-}
-
-// A class that wraps a `WebSocket` to allow you to `await` on messages.
-// Useful for blocking until a message is received, and continuing to listen
-// afterward.
-export class WebSocketMessageGenerator {
-    private receivedMessages: Data[] = [];
-    private wait: Promise<void>;
-    private waitResolve?: () => void;
-    private generator: AsyncGenerator<Data | undefined, void>;
-    private closed = false;
-    constructor(private readonly client: WebSocket) {
-        this.generator = this.messages();
-        this.wait = new Promise<void>((resolve) => {
-            this.waitResolve = resolve;
-        });
-
-        this.client.on("message", (data: Data) => {
-            this.receivedMessages.push(data);
-            if(!this.waitResolve) {
-                throw new Error("waitResolve is undefined");
-            }
-            this.waitResolve();
-            this.wait = new Promise<void>((resolve) => {
-                this.waitResolve = resolve;
-            });
-        });
-
-        this.client.on("close", () => {
-            this.closed = true;
-        });
-    }
-
-    public async * messages() {
-        while (!this.closed) {
-            if (this.receivedMessages.length > 0) {
-                yield this.receivedMessages.shift();
-                continue;
-            }
-            await this.wait;
-        }
-    }
-
-    public async nextMessage<T>(): Promise<T> {
-        const message = await this.generator.next();
-        if (message.done) {
-            throw new Error("No more messages");
-        }
-        if (!message.value) {
-            throw new Error("No message");
-        }
-        return JSON.parse(message.value.toString());
-    }
 }
 
 export class MockTransport {
@@ -208,7 +155,7 @@ class MockProducer {
     }
 }
 
-function createMockProducer(id?: string) {
+export function createMockProducer(id?: string) {
     const mockProducer = new MockProducer(id);
     return {producer: mockProducer as unknown as MediaSoup.Producer,
         trigger: mockProducer};
@@ -268,4 +215,14 @@ export async function setupMockConsumer() {
     const producerId = newProducerId();
     const rtpCapabilities = {codecs: mediaCodecs};
     return Consumer.create(mockTransport, producerId, rtpCapabilities);
+}
+
+export class MockRouter {
+    // eslint-disable-next-line @typescript-eslint/no-empty-function
+    public constructor() {
+    }
+
+    public canConsume(properties: unknown) {
+        return !!properties;
+    }
 }
