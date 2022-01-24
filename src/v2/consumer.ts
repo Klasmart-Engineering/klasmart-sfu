@@ -19,7 +19,7 @@ export class Consumer {
         sender.on("producerclose", () => this.close());
         sender.on("producerpause", () => this.updatePauseStatus());
         sender.on("producerresume", () => this.updatePauseStatus());
-        sender.on("layerschange", (layers) => Logger.info(`consumerLayerChange(${this.id}): ${JSON.stringify(layers)}`));
+        sender.on("layerschange", (layers) => this.layersChange(layers));
     }
 
     public get id() { return newConsumerId(this.sender.id); }
@@ -34,6 +34,11 @@ export class Consumer {
         return new Consumer(consumer);
     }
 
+    private layersChange(layers: unknown) {
+        Logger.info(`consumerLayerChange(${this.id}): ${JSON.stringify(layers)}`);
+        this.emitter.emit("layerschange", layers);
+    }
+
     public close() {
         if (this.sender.closed) { return; }
         this.sender.close();
@@ -42,19 +47,23 @@ export class Consumer {
 
     public get sinkIsPaused() { return this._sinkIsPaused; }
     public async setSinkPaused(paused: boolean) {
-        if(this._sinkIsPaused !== paused) { return; }
+        if(this._sinkIsPaused === paused) { return; }
         this._sinkIsPaused = paused;
         await this.updatePauseStatus();
-        this.emitter.emit("paused", paused);
     }
 
     private async updatePauseStatus() {
         const shouldBePaused = this.sender.producerPaused || this._sinkIsPaused;
-        if(shouldBePaused === this.sender.paused) { return; }
-        if(this.sender.paused) {
-            await this.sender.resume();
-        } else {
+        if(shouldBePaused === this.sender.paused) {
+            this.emitter.emit("paused", shouldBePaused);
+            return;
+        }
+        if(shouldBePaused) {
+            this.emitter.emit("paused", shouldBePaused);
             await this.sender.pause();
+        } else {
+            this.emitter.emit("paused", shouldBePaused);
+            await this.sender.resume();
         }
     }
 
@@ -74,6 +83,7 @@ export type ConsumerEventEmitter = Consumer["emitter"]
 export type ConsumerEventMap = {
     closed: () => unknown;
     paused: (paused: boolean) => unknown;
+    layerschange: (layers: unknown) => unknown;
 }
 
 export type ConsumerParameters = {
