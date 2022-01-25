@@ -195,7 +195,6 @@ export class MockConsumer {
     }
 
     public trigger(event: string) {
-        console.log(JSON.stringify(this));
         const handler = this.eventHandlers.get(event);
         if (!handler) {
             throw new Error(`No handler for event ${event}`);
