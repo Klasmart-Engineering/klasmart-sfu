@@ -1,11 +1,11 @@
 import {createWorker, types as MediaSoup} from "mediasoup";
 import {SFU} from "../sfu";
-import {Server, WebSocket} from "ws";
 import {newRoomId} from "../room";
 import {Consumer} from "../consumer";
 import {mediaCodecs} from "../../config";
 import {MockRegistrar} from "../registrar";
 import {newProducerId} from "../track";
+import {RtpCapabilities, RtpParameters} from "mediasoup/node/lib/RtpParameters";
 
 export async function setupSfu() {
     const worker = await createWorker({
@@ -17,56 +17,6 @@ export async function setupSfu() {
     const announcedIp = "127.0.0.1";
 
     return new SFU(worker, [{ip: process.env.WEBRTC_INTERFACE_ADDRESS || "0.0.0.0", announcedIp }], MockRegistrar);
-}
-
-export async function newClient(wss: TestWssServer) {
-    const client = new WebSocket(wss.address());
-    await new Promise((resolve) => {
-        wss.attachConnectionHandler(() => resolve(undefined));
-    });
-
-    return client;
-}
-
-export class TestWssServer {
-    private readonly wss: Server;
-    private connections = 0;
-    private readonly sockets = new Map<number, WebSocket>();
-
-    public constructor(private readonly port: number) {
-        this.wss = new Server({port});
-        this.wss.on("connection", (socket) => {
-            this.sockets.set(this.connections, socket);
-            this.connections++;
-        });
-
-        this.wss.on("close", () => {
-            this.sockets.delete(this.connections);
-            this.connections--;
-        });
-    }
-
-    public attachConnectionHandler(handler: () => any) {
-        this.wss.on("connection", handler);
-    }
-    public getSocket(id: number): WebSocket {
-        const socket = this.sockets.get(id);
-        if (!socket) {
-            throw new Error("Socket not found");
-        }
-        return socket;
-    }
-
-    public address() {
-        return `ws://localhost:${this.port}`;
-    }
-
-    public close() {
-        for (const socket of this.sockets.values()) {
-            socket.close();
-        }
-        this.wss.close();
-    }
 }
 
 export async function setupSingleClient(sfu: SFU, isTeacher = false) {
@@ -224,4 +174,37 @@ export class MockRouter {
     public canConsume(properties: unknown) {
         return !!properties;
     }
+
+    public close() {
+        return;
+    }
 }
+
+export const rtpParameters: RtpParameters = {
+    codecs: [{
+        mimeType: "video/VP8",
+        payloadType: 100,
+        clockRate: 90000,
+        channels: 1,
+        parameters: {},
+    }],
+    headerExtensions: [],
+    encodings: [{
+        ssrc: 100,
+        codecPayloadType: 100,
+        rtx: {
+            ssrc: 200,
+        },
+    }],
+};
+
+export const rtpCapabilities: RtpCapabilities = {
+    codecs: [{
+        mimeType: "video/VP8",
+        kind: "video",
+        clockRate: 90000,
+        channels: 1,
+        parameters: {},
+    }],
+    headerExtensions: [],
+};

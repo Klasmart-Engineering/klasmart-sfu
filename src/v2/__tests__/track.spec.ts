@@ -1,38 +1,8 @@
 import {Track} from "../track";
 import {newClientId} from "../client";
-import {MockRouter, MockTransport, setupSfu, setupSingleClient} from "./utils";
+import {MockRouter, MockTransport, rtpCapabilities, rtpParameters, setupSfu, setupSingleClient} from "./utils";
 import {types as MediaSoup} from "mediasoup";
-import {RtpCapabilities, RtpParameters} from "mediasoup/node/lib/RtpParameters";
 import {SFU} from "../sfu";
-
-const rtpParameters: RtpParameters = {
-    codecs: [{
-        mimeType: "video/VP8",
-        payloadType: 100,
-        clockRate: 90000,
-        channels: 1,
-        parameters: {},
-    }],
-    headerExtensions: [],
-    encodings: [{
-        ssrc: 100,
-        codecPayloadType: 100,
-        rtx: {
-            ssrc: 200,
-        },
-    }],
-};
-
-const rtpCapabilities: RtpCapabilities = {
-    codecs: [{
-        mimeType: "video/VP8",
-        kind: "video",
-        clockRate: 90000,
-        channels: 1,
-        parameters: {},
-    }],
-    headerExtensions: [],
-};
 
 let sfu: SFU;
 
