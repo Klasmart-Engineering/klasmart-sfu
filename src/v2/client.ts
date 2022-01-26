@@ -90,10 +90,13 @@ export type PauseEvent = {
     paused: boolean
 }
 
+const MAX_PRODUCERS = 10;
+
 export class ClientV2 {
     public readonly id = newClientId();
 
     private readonly emitter = new EventEmitter<ClientEventMap>();
+    private _numProducers = 0;
     public readonly on: ClientEventEmitter["on"] = (event, listener) => this.emitter.on(event, listener);
     public readonly off: ClientEventEmitter["off"] = (event, listener) => this.emitter.off(event, listener);
     public readonly once: ClientEventEmitter["once"] = (event, listener) => this.emitter.once(event, listener);
@@ -108,6 +111,10 @@ export class ClientV2 {
         public readonly room: Room,
         public readonly isTeacher: boolean,
     ) {
+    }
+
+    public get numProducers() {
+        return this._numProducers;
     }
 
     public async onMessage({ id, request }: RequestMessage) {
@@ -181,8 +188,6 @@ export class ClientV2 {
             await this.endRoom();
             return;
         }
-
-        return;
     }
 
     public onClose() {
@@ -212,6 +217,10 @@ export class ClientV2 {
 
     private async produceTrack({ kind, name, rtpParameters }: ProduceTrackRequest) {
         if (!this.producerTransport) { throw new Error("Producer transport has not been initialized"); }
+        if (this._numProducers + 1 > MAX_PRODUCERS) {
+            throw new Error("Too many producers");
+        }
+
         const track = await this.room.createTrack(
             this.id,
             this.producerTransport,
@@ -231,9 +240,11 @@ export class ClientV2 {
         track.on("closed", () => {
             this.emitter.emit("producerClosed", producerId);
             this.registrar.unregisterTrack(this.room.id, producerId);
+            this._numProducers--;
         });
         this.emitter.emit("pausedByAdmin", {producerId, paused: track.pausedByAdmin});
         await this.registrar.registerTrack(this.room.id, webRtcTrack);
+        this._numProducers++;
         return track.producerId;
     }
 

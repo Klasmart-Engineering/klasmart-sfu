@@ -1,5 +1,5 @@
 import {SFU} from "../sfu";
-import {rtpCapabilities, rtpParameters, setupSfu, setupSingleClient} from "./utils";
+import {rtpCapabilities, rtpParameters, setupSfu, setupSingleClient, shouldError, shouldNotError} from "./utils";
 import {types as MediaSoup} from "mediasoup";
 import {mediaCodecs} from "../../config";
 import {newRequestID, Request, Response, Result} from "../client";
@@ -675,6 +675,149 @@ describe("client", () => {
                 }
             }
         });
+
+        client.onClose();
+    });
+
+    it("should handle an endRoom request", async () => {
+        const client = await setupSingleClient(sfu, true);
+        client.once("response", (response: Response) => {
+            expect(response).toBeDefined();
+            expect(response).toHaveProperty("result");
+        });
+        await client.onMessage({
+            id: newRequestID("0"),
+            request: {
+                endRoom: {}
+            }
+        });
+
+        client.onClose();
+    });
+
+    it("should only allow teachers to end the room", async () => {
+        const client = await setupSingleClient(sfu);
+        client.once("response", (response: Response) => {
+            expect(response).toBeDefined();
+            expect(response).toHaveProperty("error");
+        });
+        await client.onMessage({
+            id: newRequestID("0"),
+            request: {
+                endRoom: {}
+            }
+        });
+
+        client.onClose();
+    });
+
+    it("should not allow a client to produce to many tracks", async () => {
+        const client = await setupSingleClient(sfu);
+        let dtlsParameters: DtlsParameters = {fingerprints: []};
+        client.once("response", (response: Response) => {
+            expect(response).toBeDefined();
+            expect(response).toHaveProperty("result");
+            const success = response as {id: string, result: Result};
+            if (success.result && success.result.producerTransportCreated) {
+                dtlsParameters = success.result.producerTransportCreated.dtlsParameters;
+            }
+        });
+        await client.onMessage({
+            id: newRequestID("0"),
+            request: {
+                createProducerTransport: {}
+            }
+        });
+
+        await client.onMessage({
+            id: newRequestID("1"),
+            request: {
+                connectProducerTransport: {
+                    dtlsParameters
+                }
+            }
+        });
+
+        const numNewProducers = 10;
+        for (let i = 2; i < 2 + numNewProducers; i++) {
+            const waitResponse = new Promise((resolve, reject) => {
+                try {
+                    client.once("response", (response: Response) => {
+                        resolve(shouldNotError(response));
+                    });
+                } catch (error) {
+                    reject();
+                }
+            });
+
+            await client.onMessage({
+                id: newRequestID(`${i}`),
+                request: {
+                    produceTrack: {
+                        kind: "video",
+                        rtpParameters: {
+                            codecs: [{
+                                mimeType: "video/VP8",
+                                payloadType: 100 + i,
+                                clockRate: 90000,
+                                parameters: {},
+                            }],
+                            encodings: [{
+                                ssrc: 100 + i,
+                                codecPayloadType: 100 + i,
+                                rtx: {
+                                    ssrc: 200 + i,
+                                },
+                            }],
+                        },
+
+                        name: `${i}`
+                    }
+                }
+            });
+
+            await expect(waitResponse).resolves.not.toThrow();
+            console.log(`i: ${i}, numProducers: ${client.numProducers}`);
+        }
+
+        const waitError = new Promise<void>((resolve, reject) => {
+            client.once("response", (response: Response) => {
+                try {
+                    const error = shouldError(response);
+                    expect(error.error).toEqual("Error: Too many producers");
+                    resolve();
+                } catch (e: unknown) {
+                    reject(e);
+                }
+            });
+        });
+
+        await client.onMessage({
+            id: newRequestID("13"),
+            request: {
+                produceTrack: {
+                    kind: "video",
+                    rtpParameters: {
+                        codecs: [{
+                            mimeType: "video/VP8",
+                            payloadType: 100 + 13,
+                            clockRate: 90000,
+                            parameters: {},
+                        }],
+                        encodings: [{
+                            ssrc: 100 + 13,
+                            codecPayloadType: 100 + 13,
+                            rtx: {
+                                ssrc: 200 + 13,
+                            },
+                        }],
+                    },
+                    name: `${13}`
+                },
+            }
+        });
+
+        await expect(waitError).resolves.not.toThrow();
 
         client.onClose();
     });

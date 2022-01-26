@@ -6,6 +6,7 @@ import {mediaCodecs} from "../../config";
 import {MockRegistrar} from "../registrar";
 import {newProducerId} from "../track";
 import {RtpCapabilities, RtpParameters} from "mediasoup/node/lib/RtpParameters";
+import {Response} from "../client";
 
 export async function setupSfu() {
     const worker = await createWorker({
@@ -208,3 +209,21 @@ export const rtpCapabilities: RtpCapabilities = {
     }],
     headerExtensions: [],
 };
+
+export function delay(ms: number) {
+    return new Promise( resolve => setTimeout(resolve, ms) );
+}
+
+export function shouldError(response: Response) {
+    expect(response).toBeDefined();
+    expect(response).toHaveProperty("error");
+    expect(response).not.toHaveProperty("result");
+    return response as unknown as {id: string, error: Error};
+}
+
+export function shouldNotError(response: Response) {
+    expect(response).toBeDefined();
+    expect(response).not.toHaveProperty("error");
+    expect(response).toHaveProperty("result");
+    return response as unknown as { id: string, result: unknown };
+}
