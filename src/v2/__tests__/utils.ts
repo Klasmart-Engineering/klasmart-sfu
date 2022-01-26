@@ -4,9 +4,10 @@ import {newRoomId} from "../room";
 import {Consumer} from "../consumer";
 import {mediaCodecs} from "../../config";
 import {MockRegistrar} from "../registrar";
-import {newProducerId} from "../track";
+import {newProducerId, ProducerId} from "../track";
 import {RtpCapabilities, RtpParameters} from "mediasoup/node/lib/RtpParameters";
-import {Response} from "../client";
+import {Response, ClientV2, Result, Request, RequestId} from "../client";
+import {DtlsParameters} from "mediasoup/node/lib/WebRtcTransport";
 
 export async function setupSfu() {
     const worker = await createWorker({
@@ -218,12 +219,189 @@ export function shouldError(response: Response) {
     expect(response).toBeDefined();
     expect(response).toHaveProperty("error");
     expect(response).not.toHaveProperty("result");
-    return response as unknown as {id: string, error: Error};
+    return response as unknown as {id: string, error: string};
 }
 
 export function shouldNotError(response: Response) {
     expect(response).toBeDefined();
     expect(response).not.toHaveProperty("error");
     expect(response).toHaveProperty("result");
-    return response as unknown as { id: string, result: unknown };
+    return response as unknown as { id: string, result: Result };
+}
+
+export function responseShouldNotError(client: ClientV2): Promise<{id: string, result: Result}>{
+    return new Promise( (resolve, reject) => {
+        client.once("response", (response: Response) => {
+            try {
+                resolve(shouldNotError(response));
+            } catch (error) {
+                reject(error);
+            }
+        });
+    });
+}
+
+export function responseShouldError(client: ClientV2): Promise<{id: string, error: string}> {
+    return new Promise( (resolve, reject) => {
+        client.once("response", (response: Response) => {
+            try {
+                resolve(shouldError(response));
+            } catch (error) {
+                reject(error);
+            }
+        });
+    });
+}
+
+export async function createProducerTransport(client: ClientV2, id: RequestId) {
+    {
+        const request: Request = {
+            createProducerTransport: {}
+        };
+        const waitResponse = responseShouldNotError(client);
+        await client.onMessage({
+            id,
+            request
+        });
+        const response = await waitResponse;
+        if (!response.result.producerTransportCreated) {
+            throw new Error("Expected a producer transport to be created");
+        }
+        return response.result.producerTransportCreated.dtlsParameters;
+    }
+}
+
+export async function connectProducerTransport(dtlsParameters: DtlsParameters, client: ClientV2, id: RequestId) {
+    const request = {
+        connectProducerTransport: {
+            dtlsParameters
+        }
+    };
+
+    const waitResponse = responseShouldNotError(client);
+    await client.onMessage({
+        id,
+        request
+    });
+    await expect(waitResponse).resolves.toEqual({id, result: undefined});
+}
+
+export async function createConsumerTransport(client: ClientV2, id: RequestId) {
+    {
+        const request: Request = {
+            createConsumerTransport: {}
+        };
+        const waitResponse = responseShouldNotError(client);
+        await client.onMessage({
+            id,
+            request
+        });
+        const response = await waitResponse;
+        if (!response.result.consumerTransportCreated) {
+            throw new Error("Expected a producer transport to be created");
+        }
+        return response.result.consumerTransportCreated.dtlsParameters;
+    }
+}
+
+export async function connectConsumerTransport(dtlsParameters: DtlsParameters, client: ClientV2, id: RequestId) {
+    const request = {
+        connectConsumerTransport: {
+            dtlsParameters
+        }
+    };
+
+    const waitResponse = responseShouldNotError(client);
+    await client.onMessage({
+        id,
+        request
+    });
+    const response = await waitResponse;
+    expect(response.id).toEqual(id);
+    expect(response.result).toBeUndefined();
+}
+
+export async function createProducer(client: ClientV2, id: RequestId, rtpParameters: RtpParameters) {
+    const waitResponse = responseShouldNotError(client);
+    await client.onMessage({
+        id,
+        request: {
+            produceTrack: {
+                kind: "video",
+                rtpParameters,
+                name: "camera"
+            }
+        }
+    });
+    const response = await waitResponse;
+    expect(response.id).toEqual(id);
+    expect(response.result).toHaveProperty("producerCreated");
+    if (!response.result.producerCreated) {
+        throw new Error("Producer not created");
+    }
+    return response.result.producerCreated as unknown as ProducerId;
+}
+
+export async function setRtpCapabilities(consumeClient: ClientV2, id: RequestId) {
+    const waitResponse = responseShouldNotError(consumeClient);
+    await consumeClient.onMessage({
+        id,
+        request: {
+            setRtpCapabilities: {
+                codecs: rtpCapabilities.codecs
+            }
+        }
+    });
+    const response = await waitResponse;
+    expect(response.id).toEqual(id);
+    expect(response.result).toBeUndefined();
+}
+
+export async function consumeTrack(consumeClient: ClientV2, producerId: ProducerId, id: RequestId) {
+    const waitResponse = responseShouldNotError(consumeClient);
+    await consumeClient.onMessage({
+        id,
+        request: {
+            consumeTrack: {
+                producerId,
+            }
+        }
+    });
+    const response = await waitResponse;
+    expect(response.id).toEqual(id);
+    expect(response.result).toHaveProperty("consumerCreated");
+}
+
+export async function pauseTrack(client: ClientV2, producerId: ProducerId, paused: boolean, id: RequestId) {
+    const waitResponse = responseShouldNotError(client);
+    await client.onMessage({
+        id,
+        request: {
+            pause: {
+                id: producerId,
+                paused
+            }
+        }
+    });
+
+    const response = await waitResponse;
+    expect(response.id).toEqual(id);
+    expect(response.result).toBeUndefined();
+}
+
+export async function pauseTrackForEveryone(client: ClientV2, producerId: ProducerId, paused: boolean, id: RequestId) {
+    const waitResponse = responseShouldNotError(client);
+    await client.onMessage({
+        id,
+        request: {
+            pauseForEveryone: {
+                id: producerId,
+                paused
+            }
+        }
+    });
+
+    const response = await waitResponse;
+    expect(response.id).toEqual(id);
+    expect(response.result).toBeUndefined();
 }

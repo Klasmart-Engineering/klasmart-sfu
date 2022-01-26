@@ -12,7 +12,7 @@ import { SFU } from "./sfu";
 import { EventEmitter } from "eventemitter3";
 
 export type RequestId = NewType<string, "requestId">
-export const newRequestID = (id: string) => id as RequestId;
+export const newRequestId = (id: string) => id as RequestId;
 
 export type RequestMessage = {
     id: RequestId,

@@ -1,10 +1,18 @@
 import {SFU} from "../sfu";
-import {rtpCapabilities, rtpParameters, setupSfu, setupSingleClient, shouldError, shouldNotError} from "./utils";
+import {
+    connectConsumerTransport,
+    connectProducerTransport, consumeTrack, createConsumerTransport, createProducer,
+    createProducerTransport, pauseTrack, pauseTrackForEveryone,
+    responseShouldError,
+    responseShouldNotError,
+    rtpParameters, setRtpCapabilities,
+    setupSfu,
+    setupSingleClient,
+} from "./utils";
 import {types as MediaSoup} from "mediasoup";
 import {mediaCodecs} from "../../config";
-import {newRequestID, Request, Response, Result} from "../client";
-import {newProducerId, ProducerId} from "../track";
-import {DtlsParameters} from "mediasoup/node/lib/WebRtcTransport";
+import {newRequestId, Request, Response} from "../client";
+import {newProducerId} from "../track";
 
 let sfu: SFU;
 
@@ -23,27 +31,29 @@ describe("client", () => {
             codecs: mediaCodecs,
             headerExtensions: []
         };
-        client.on("response", response => expect(response).toHaveProperty("result"));
+        const waitResponse = responseShouldNotError(client);
         await client.onMessage({
-            id: newRequestID("0"),
+            id: newRequestId("0"),
             request: {
                 setRtpCapabilities: rtpCapabilities
             }
         });
 
+        await waitResponse;
         client.onClose();
     });
 
     it("should handle a createProducerTransport message", async () => {
         const client = await setupSingleClient(sfu);
 
-        client.on("response", response => expect(response).toHaveProperty( "result"));
+        const waitResponse = responseShouldNotError(client);
         await client.onMessage({
-            id: newRequestID("0"),
+            id: newRequestId("0"),
             request: {
                 createProducerTransport: {}
             }
         });
+        await waitResponse;
         client.onClose();
     });
 
@@ -57,15 +67,18 @@ describe("client", () => {
                 }
             }
         };
-        client.on("response", response => expect(response).toEqual(
+        const waitResponse = responseShouldError(client);
+        await client.onMessage({
+            id: newRequestId("0"),
+            request
+        });
+        const response = await waitResponse;
+
+        expect(response).toEqual(
             {
                 id: "0",
                 error: "Error: Producer transport has not been initialized"
-            }));
-        await client.onMessage({
-            id: newRequestID("0"),
-            request
-        });
+            });
 
         client.onClose();
     });
@@ -77,13 +90,14 @@ describe("client", () => {
             createConsumerTransport: {}
         };
 
-        client.on("response", response => expect(response).toHaveProperty("result"));
+        const waitResponse = responseShouldNotError(client);
         await client.onMessage(
             {
-                id: newRequestID("0"),
+                id: newRequestId("0"),
                 request
             }
         );
+        await waitResponse;
         client.onClose();
     });
 
@@ -93,16 +107,19 @@ describe("client", () => {
         const request = {
             connectConsumerTransport: {dtlsParameters: {fingerprints :[]}}
         };
-        client.on("response", response => expect(response).toEqual(
+
+        const waitResponse = responseShouldError(client);
+        await client.onMessage({
+            id: newRequestId("0"),
+            request
+        });
+
+        const response = await waitResponse;
+        expect(response).toEqual(
             {
                 id: "0",
                 error: "Error: Consumer transport has not been initialized"
-            }));
-
-        await client.onMessage({
-            id: newRequestID("0"),
-            request
-        });
+            });
 
         client.onClose();
     });
@@ -124,16 +141,18 @@ describe("client", () => {
                 name: "Name"
             }
         };
+        const waitResponse = responseShouldError(client);
+        await client.onMessage({
+            id: newRequestId("0"),
+            request
+        });
 
-        client.on("response", response => expect(response).toEqual(
+        const response = await waitResponse;
+        expect(response).toEqual(
             {
                 id: "0",
                 error: "Error: Producer transport has not been initialized"
-            }));
-        await client.onMessage({
-            id: newRequestID("0"),
-            request
-        });
+            });
 
         client.onClose();
     });
@@ -146,16 +165,18 @@ describe("client", () => {
                 producerId: newProducerId("producer-id")
             }
         };
+        const waitResponse = responseShouldError(client);
+        await client.onMessage({
+            id: newRequestId("0"),
+            request
+        });
 
-        client.on("response", response => expect(response).toEqual(
+        const response = await waitResponse;
+        expect(response).toEqual(
             {
                 id: "0",
                 error: "Error: RTP Capabilities has not been initialized"
-            }));
-        await client.onMessage({
-            id: newRequestID("0"),
-            request
-        });
+            });
 
         client.onClose();
     });
@@ -170,15 +191,18 @@ describe("client", () => {
             }
         };
 
-        client.on("response", response => expect(response).toEqual(
+        const waitResponse = responseShouldError(client);
+        await client.onMessage({
+            id: newRequestId("0"),
+            request
+        });
+
+        const response = await waitResponse;
+        expect(response).toEqual(
             {
                 id: "0",
                 error: "Error: Track track-id not found"
-            }));
-        await client.onMessage({
-            id: newRequestID("0"),
-            request
-        });
+            });
 
         client.onClose();
     });
@@ -193,15 +217,18 @@ describe("client", () => {
             }
         };
 
-        client.on("response", response => expect(response).toEqual(
+        const waitResponse = responseShouldError(client);
+        await client.onMessage({
+            id: newRequestId("0"),
+            request
+        });
+
+        const response = await waitResponse;
+        expect(response).toEqual(
             {
                 id: "0",
                 error: "Error: Only teachers can pause for everyone"
-            }));
-        await client.onMessage({
-            id: newRequestID("0"),
-            request
-        });
+            });
 
         client.onClose();
     });
@@ -215,16 +242,18 @@ describe("client", () => {
                 id: newProducerId("track-id")
             }
         };
+        const waitResponse = responseShouldError(client);
+        await client.onMessage({
+            id: newRequestId("0"),
+            request
+        });
 
-        client.on("response", response => expect(response).toEqual(
+        const response = await waitResponse;
+        expect(response).toEqual(
             {
                 id: "0",
                 error: "Error: Track track-id not found"
-            }));
-        await client.onMessage({
-            id: newRequestID("0"),
-            request
-        });
+            });
 
         client.onClose();
     });
@@ -235,151 +264,61 @@ describe("client", () => {
         const request: Request = {
             endRoom: {}
         };
+        const waitResponse = responseShouldError(client);
+        await client.onMessage({
+            id: newRequestId("0"),
+            request
+        });
 
-        client.on("response", response => expect(response).toEqual(
+        const response = await waitResponse;
+        expect(response).toEqual(
             {
                 id: "0",
                 error: "Error: Only teachers can end the room"
-            }));
-        await client.onMessage({
-            id: newRequestID("0"),
-            request
-        });
+            });
 
         client.onClose();
     });
 
     it("should handle a connectProducerTransport message", async () => {
         const client = await setupSingleClient(sfu);
-
-        const request: Request = {
-            createProducerTransport: {}
-        };
-        let dtlsParameters: DtlsParameters = {fingerprints: []};
-        client.once("response", (response: Response) => {
-            expect(response).toBeDefined();
-            expect(response).toHaveProperty("result");
-            const success = response as {id: string, result: Result};
-            if (success.result && success.result.producerTransportCreated) {
-                dtlsParameters = success.result.producerTransportCreated.dtlsParameters;
-            }
-        });
-        await client.onMessage({
-            id: newRequestID("0"),
-            request
-        });
-        client.once("response", response => {
-            expect(response).toBeDefined();
-            expect(response).toHaveProperty("producerTransportConnected");
-        });
-        await client.onMessage({
-            id: newRequestID("1"),
-            request: {
-                connectProducerTransport: {
-                    dtlsParameters
-                }
-            }
-        });
-
+        const dtlsParameters = await createProducerTransport(client, newRequestId("0"));
+        await connectProducerTransport(dtlsParameters, client, newRequestId("1"));
         client.onClose();
     });
 
     it("should handle a produceTrack message", async () => {
         const client = await setupSingleClient(sfu);
-        let dtlsParameters: DtlsParameters = {fingerprints: []};
-        client.once("response", (response: Response) => {
-            expect(response).toBeDefined();
-            expect(response).toHaveProperty("result");
-            const success = response as {id: string, result: Result};
-            if (success.result && success.result.producerTransportCreated) {
-                dtlsParameters = success.result.producerTransportCreated.dtlsParameters;
-            }
-        });
-        await client.onMessage({
-            id: newRequestID("0"),
-            request: {
-                createProducerTransport: {}
-            }
-        });
+        const dtlsParameters = await createProducerTransport(client, newRequestId("0"));
+        await connectProducerTransport(dtlsParameters, client, newRequestId("1"));
 
-        await client.onMessage({
-            id: newRequestID("1"),
-            request: {
-                connectProducerTransport: {
-                    dtlsParameters
-                }
-            }
-        });
-
-        client.once("response", (response: Response) => {
-            expect(response).toBeDefined();
-            expect(response).toHaveProperty("result");
-        });
-        await client.onMessage({
-            id: newRequestID("2"),
-            request: {
-                produceTrack: {
-                    kind: "video",
-                    rtpParameters,
-                    name: "camera"
-                }
-            }
-        });
+        await createProducer(client, newRequestId("2"), rtpParameters);
 
         client.onClose();
     });
 
     it("should get the router RTP capabilities", async () => {
         const client = await setupSingleClient(sfu);
-        client.once("response", (response: Response) => {
-            expect(response).toBeDefined();
-            expect(response).toHaveProperty("result");
-            const success = response as {id: string, result: Result};
-            if (success.result && success.result.routerRtpCapabilities) {
-                const routerRtpCapabilities = success.result.routerRtpCapabilities;
-                expect(routerRtpCapabilities).toHaveProperty("codecs");
-                expect(routerRtpCapabilities).toHaveProperty("headerExtensions");
-            }
-        });
+        const waitResponse = responseShouldNotError(client);
         await client.onMessage({
-            id: newRequestID("0"),
+            id: newRequestId("0"),
             request: {
                 getRouterRtpCapabilities: {}
             }
         });
+
+        const response = await waitResponse;
+        expect(response.result).toHaveProperty("routerRtpCapabilities");
+        expect(response.result.routerRtpCapabilities).toHaveProperty("codecs");
+        expect(response.result.routerRtpCapabilities).toHaveProperty("headerExtensions");
 
         client.onClose();
     });
 
     it("should handle a connectConsumerTransport request", async () => {
         const client = await setupSingleClient(sfu);
-        let dtlsParameters: DtlsParameters = {fingerprints: []};
-        client.once("response", (response: Response) => {
-            expect(response).toBeDefined();
-            expect(response).toHaveProperty("result");
-            const success = response as {id: string, result: Result};
-            if (success.result && success.result.consumerTransportCreated) {
-                dtlsParameters = success.result.consumerTransportCreated.dtlsParameters;
-            }
-        });
-        await client.onMessage({
-            id: newRequestID("0"),
-            request: {
-                createConsumerTransport: {}
-            }
-        });
-        client.once("response", (response: Response) => {
-            expect(response).toBeDefined();
-            expect(response).toHaveProperty("result");
-        });
-        await client.onMessage({
-            id: newRequestID("1"),
-            request: {
-                connectConsumerTransport: {
-                    dtlsParameters
-                }
-            }
-        });
+        const dtlsParameters = await createConsumerTransport(client, newRequestId("0"));
+        await connectConsumerTransport(dtlsParameters, client, newRequestId("1"));
 
         client.onClose();
     });
@@ -387,100 +326,15 @@ describe("client", () => {
         const client = await setupSingleClient(sfu);
         const consumeClient = await setupSingleClient(sfu);
 
-        let dtlsParameters: DtlsParameters = {fingerprints: []};
-        client.once("response", (response: Response) => {
-            expect(response).toBeDefined();
-            expect(response).toHaveProperty("result");
-            const success = response as {id: string, result: Result};
-            if (success.result && success.result.producerTransportCreated) {
-                dtlsParameters = success.result.producerTransportCreated.dtlsParameters;
-            }
-        });
+        let dtlsParameters = await createProducerTransport(client, newRequestId("0"));
+        await connectProducerTransport(dtlsParameters, client, newRequestId("1"));
 
-        await client.onMessage({
-            id: newRequestID("0"),
-            request: {
-                createProducerTransport: {}
-            }
-        });
+        const producerId = await createProducer(client, newRequestId("2"), rtpParameters);
+        await setRtpCapabilities(consumeClient, newRequestId("0"));
 
-        await client.onMessage({
-            id: newRequestID("1"),
-            request: {
-                connectProducerTransport: {
-                    dtlsParameters
-                }
-            }
-        });
-
-        let producerId: ProducerId = newProducerId("fail");
-        client.once("response", (response: Response) => {
-            expect(response).toBeDefined();
-            expect(response).toHaveProperty("result");
-            const success = response as {id: string, result: Result};
-            if (success.result && success.result.producerCreated) {
-                producerId = success.result.producerCreated;
-            }
-        });
-
-        await client.onMessage({
-            id: newRequestID("2"),
-            request: {
-                produceTrack: {
-                    kind: "video",
-                    rtpParameters,
-                    name: "camera"
-                }
-            }
-        });
-
-        await consumeClient.onMessage({
-            id: newRequestID("0"),
-            request: {
-                setRtpCapabilities: {
-                    codecs: rtpCapabilities.codecs
-                }
-            }
-        });
-
-        consumeClient.once("response", (response: Response) => {
-            expect(response).toBeDefined();
-            expect(response).toHaveProperty("result");
-            const success = response as {id: string, result: Result};
-            if (success.result && success.result.consumerTransportCreated) {
-                dtlsParameters = success.result.consumerTransportCreated.dtlsParameters;
-            }
-        });
-
-        await consumeClient.onMessage({
-            id: newRequestID("1"),
-            request: {
-                createConsumerTransport: {}
-            }
-        });
-
-        await consumeClient.onMessage({
-            id: newRequestID("2"),
-            request: {
-                connectConsumerTransport: {
-                    dtlsParameters
-                }
-            }
-        });
-
-        consumeClient.once("response", (response: Response) => {
-            expect(response).toBeDefined();
-            expect(response).toHaveProperty("result");
-        });
-
-        await consumeClient.onMessage({
-            id: newRequestID("3"),
-            request: {
-                consumeTrack: {
-                    producerId,
-                }
-            }
-        });
+        dtlsParameters = await createConsumerTransport(consumeClient, newRequestId("1"));
+        await connectConsumerTransport(dtlsParameters, consumeClient, newRequestId("2"));
+        await consumeTrack(consumeClient, producerId, newRequestId("3"));
 
         consumeClient.onClose();
         client.onClose();
@@ -488,193 +342,40 @@ describe("client", () => {
 
     it("should handle a pause request", async () => {
         const client = await setupSingleClient(sfu);
-        let dtlsParameters: DtlsParameters = {fingerprints: []};
-        client.once("response", (response: Response) => {
-            expect(response).toBeDefined();
-            expect(response).toHaveProperty("result");
-            const success = response as {id: string, result: Result};
-            if (success.result && success.result.producerTransportCreated) {
-                dtlsParameters = success.result.producerTransportCreated.dtlsParameters;
-            }
-        });
-        await client.onMessage({
-            id: newRequestID("0"),
-            request: {
-                createProducerTransport: {}
-            }
-        });
+        const dtlsParameters = await createProducerTransport(client, newRequestId("0"));
+        await connectProducerTransport(dtlsParameters, client, newRequestId("1"));
 
-        await client.onMessage({
-            id: newRequestID("1"),
-            request: {
-                connectProducerTransport: {
-                    dtlsParameters
-                }
-            }
-        });
+        const producerId = await createProducer(client, newRequestId("2"), rtpParameters);
+        await pauseTrack(client, producerId, true, newRequestId("3"));
 
-        let producerId: ProducerId = newProducerId("fail");
-        client.once("response", (response: Response) => {
-            expect(response).toBeDefined();
-            expect(response).toHaveProperty("result");
-            const success = response as {id: string, result: Result};
-            if (success.result && success.result.producerCreated) {
-                producerId = success.result.producerCreated;
-            }
-        });
-        await client.onMessage({
-            id: newRequestID("2"),
-            request: {
-                produceTrack: {
-                    kind: "video",
-                    rtpParameters,
-                    name: "camera"
-                }
-            }
-        });
-
-        client.once("response", (response: Response) => {
-            expect(response).toBeDefined();
-            expect(response).toHaveProperty("result");
-        });
-
-        await client.onMessage({
-            id: newRequestID("3"),
-            request: {
-                pause: {
-                    id: producerId,
-                    paused: true
-                }
-            }
-        });
+        client.onClose();
     });
 
     it("should handle a pauseForEveryone request", async () => {
         const client = await setupSingleClient(sfu, true);
-        let dtlsParameters: DtlsParameters = {fingerprints: []};
-        client.once("response", (response: Response) => {
-            expect(response).toBeDefined();
-            expect(response).toHaveProperty("result");
-            const success = response as {id: string, result: Result};
-            if (success.result && success.result.producerTransportCreated) {
-                dtlsParameters = success.result.producerTransportCreated.dtlsParameters;
-            }
-        });
-        await client.onMessage({
-            id: newRequestID("0"),
-            request: {
-                createProducerTransport: {}
-            }
-        });
+        const dtlsParameters = await createProducerTransport(client, newRequestId("0"));
+        await connectProducerTransport(dtlsParameters, client, newRequestId("1"));
 
-        await client.onMessage({
-            id: newRequestID("1"),
-            request: {
-                connectProducerTransport: {
-                    dtlsParameters
-                }
-            }
-        });
-
-        let producerId: ProducerId = newProducerId("fail");
-        client.once("response", (response: Response) => {
-            expect(response).toBeDefined();
-            expect(response).toHaveProperty("result");
-            const success = response as {id: string, result: Result};
-            if (success.result && success.result.producerCreated) {
-                producerId = success.result.producerCreated;
-            }
-        });
-        await client.onMessage({
-            id: newRequestID("2"),
-            request: {
-                produceTrack: {
-                    kind: "video",
-                    rtpParameters,
-                    name: "camera"
-                }
-            }
-        });
-
-        client.once("response", (response: Response) => {
-            expect(response).toBeDefined();
-            expect(response).toHaveProperty("result");
-        });
-
-        await client.onMessage({
-            id: newRequestID("3"),
-            request: {
-                pauseForEveryone: {
-                    id: producerId,
-                    paused: true
-                }
-            }
-        });
+        const producerId = await createProducer(client, newRequestId("2"), rtpParameters);
+        await pauseTrackForEveryone(client, producerId, true, newRequestId("3"));
 
         client.onClose();
     });
 
     it("should only allow teachers to pause for everyone", async () => {
         const client = await setupSingleClient(sfu);
-        let dtlsParameters: DtlsParameters = {fingerprints: []};
-        client.once("response", (response: Response) => {
-            expect(response).toBeDefined();
-            expect(response).toHaveProperty("result");
-            const success = response as {id: string, result: Result};
-            if (success.result && success.result.producerTransportCreated) {
-                dtlsParameters = success.result.producerTransportCreated.dtlsParameters;
-            }
-        });
-        await client.onMessage({
-            id: newRequestID("0"),
-            request: {
-                createProducerTransport: {}
-            }
-        });
+        const dtlsParameters = await createProducerTransport(client, newRequestId("0"));
+        await connectProducerTransport(dtlsParameters, client, newRequestId("1"));
 
-        await client.onMessage({
-            id: newRequestID("1"),
-            request: {
-                connectProducerTransport: {
-                    dtlsParameters
-                }
-            }
-        });
-
-        let producerId: ProducerId = newProducerId("fail");
-        client.once("response", (response: Response) => {
-            expect(response).toBeDefined();
-            expect(response).toHaveProperty("result");
-            const success = response as {id: string, result: Result};
-            if (success.result && success.result.producerCreated) {
-                producerId = success.result.producerCreated;
-            }
-        });
-        await client.onMessage({
-            id: newRequestID("2"),
-            request: {
-                produceTrack: {
-                    kind: "video",
-                    rtpParameters,
-                    name: "camera"
-                }
-            }
-        });
+        const producerId = await createProducer(client, newRequestId("2"), rtpParameters);
 
         client.once("response", (response: Response) => {
             expect(response).toBeDefined();
             expect(response).toHaveProperty("error");
         });
 
-        await client.onMessage({
-            id: newRequestID("3"),
-            request: {
-                pauseForEveryone: {
-                    id: producerId,
-                    paused: true
-                }
-            }
-        });
+        const waitPause = pauseTrackForEveryone(client, producerId, true, newRequestId("3"));
+        await expect(waitPause).rejects.toThrow();
 
         client.onClose();
     });
@@ -686,7 +387,7 @@ describe("client", () => {
             expect(response).toHaveProperty("result");
         });
         await client.onMessage({
-            id: newRequestID("0"),
+            id: newRequestId("0"),
             request: {
                 endRoom: {}
             }
@@ -697,103 +398,51 @@ describe("client", () => {
 
     it("should only allow teachers to end the room", async () => {
         const client = await setupSingleClient(sfu);
-        client.once("response", (response: Response) => {
-            expect(response).toBeDefined();
-            expect(response).toHaveProperty("error");
-        });
+        const waitResponse = responseShouldError(client);
         await client.onMessage({
-            id: newRequestID("0"),
+            id: newRequestId("0"),
             request: {
                 endRoom: {}
             }
         });
+
+        const response = await waitResponse;
+        expect(response.id).toEqual(newRequestId("0"));
+        expect(response.error).toEqual("Error: Only teachers can end the room");
 
         client.onClose();
     });
 
     it("should not allow a client to produce to many tracks", async () => {
         const client = await setupSingleClient(sfu);
-        let dtlsParameters: DtlsParameters = {fingerprints: []};
-        client.once("response", (response: Response) => {
-            expect(response).toBeDefined();
-            expect(response).toHaveProperty("result");
-            const success = response as {id: string, result: Result};
-            if (success.result && success.result.producerTransportCreated) {
-                dtlsParameters = success.result.producerTransportCreated.dtlsParameters;
-            }
-        });
-        await client.onMessage({
-            id: newRequestID("0"),
-            request: {
-                createProducerTransport: {}
-            }
-        });
-
-        await client.onMessage({
-            id: newRequestID("1"),
-            request: {
-                connectProducerTransport: {
-                    dtlsParameters
-                }
-            }
-        });
+        const dtlsParameters = await createProducerTransport(client, newRequestId("0"));
+        await connectProducerTransport(dtlsParameters, client, newRequestId("1"));
 
         const numNewProducers = 10;
         for (let i = 2; i < 2 + numNewProducers; i++) {
-            const waitResponse = new Promise((resolve, reject) => {
-                try {
-                    client.once("response", (response: Response) => {
-                        resolve(shouldNotError(response));
-                    });
-                } catch (error) {
-                    reject();
-                }
-            });
+            const rtpParameters = {
+                codecs: [{
+                    mimeType: "video/VP8",
+                    payloadType: 100 + i,
+                    clockRate: 90000,
+                    parameters: {},
+                }],
+                encodings: [{
+                    ssrc: 100 + i,
+                    codecPayloadType: 100 + i,
+                    rtx: {
+                        ssrc: 200 + i,
+                    },
+                }],
+            };
 
-            await client.onMessage({
-                id: newRequestID(`${i}`),
-                request: {
-                    produceTrack: {
-                        kind: "video",
-                        rtpParameters: {
-                            codecs: [{
-                                mimeType: "video/VP8",
-                                payloadType: 100 + i,
-                                clockRate: 90000,
-                                parameters: {},
-                            }],
-                            encodings: [{
-                                ssrc: 100 + i,
-                                codecPayloadType: 100 + i,
-                                rtx: {
-                                    ssrc: 200 + i,
-                                },
-                            }],
-                        },
-
-                        name: `${i}`
-                    }
-                }
-            });
-
-            await expect(waitResponse).resolves.not.toThrow();
-            console.log(`i: ${i}, numProducers: ${client.numProducers}`);
+            await createProducer(client, newRequestId(i.toString()), rtpParameters);
         }
 
-        const waitError = new Promise<void>((resolve, reject) => {
-            client.once("response", (response: Response) => {
-                try {
-                    const error = shouldError(response);
-                    expect(error.error).toEqual("Error: Too many producers");
-                    resolve();
-                } catch (e: unknown) {
-                    reject(e);
-                }
-            });
-        });
+        const waitResponse = responseShouldError(client);
 
         await client.onMessage({
-            id: newRequestID("13"),
+            id: newRequestId("13"),
             request: {
                 produceTrack: {
                     kind: "video",
@@ -817,7 +466,9 @@ describe("client", () => {
             }
         });
 
-        await expect(waitError).resolves.not.toThrow();
+        const response = await waitResponse;
+        expect(response.id).toEqual(newRequestId("13"));
+        expect(response.error).toEqual("Error: Too many producers");
 
         client.onClose();
     });
