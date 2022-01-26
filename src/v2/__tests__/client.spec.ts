@@ -1,5 +1,5 @@
 import {SFU} from "../sfu";
-import {setupSfu, setupSingleClient} from "./utils";
+import {rtpParameters, setupSfu, setupSingleClient} from "./utils";
 import {types as MediaSoup} from "mediasoup";
 import {mediaCodecs} from "../../config";
 import {newRequestID, Request, Response, Result} from "../client";
@@ -276,6 +276,106 @@ describe("client", () => {
             id: newRequestID("1"),
             request: {
                 connectProducerTransport: {
+                    dtlsParameters
+                }
+            }
+        });
+
+        client.onClose();
+    });
+
+    it("should handle a produceTrack message", async () => {
+        const client = await setupSingleClient(sfu);
+        let dtlsParameters: DtlsParameters = {fingerprints: []};
+        client.once("response", (response: Response) => {
+            expect(response).toBeDefined();
+            expect(response).toHaveProperty("result");
+            const success = response as {id: string, result: Result};
+            if (success.result && success.result.producerTransportCreated) {
+                dtlsParameters = success.result.producerTransportCreated.dtlsParameters;
+            }
+        });
+        await client.onMessage({
+            id: newRequestID("0"),
+            request: {
+                createProducerTransport: {}
+            }
+        });
+
+        await client.onMessage({
+            id: newRequestID("1"),
+            request: {
+                connectProducerTransport: {
+                    dtlsParameters
+                }
+            }
+        });
+
+        client.once("response", (response: Response) => {
+            expect(response).toBeDefined();
+            expect(response).toHaveProperty("result");
+        });
+        await client.onMessage({
+            id: newRequestID("2"),
+            request: {
+                produceTrack: {
+                    kind: "video",
+                    rtpParameters,
+                    name: "camera"
+                }
+            }
+        });
+
+        client.onClose();
+    });
+
+    it("should get the router RTP capabilities", async () => {
+        const client = await setupSingleClient(sfu);
+        client.once("response", (response: Response) => {
+            expect(response).toBeDefined();
+            expect(response).toHaveProperty("result");
+            const success = response as {id: string, result: Result};
+            if (success.result && success.result.routerRtpCapabilities) {
+                const routerRtpCapabilities = success.result.routerRtpCapabilities;
+                expect(routerRtpCapabilities).toHaveProperty("codecs");
+                expect(routerRtpCapabilities).toHaveProperty("headerExtensions");
+            }
+        });
+        await client.onMessage({
+            id: newRequestID("0"),
+            request: {
+                getRouterRtpCapabilities: {}
+            }
+        });
+
+        client.onClose();
+    });
+
+    it("should handle a connectConsumerTransport request", async () => {
+        const client = await setupSingleClient(sfu);
+        let dtlsParameters: DtlsParameters = {fingerprints: []};
+        client.once("response", (response: Response) => {
+            expect(response).toBeDefined();
+            expect(response).toHaveProperty("result");
+            const success = response as {id: string, result: Result};
+            if (success.result && success.result.consumerTransportCreated) {
+                dtlsParameters = success.result.consumerTransportCreated.dtlsParameters;
+            }
+        });
+        await client.onMessage({
+            id: newRequestID("0"),
+            request: {
+                createConsumerTransport: {}
+            }
+        });
+        client.once("response", (response: Response) => {
+            expect(response).toBeDefined();
+            expect(response).toHaveProperty("result");
+        });
+        await client.onMessage({
+            id: newRequestID("1"),
+            request: {
+                connectConsumerTransport: {
                     dtlsParameters
                 }
             }
