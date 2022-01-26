@@ -472,4 +472,11 @@ describe("client", () => {
 
         client.onClose();
     });
+
+    it("Gets the number of producers", async () => {
+        const client = await setupSingleClient(sfu);
+
+        expect(client.numProducers).toEqual(0);
+        client.onClose();
+    });
 });
