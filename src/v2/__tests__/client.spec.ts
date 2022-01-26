@@ -548,4 +548,134 @@ describe("client", () => {
             }
         });
     });
+
+    it("should handle a pauseForEveryone request", async () => {
+        const client = await setupSingleClient(sfu, true);
+        let dtlsParameters: DtlsParameters = {fingerprints: []};
+        client.once("response", (response: Response) => {
+            expect(response).toBeDefined();
+            expect(response).toHaveProperty("result");
+            const success = response as {id: string, result: Result};
+            if (success.result && success.result.producerTransportCreated) {
+                dtlsParameters = success.result.producerTransportCreated.dtlsParameters;
+            }
+        });
+        await client.onMessage({
+            id: newRequestID("0"),
+            request: {
+                createProducerTransport: {}
+            }
+        });
+
+        await client.onMessage({
+            id: newRequestID("1"),
+            request: {
+                connectProducerTransport: {
+                    dtlsParameters
+                }
+            }
+        });
+
+        let producerId: ProducerId = newProducerId("fail");
+        client.once("response", (response: Response) => {
+            expect(response).toBeDefined();
+            expect(response).toHaveProperty("result");
+            const success = response as {id: string, result: Result};
+            if (success.result && success.result.producerCreated) {
+                producerId = success.result.producerCreated;
+            }
+        });
+        await client.onMessage({
+            id: newRequestID("2"),
+            request: {
+                produceTrack: {
+                    kind: "video",
+                    rtpParameters,
+                    name: "camera"
+                }
+            }
+        });
+
+        client.once("response", (response: Response) => {
+            expect(response).toBeDefined();
+            expect(response).toHaveProperty("result");
+        });
+
+        await client.onMessage({
+            id: newRequestID("3"),
+            request: {
+                pauseForEveryone: {
+                    id: producerId,
+                    paused: true
+                }
+            }
+        });
+
+        client.onClose();
+    });
+
+    it("should only allow teachers to pause for everyone", async () => {
+        const client = await setupSingleClient(sfu);
+        let dtlsParameters: DtlsParameters = {fingerprints: []};
+        client.once("response", (response: Response) => {
+            expect(response).toBeDefined();
+            expect(response).toHaveProperty("result");
+            const success = response as {id: string, result: Result};
+            if (success.result && success.result.producerTransportCreated) {
+                dtlsParameters = success.result.producerTransportCreated.dtlsParameters;
+            }
+        });
+        await client.onMessage({
+            id: newRequestID("0"),
+            request: {
+                createProducerTransport: {}
+            }
+        });
+
+        await client.onMessage({
+            id: newRequestID("1"),
+            request: {
+                connectProducerTransport: {
+                    dtlsParameters
+                }
+            }
+        });
+
+        let producerId: ProducerId = newProducerId("fail");
+        client.once("response", (response: Response) => {
+            expect(response).toBeDefined();
+            expect(response).toHaveProperty("result");
+            const success = response as {id: string, result: Result};
+            if (success.result && success.result.producerCreated) {
+                producerId = success.result.producerCreated;
+            }
+        });
+        await client.onMessage({
+            id: newRequestID("2"),
+            request: {
+                produceTrack: {
+                    kind: "video",
+                    rtpParameters,
+                    name: "camera"
+                }
+            }
+        });
+
+        client.once("response", (response: Response) => {
+            expect(response).toBeDefined();
+            expect(response).toHaveProperty("error");
+        });
+
+        await client.onMessage({
+            id: newRequestID("3"),
+            request: {
+                pauseForEveryone: {
+                    id: producerId,
+                    paused: true
+                }
+            }
+        });
+
+        client.onClose();
+    });
 });
