@@ -1,9 +1,9 @@
 import {SFU} from "../sfu";
-import {rtpParameters, setupSfu, setupSingleClient} from "./utils";
+import {rtpCapabilities, rtpParameters, setupSfu, setupSingleClient} from "./utils";
 import {types as MediaSoup} from "mediasoup";
 import {mediaCodecs} from "../../config";
 import {newRequestID, Request, Response, Result} from "../client";
-import {newProducerId} from "../track";
+import {newProducerId, ProducerId} from "../track";
 import {DtlsParameters} from "mediasoup/node/lib/WebRtcTransport";
 
 let sfu: SFU;
@@ -382,5 +382,170 @@ describe("client", () => {
         });
 
         client.onClose();
+    });
+    it("should handle a consumeTrack request", async () => {
+        const client = await setupSingleClient(sfu);
+        const consumeClient = await setupSingleClient(sfu);
+
+        let dtlsParameters: DtlsParameters = {fingerprints: []};
+        client.once("response", (response: Response) => {
+            expect(response).toBeDefined();
+            expect(response).toHaveProperty("result");
+            const success = response as {id: string, result: Result};
+            if (success.result && success.result.producerTransportCreated) {
+                dtlsParameters = success.result.producerTransportCreated.dtlsParameters;
+            }
+        });
+
+        await client.onMessage({
+            id: newRequestID("0"),
+            request: {
+                createProducerTransport: {}
+            }
+        });
+
+        await client.onMessage({
+            id: newRequestID("1"),
+            request: {
+                connectProducerTransport: {
+                    dtlsParameters
+                }
+            }
+        });
+
+        let producerId: ProducerId = newProducerId("fail");
+        client.once("response", (response: Response) => {
+            expect(response).toBeDefined();
+            expect(response).toHaveProperty("result");
+            const success = response as {id: string, result: Result};
+            if (success.result && success.result.producerCreated) {
+                producerId = success.result.producerCreated;
+            }
+        });
+
+        await client.onMessage({
+            id: newRequestID("2"),
+            request: {
+                produceTrack: {
+                    kind: "video",
+                    rtpParameters,
+                    name: "camera"
+                }
+            }
+        });
+
+        await consumeClient.onMessage({
+            id: newRequestID("0"),
+            request: {
+                setRtpCapabilities: {
+                    codecs: rtpCapabilities.codecs
+                }
+            }
+        });
+
+        consumeClient.once("response", (response: Response) => {
+            expect(response).toBeDefined();
+            expect(response).toHaveProperty("result");
+            const success = response as {id: string, result: Result};
+            if (success.result && success.result.consumerTransportCreated) {
+                dtlsParameters = success.result.consumerTransportCreated.dtlsParameters;
+            }
+        });
+
+        await consumeClient.onMessage({
+            id: newRequestID("1"),
+            request: {
+                createConsumerTransport: {}
+            }
+        });
+
+        await consumeClient.onMessage({
+            id: newRequestID("2"),
+            request: {
+                connectConsumerTransport: {
+                    dtlsParameters
+                }
+            }
+        });
+
+        consumeClient.once("response", (response: Response) => {
+            expect(response).toBeDefined();
+            expect(response).toHaveProperty("result");
+        });
+
+        await consumeClient.onMessage({
+            id: newRequestID("3"),
+            request: {
+                consumeTrack: {
+                    producerId,
+                }
+            }
+        });
+
+        consumeClient.onClose();
+        client.onClose();
+    });
+
+    it("should handle a pause request", async () => {
+        const client = await setupSingleClient(sfu);
+        let dtlsParameters: DtlsParameters = {fingerprints: []};
+        client.once("response", (response: Response) => {
+            expect(response).toBeDefined();
+            expect(response).toHaveProperty("result");
+            const success = response as {id: string, result: Result};
+            if (success.result && success.result.producerTransportCreated) {
+                dtlsParameters = success.result.producerTransportCreated.dtlsParameters;
+            }
+        });
+        await client.onMessage({
+            id: newRequestID("0"),
+            request: {
+                createProducerTransport: {}
+            }
+        });
+
+        await client.onMessage({
+            id: newRequestID("1"),
+            request: {
+                connectProducerTransport: {
+                    dtlsParameters
+                }
+            }
+        });
+
+        let producerId: ProducerId = newProducerId("fail");
+        client.once("response", (response: Response) => {
+            expect(response).toBeDefined();
+            expect(response).toHaveProperty("result");
+            const success = response as {id: string, result: Result};
+            if (success.result && success.result.producerCreated) {
+                producerId = success.result.producerCreated;
+            }
+        });
+        await client.onMessage({
+            id: newRequestID("2"),
+            request: {
+                produceTrack: {
+                    kind: "video",
+                    rtpParameters,
+                    name: "camera"
+                }
+            }
+        });
+
+        client.once("response", (response: Response) => {
+            expect(response).toBeDefined();
+            expect(response).toHaveProperty("result");
+        });
+
+        await client.onMessage({
+            id: newRequestID("3"),
+            request: {
+                pause: {
+                    id: producerId,
+                    paused: true
+                }
+            }
+        });
     });
 });
