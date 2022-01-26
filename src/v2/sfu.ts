@@ -1,13 +1,12 @@
-import {RoomId, Room} from "./room";
-import {
-    types as MediaSoup
-} from "mediasoup";
-import {mediaCodecs} from "../config";
-import {NewType} from "./newType";
-import {nanoid} from "nanoid";
-import {Logger} from "../logger";
-import {SfuRegistrar, TrackRegistrar} from "./registrar";
+import { types as MediaSoup } from "mediasoup";
+import { nanoid } from "nanoid";
+
 import { ClientV2 } from "./client";
+import { RoomId, Room } from "./room";
+import { NewType } from "./newType";
+import { SfuRegistrar, TrackRegistrar } from "./registrar";
+import { mediaCodecs } from "../config";
+import { Logger } from "../logger";
 
 export class SFU {
     public readonly id: SfuId = newSfuId(nanoid());
@@ -15,46 +14,40 @@ export class SFU {
     constructor(
         private readonly worker: MediaSoup.Worker,
         public readonly listenIps:MediaSoup.TransportListenIp[],
+        public /*readonly*/ endpoint: string,
         private registrar: SfuRegistrar & TrackRegistrar
     ) {
         this.updateStatus();
     }
 
-    private async updateStatus() {
+    private async updateStatus(timeout = 5000) {
         try {
-            await this.registrar.registerSfuAddress(this.id, JSON.stringify(this.listenIps));
-            await this.registrar.registerSfuStatus(this.id);
+            if(this.worker.closed) { return; }
+            setTimeout(() => this.updateStatus(), timeout);
+
+            await this.registrar.addSfuId(this.id);
+            await this.registrar.setSfuStatus(this.id, {
+                endpoint: this.endpoint,
+            });
         } catch (e) {
             Logger.error(e);
-        } finally {
-            setTimeout(() => this.updateStatus(), 5000);
         }
     }
 
-    public async createClient(roomId: RoomId, isTeacher: boolean, ) {
+    public async createClient(userId: string, roomId: RoomId, isTeacher: boolean) {
         let room = this.rooms.get(roomId);
         if (!room) { room = await this.createRoom(roomId); }
-        const client = new ClientV2(
-            this,
-            this.registrar,
-            room,
-            isTeacher,
-        );
+        const client = new ClientV2(userId, this, room, isTeacher);
         room.addClient(client);
         return client;
     }
 
     private async createRoom(roomId: RoomId) {
-        if(this.rooms.has(roomId)) {
-            throw new Error(`Room ${roomId} already exists`);
-        }
+        if(this.rooms.has(roomId)) { throw new Error(`Room(${roomId}) already exists`); }
         const router = await this.worker.createRouter({mediaCodecs});
-        const room = new Room(
-            roomId,
-            router,
-            ({id}) => this.rooms.delete(id)
-        );
-        this.rooms.set(roomId, room);
+        const room = new Room(roomId, this.id, router, this.registrar);
+        this.rooms.set(room.id, room);
+        room.on("closed", () => this.rooms.delete(room.id));
         return room;
     }
 

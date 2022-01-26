@@ -29,7 +29,7 @@ export class HttpServer {
         this.server = createServer(this.app);
     }
 
-    public startServer(ip: string, subscriptionsPath?: string) {
+    public startServer(ip?: string, subscriptionsPath?: string) {
         this.server.listen({ port: process.env.PORT }, () => { Logger.info("🌎 Server available"); });
         const address = this.server.address();
         if (!address || typeof address === "string") { throw new Error("Unexpected address format"); }

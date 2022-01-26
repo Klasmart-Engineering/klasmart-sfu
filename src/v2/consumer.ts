@@ -13,13 +13,11 @@ export class Consumer {
 
     private constructor(
         private readonly sender: MediaSoup.Consumer,
-        private _sinkIsPaused = sender.paused,
+        private pausedByUser = false
     ) {
-        sender.on("transportclose", () => this.close());
-        sender.on("producerclose", () => this.close());
-        sender.on("producerpause", () => this.updatePauseStatus());
-        sender.on("producerresume", () => this.updatePauseStatus());
-        sender.on("layerschange", (layers) => Logger.info(`consumerLayerChange(${this.id}): ${JSON.stringify(layers)}`));
+        this.sender.on("transportclose", () => this.onClose());
+        this.sender.on("producerclose", () => this.onClose());
+        this.sender.on("layerschange", (layers) => Logger.info(`consumerLayerChange(${this.id}): ${JSON.stringify(layers)}`));
     }
 
     public get id() { return newConsumerId(this.sender.id); }
@@ -34,33 +32,25 @@ export class Consumer {
         return new Consumer(consumer);
     }
 
-    public close() {
-        if (this.sender.closed) { return; }
-        this.sender.close();
-        this.emitter.emit("closed");
+    public async setPausedByUser({ pausedUpstream, pausedByUser}: PauseState) {
+        this.pausedByUser = pausedByUser;
+        await this.updateSenderPauseState(pausedUpstream);
     }
 
-    public get sinkIsPaused() { return this._sinkIsPaused; }
-    public async setSinkPaused(paused: boolean) {
-        if(this._sinkIsPaused === paused) { return; }
-        this._sinkIsPaused = paused;
-        await this.updatePauseStatus();
-        this.emitter.emit("paused", paused);
-    }
-
-    private async updatePauseStatus() {
-        const shouldBePaused = this.sender.producerPaused || this._sinkIsPaused;
-        if(shouldBePaused === this.sender.paused) {
-            console.info(`updatePauseStatus Consumer(${this.id}) - no change`);
+    public async updateSenderPauseState(pausedUpstream: boolean) {
+        const shouldPauseSender = pausedUpstream || this.pausedByUser;
+        if(this.sender.paused === shouldPauseSender) {
+            console.info(`setPauseState Consumer(${this.id})  - no change`);
             return;
         }
-        if(shouldBePaused) {
-            console.info(`updatePauseStatus Consumer(${this.id}) - pause`);
+        if(shouldPauseSender) {
+            console.info(`setPauseState Consumer(${this.id}) - pause`);
             await this.sender.pause();
         } else {
-            console.info(`updatePauseStatus Consumer(${this.id}) - resume`);
+            console.info(`setPauseState Consumer(${this.id}) - resume`);
             await this.sender.resume();
         }
+        this.emitter.emit("senderPaused", this.sender.paused);
     }
 
     public parameters(): ConsumerParameters {
@@ -72,13 +62,23 @@ export class Consumer {
             producerId: newProducerId(this.sender.producerId),
         };
     }
+
+    private onClose() {
+        console.log(`Consumer(${this.sender.id}) closed`);
+        this.emitter.emit("closed");
+    }
+}
+
+export type PauseState = {
+    pausedUpstream: boolean,
+    pausedByUser: boolean, 
 }
 
 export type ConsumerEventEmitter = Consumer["emitter"]
 
 export type ConsumerEventMap = {
     closed: () => unknown;
-    paused: (paused: boolean) => unknown;
+    senderPaused: (paused: boolean) => unknown;
 }
 
 export type ConsumerParameters = {

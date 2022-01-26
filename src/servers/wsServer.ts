@@ -21,8 +21,8 @@ export class WsServer {
         this.wss.on("connection", (ws, req) => new WSTransport(sfu, ws, req, null));
     }
 
-    public startServer(ip: string) {
-        this.httpServer.startServer(ip);
+    public startServer(ip?: string) {
+        return this.httpServer.startServer(ip);
     }
 }
 
@@ -79,16 +79,16 @@ export class WSTransport {
         try {
             this.resetNetworkSendTimeout();
             this.resetNetworkReceiveTimeout();
-            const {roomId, isTeacher} = await handleAuth(req);
+            const {roomId, isTeacher, userId} = await handleAuth(req);
             const client = await this.sfu.createClient(
+                userId,
                 roomId,
                 isTeacher,
             );
             client.on("response", (response) => this.send({response}));
             
-            client.on("sourcePaused", (sourcePauseEvent) => this.send({sourcePauseEvent}));
-            client.on("broadcastPaused", (broadcastPauseEvent) => this.send({broadcastPauseEvent}));
-            client.on("sinkPauseEvent", (sinkPauseEvent) => this.send({sinkPauseEvent}));
+            client.on("pausedByProducingUser", (pausedSource) => this.send({pausedSource}));
+            client.on("pausedGlobally", (pausedGlobally) => this.send({pausedGlobally}));
             
             client.on("consumerClosed", (consumerClosed) => this.send({consumerClosed}));
             client.on("producerClosed", (producerClosed) => this.send({producerClosed}));
@@ -140,6 +140,7 @@ async function handleAuth(req: IncomingMessage) {
     if(process.env.DISABLE_AUTH) {
         Logger.warn("RUNNING IN DEBUG MODE - SKIPPING AUTHENTICATION AND AUTHORIZATION");
         return {
+            userId: debugUserId(),
             roomId: newRoomId("test-room"),
             isTeacher: true
         };
@@ -161,10 +162,14 @@ async function handleAuth(req: IncomingMessage) {
     }
 
     return {
+        userId: authorizationToken.userid,
         roomId: newRoomId(authorizationToken.roomid),
         isTeacher: authorizationToken.teacher || false,
     };
 }
+
+let _debugUserCount = 0;
+function debugUserId() { return `debugUser${_debugUserCount++}`; }
 
 type DecoupledPromise<T> = {
     promise: Promise<T>;

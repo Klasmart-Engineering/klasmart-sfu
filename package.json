@@ -6,7 +6,7 @@
   "scripts": {
     "start": "node dist/index.js",
     "build": "webpack",
-    "dev": "ts-node-dev src/entry.ts",
+    "dev": "ts-node-dev src/v2/entry.ts",
     "test:unit": "ENV_FILE=./config/.env.test jest --coverage"
   },
   "author": "",
@@ -50,7 +50,7 @@
     "express": "^4.17.1",
     "graphql": "^16.0.1",
     "graphql-subscriptions": "^2.0.0",
-    "ioredis": "^4.28.1",
+    "ioredis": "^4.28.3",
     "jsonwebtoken": "^8.5.1",
     "kidsloop-token-validation": "bitbucket:calmisland/kidsloop-token-validation#v1.4.1",
     "mediasoup": "^3.9.2",

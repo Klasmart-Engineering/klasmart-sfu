@@ -11,3 +11,12 @@ export function getNetworkInterfaceInfo() {
     }
     return results;
 }
+
+export function getNetworkInterfacesAddresses() {
+    return Object.values(networkInterfaces())
+        .flatMap(
+            bindings => bindings?.map(
+                binding => binding.address
+            ) ?? []
+        );
+}

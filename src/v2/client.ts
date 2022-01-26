@@ -7,7 +7,6 @@ import { Room } from "./room";
 import { ProducerId } from "./track";
 import { NewType } from "./newType";
 import { ConsumerId } from "./consumer";
-import { TrackRegistrar, WebRtcTrack } from "./registrar";
 import { SFU } from "./sfu";
 import { EventEmitter } from "eventemitter3";
 
@@ -36,16 +35,21 @@ type Request = {
 }
 
 type TransportConnectRequest = { dtlsParameters: MediaSoup.DtlsParameters };
-type ProduceTrackRequest = { kind: MediaSoup.MediaKind, rtpParameters: MediaSoup.RtpParameters, name: string };
+type ProduceTrackRequest = { 
+    kind: MediaSoup.MediaKind,
+    rtpParameters: MediaSoup.RtpParameters,
+    appData?: Record<string, unknown>,
+};
 type ConsumeTrackRequest = { producerId: ProducerId };
 type PauseRequest = { paused: boolean, id: ProducerId };
+
+
 
 export type ResponseMessage = {
     response?: Response,
 
-    sourcePauseEvent?: PauseEvent,
-    broadcastPauseEvent?: PauseEvent,
-    sinkPauseEvent?: PauseEvent,
+    pausedSource?: PauseEvent,
+    pausedGlobally?: PauseEvent,
 
     consumerClosed?: ProducerId,
     producerClosed?: ProducerId,
@@ -91,24 +95,23 @@ export type PauseEvent = {
 }
 
 export class ClientV2 {
-    public readonly id = newClientId();
+    public readonly id = newClientId(nanoid());
 
     private readonly emitter = new EventEmitter<ClientEventMap>();
-    public readonly on: ClientEventEmitter["on"] = (event, listener) => this.emitter.on(event, listener);
-    public readonly off: ClientEventEmitter["off"] = (event, listener) => this.emitter.off(event, listener);
-    public readonly once: ClientEventEmitter["once"] = (event, listener) => this.emitter.once(event, listener);
+    public readonly on: ClientV2["emitter"]["on"] = (event, listener) => this.emitter.on(event, listener);
+    public readonly off: ClientV2["emitter"]["off"] = (event, listener) => this.emitter.off(event, listener);
+    public readonly once: ClientV2["emitter"]["once"] = (event, listener) => this.emitter.once(event, listener);
 
     private rtpCapabilities?: MediaSoup.RtpCapabilities;
     private producerTransport?: MediaSoup.WebRtcTransport;
     private consumerTransport?: MediaSoup.WebRtcTransport;
 
-    constructor(
+    public constructor(
+        public readonly userId: string,
         private readonly sfu: SFU,
-        private readonly registrar: TrackRegistrar,
         public readonly room: Room,
         public readonly isTeacher: boolean,
-    ) {
-    }
+    ) {}
 
     public async onMessage({ id, request }: RequestMessage) {
         try {
@@ -186,6 +189,7 @@ export class ClientV2 {
     }
 
     public onClose() {
+        console.log(`Client(${this.id}) disconnect`);
         this.producerTransport?.close();
         this.consumerTransport?.close();
         this.emitter.emit("close");
@@ -210,29 +214,29 @@ export class ClientV2 {
         await this.producerTransport.connect({ dtlsParameters });
     }
 
-    private async produceTrack({ kind, name, rtpParameters }: ProduceTrackRequest) {
+    private async produceTrack({ kind, rtpParameters, appData}: ProduceTrackRequest) {
         if (!this.producerTransport) { throw new Error("Producer transport has not been initialized"); }
+        const name = appData && appData["name"] && typeof appData["name"] === "string" ? appData["name"] : undefined;
+        const sessionId = appData && appData["sessionId"] && typeof appData["sessionId"] === "string" ? appData["sessionId"] : undefined;
         const track = await this.room.createTrack(
             this.id,
             this.producerTransport,
             kind,
             rtpParameters,
+            name,
+            sessionId,
         );
 
         const producerId = track.producerId;
-        const webRtcTrack: WebRtcTrack = {
-            producerId,
-            sfuId: this.sfu.id,
-            name,
-        };
         
-        track.on("broadcastPaused", paused => this.emitter.emit("broadcastPaused", {producerId, paused}));
         track.on("closed", () => {
+            console.log(`Track(${track.producerId}) close`);
             this.emitter.emit("producerClosed", producerId);
-            this.registrar.unregisterTrack(this.room.id, producerId);
         });
-        this.emitter.emit("broadcastPaused", {producerId, paused: track.broadcastIsPaused});
-        await this.registrar.registerTrack(this.room.id, webRtcTrack);
+        
+        track.on("pausedGlobally", paused => this.emitter.emit("pausedGlobally", {producerId, paused}));
+        this.emitter.emit("pausedGlobally", {producerId, paused: track.pausedGlobally});
+
         return track.producerId;
     }
 
@@ -267,14 +271,11 @@ export class ClientV2 {
                 
         consumer.on("closed", () => this.emitter.emit("consumerClosed", producerId));
         
-        consumer.on("paused", paused => this.emitter.emit("sinkPauseEvent", {producerId, paused}));
-        this.emitter.emit("sinkPauseEvent", {producerId, paused: consumer.sinkIsPaused});
+        track.on("pausedByProducingUser", paused => this.emitter.emit("pausedByProducingUser", {producerId, paused}));
+        this.emitter.emit("pausedByProducingUser", {producerId, paused: track.pausedByProducingUser});
         
-        track.on("broadcastPaused", paused => this.emitter.emit("broadcastPaused", {producerId, paused}));
-        this.emitter.emit("broadcastPaused", {producerId, paused: track.broadcastIsPaused});
-        
-        track.on("sourcePaused", paused => this.emitter.emit("sourcePaused", {producerId, paused}));
-        this.emitter.emit("sourcePaused", {producerId, paused: track.sourceIsPaused});
+        track.on("pausedGlobally", paused => this.emitter.emit("pausedGlobally", {producerId, paused}));
+        this.emitter.emit("pausedGlobally", {producerId, paused: track.pausedGlobally});
         
         return consumer.parameters();
     }
@@ -286,8 +287,14 @@ export class ClientV2 {
             enableTcp: true,
             preferUdp: true,
         });
+        Logger.info(transport);
 
         transport.on("routerclose", () => transport.close());
+
+        transport.on("icestatechange", iceState => Logger.info(`Client(${this.id}).Transport(${transport.id}) iceState(${iceState})`));
+        transport.on("iceselectedtuplechange", iceSelectedTuple => Logger.info(`Client(${this.id}).Transport(${transport.id}) iceSelectedTuple(${iceSelectedTuple})`));
+        transport.on("dtlsstatechange", dtlsState => Logger.info(`Client(${this.id}).Transport(${transport.id}) dtlsState(${dtlsState})`));
+        transport.on("sctpstatechange", sctpState => Logger.info(`Client(${this.id}).Transport(${transport.id}) sctpState(${sctpState})`));
 
         return transport;
     }
@@ -300,12 +307,12 @@ export class ClientV2 {
     @ClientV2.onlyTeacher("Only teachers can pause for everyone")
     private async pauseForEveryone({ paused, id }: PauseRequest) {
         const track = this.room.track(id);
-        await track.setBroadcastPaused(paused);
+        await track.setPausedGlobally(paused);
     }
 
     private async pause({ paused, id }: PauseRequest) {
         const track = this.room.track(id);
-        await track.pauseClient(this, paused);
+        await track.setPausedForUser(this, paused);
     }
     // Decorators
     /// Decorator for only allowing a teacher to do the action.  Use via @onlyTeacher("errorText").
@@ -323,15 +330,12 @@ export class ClientV2 {
     }
 }
 
-export type ClientEventEmitter = ClientV2["emitter"];
-
 export type ClientEventMap = {
     close: () => void,
     response: (response: Response) => void,
 
-    sourcePaused: (pauseEvent: PauseEvent) => void,
-    broadcastPaused: (pauseEvent: PauseEvent) => void,
-    sinkPauseEvent: (pauseEvent: PauseEvent) => void,
+    pausedByProducingUser: (pauseEvent: PauseEvent) => void,
+    pausedGlobally: (pauseEvent: PauseEvent) => void,
 
     consumerClosed: (producerId: ProducerId) => void,
     producerClosed: (producerId: ProducerId) => void,
@@ -341,4 +345,4 @@ export type ClientEventMap = {
 }
 
 export type ClientId = NewType<string, "ClientId">
-export function newClientId(id = nanoid()) { return id as ClientId; }
+export function newClientId(id: string) { return id as ClientId; }
