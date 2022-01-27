@@ -5,10 +5,10 @@
 ## How to set up locally
 
 
-1. Clone repository, Recomended using **ssh+clone** to skip authentication every time
+1. Clone repository, Recommended using **ssh+clone** to skip authentication every time
 2. Run ***npm i***  to install required packages
 3. create ***.env*** same as ***.env.example*** file
-4. Finally run ***npm start***.
+4. Finally, run ***npm start***.
 
 
 ## How to make PR
@@ -24,9 +24,9 @@ Common usage **[type]: description**
 Most used commit types:  
 1. **fix** - patches a bug in your codebase (this correlates with PATCH in semantic versioning)  
 2. **feat** - introduces a new feature to the codebase (this correlates with MINOR in semantic versioning)  
-3. also **chore, test, style, refactor**
+3. Also, **chore, test, style, refactor**
 
-## How to controll versioning 
+## How to control versioning 
 
 We follow [Semantic Versioning](https://semver.org/)
 

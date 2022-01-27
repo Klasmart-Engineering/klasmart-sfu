@@ -11,14 +11,14 @@ import { SFU } from "./sfu";
 import { EventEmitter } from "eventemitter3";
 
 export type RequestId = NewType<string, "requestId">
-export const newRequestID = (id: string) => id as RequestId;
+export const newRequestId = (id: string) => id as RequestId;
 
 export type RequestMessage = {
     id: RequestId,
     request: Request,
 }
 
-type Request = {
+export type Request = {
     getRouterRtpCapabilities?: unknown;
     createProducerTransport?: unknown;
     connectProducerTransport?: TransportConnectRequest;
@@ -35,7 +35,7 @@ type Request = {
 }
 
 type TransportConnectRequest = { dtlsParameters: MediaSoup.DtlsParameters };
-type ProduceTrackRequest = { 
+type ProduceTrackRequest = {
     kind: MediaSoup.MediaKind,
     rtpParameters: MediaSoup.RtpParameters,
     appData?: Record<string, unknown>,
@@ -58,7 +58,7 @@ export type ResponseMessage = {
     producerTransportClosed?: unknown,
 }
 
-type Response = {
+export type Response = {
     id: RequestId;
     error: string,
 } | {
@@ -74,7 +74,7 @@ export type WebRtcTransportResult = {
     sctpParameters?: MediaSoup.SctpParameters,
 }
 
-type Result = {
+export type Result = {
     routerRtpCapabilities?: MediaSoup.RtpCapabilities;
 
     producerTransportCreated?: WebRtcTransportResult;
@@ -94,6 +94,8 @@ export type PauseEvent = {
     paused: boolean
 }
 
+const MAX_PRODUCERS = 10;
+
 export class ClientV2 {
     public readonly id = newClientId(nanoid());
 
@@ -105,6 +107,7 @@ export class ClientV2 {
     private rtpCapabilities?: MediaSoup.RtpCapabilities;
     private producerTransport?: MediaSoup.WebRtcTransport;
     private consumerTransport?: MediaSoup.WebRtcTransport;
+    private _numProducers = 0;
 
     public constructor(
         public readonly userId: string,
@@ -112,6 +115,10 @@ export class ClientV2 {
         public readonly room: Room,
         public readonly isTeacher: boolean,
     ) {}
+
+    public get numProducers() {
+        return this._numProducers;
+    }
 
     public async onMessage({ id, request }: RequestMessage) {
         try {
@@ -216,6 +223,7 @@ export class ClientV2 {
 
     private async produceTrack({ kind, rtpParameters, appData}: ProduceTrackRequest) {
         if (!this.producerTransport) { throw new Error("Producer transport has not been initialized"); }
+        if (this.numProducers + 1 > MAX_PRODUCERS) { throw new Error("Too many producers"); }
         const name = appData && appData["name"] && typeof appData["name"] === "string" ? appData["name"] : undefined;
         const sessionId = appData && appData["sessionId"] && typeof appData["sessionId"] === "string" ? appData["sessionId"] : undefined;
         const track = await this.room.createTrack(
@@ -228,12 +236,14 @@ export class ClientV2 {
         );
 
         const producerId = track.producerId;
-        
+
+        this._numProducers++;
         track.on("closed", () => {
             console.log(`Track(${track.producerId}) close`);
             this.emitter.emit("producerClosed", producerId);
+            this._numProducers--;
         });
-        
+
         track.on("pausedGlobally", paused => this.emitter.emit("pausedGlobally", {producerId, paused}));
         this.emitter.emit("pausedGlobally", {producerId, paused: track.pausedGlobally});
 
@@ -262,21 +272,21 @@ export class ClientV2 {
         if (!this.rtpCapabilities) { throw new Error("RTP Capabilities has not been initialized"); }
         if (!this.consumerTransport) { throw new Error("Consumer transport has not been initialized"); }
         const track = this.room.track(producerId);
-        
+
         const consumer = await track.consume(
             this.id,
             this.consumerTransport,
             this.rtpCapabilities,
         );
-                
+
         consumer.on("closed", () => this.emitter.emit("consumerClosed", producerId));
-        
+
         track.on("pausedByProducingUser", paused => this.emitter.emit("pausedByProducingUser", {producerId, paused}));
         this.emitter.emit("pausedByProducingUser", {producerId, paused: track.pausedByProducingUser});
-        
+
         track.on("pausedGlobally", paused => this.emitter.emit("pausedGlobally", {producerId, paused}));
         this.emitter.emit("pausedGlobally", {producerId, paused: track.pausedGlobally});
-        
+
         return consumer.parameters();
     }
 
@@ -302,6 +312,9 @@ export class ClientV2 {
     @ClientV2.onlyTeacher("Only teachers can end the room")
     private async endRoom() {
         this.room.end();
+        return {
+            end: true
+        };
     }
 
     @ClientV2.onlyTeacher("Only teachers can pause for everyone")

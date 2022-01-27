@@ -28,7 +28,7 @@ export class Track {
 
     public get producerId() { return this.reciever.id as ProducerId; }
     public get numConsumers() { return this.consumers.size; }
-    
+
     private readonly emitter = new EventEmitter<TrackEventMap>();
     public readonly on: Track["emitter"]["on"] = (event, listener) => this.emitter.on(event, listener);
     public readonly off: Track["emitter"]["off"] = (event, listener) => this.emitter.off(event, listener);

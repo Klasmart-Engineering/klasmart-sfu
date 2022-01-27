@@ -4,4 +4,8 @@ module.exports = {
     testEnvironment: "node",
     testPathIgnorePatterns: ["/node_modules/", "utils.ts"],
     setupFiles: ["<rootDir>/config/load_vars.ts"],
+    collectCoverageFrom: [
+        "src/**/*.{ts,tsx}",
+        "!src/**/__tests__/**"
+    ]
 };

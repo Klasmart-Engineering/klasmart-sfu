@@ -30,6 +30,7 @@ export class SFU {
                 endpoint: this.endpoint,
             });
         } catch (e) {
+            // istanbul ignore next
             Logger.error(e);
         }
     }
