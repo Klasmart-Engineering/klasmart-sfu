@@ -25,6 +25,7 @@ export class SFU {
             await this.registrar.registerSfuAddress(this.id, JSON.stringify(this.listenIps));
             await this.registrar.registerSfuStatus(this.id);
         } catch (e) {
+            // istanbul ignore next
             Logger.error(e);
         } finally {
             setTimeout(() => this.updateStatus(), 5000);
@@ -46,6 +47,7 @@ export class SFU {
 
     private async createRoom(roomId: RoomId) {
         if(this.rooms.has(roomId)) {
+            // istanbul ignore next
             throw new Error(`Room ${roomId} already exists`);
         }
         const router = await this.worker.createRouter({mediaCodecs});

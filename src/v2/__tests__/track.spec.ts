@@ -112,6 +112,41 @@ describe("track", () => {
         await expect(paused).resolves.toEqual(true);
     });
 
+    it("should resume a track pausedByOwner", async () => {
+        const transport = new MockTransport() as unknown as MediaSoup.WebRtcTransport;
+        const client = await setupSingleClient(sfu);
+        const clientId = client.id;
+        const router = new MockRouter() as unknown as MediaSoup.Router;
+        const track = await Track.create(router, clientId, transport, "video", rtpParameters);
+
+        await track.setPausedByAdmin(false);
+        await track.pauseClient(client, false);
+
+        const paused = new Promise<boolean>((resolve) => {
+            track.once("pausedByOwner", (paused) => {
+                resolve(paused);
+            });
+        });
+
+        await track.pauseClient(client, true);
+
+        expect(track.pausedByOwner).toBe(true);
+
+        await expect(paused).resolves.toEqual(true);
+
+        const resumed = new Promise<boolean>((resolve) => {
+            track.once("pausedByOwner", (resumed) => {
+                resolve(resumed);
+            });
+        });
+
+        await track.pauseClient(client, false);
+
+        expect(track.pausedByOwner).toBe(false);
+
+        await expect(resumed).resolves.toEqual(false);
+    });
+
     it("should set a consumer to pausedByOwner", async () => {
         const transport = new MockTransport() as unknown as MediaSoup.WebRtcTransport;
         const client = await setupSingleClient(sfu);
@@ -187,5 +222,19 @@ describe("track", () => {
         await expect(wait).resolves.not.toThrow();
 
         expect(track.numConsumers).toEqual(0);
+    });
+
+    it("should throw if trying to consume a track twice", async () => {
+        const transport = new MockTransport() as unknown as MediaSoup.WebRtcTransport;
+        const client = await setupSingleClient(sfu);
+        const consumeClient = await setupSingleClient(sfu);
+        const router = new MockRouter() as unknown as MediaSoup.Router;
+        const track = await Track.create(router, client.id, transport, "video", rtpParameters);
+
+        await track.consume(consumeClient.id, transport, rtpCapabilities);
+
+        const wait = track.consume(consumeClient.id, transport, rtpCapabilities);
+
+        await expect(wait).rejects.toThrow();
     });
 });

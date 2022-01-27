@@ -45,7 +45,6 @@ describe("sfu", () => {
 
         for (const client of clients) {
             client.onClose();
-            break;
         }
 
         expect((sfu as unknown as {rooms: Map<RoomId, Room>}).rooms.get(roomId)).toBeUndefined();
@@ -56,16 +55,11 @@ describe("sfu", () => {
         const isTeacher = false;
 
         await sfu.createClient(roomId, isTeacher);
-        await sfu.createClient(roomId, isTeacher);
+        const client = await sfu.createClient(roomId, isTeacher);
         const room = (sfu as unknown as {rooms: Map<RoomId, Room>}).rooms.get(roomId);
         expect(room).toBeDefined();
 
-        const clients = Array.from(room?.clients || []);
-
-        for (const client of clients) {
-            client.onClose();
-            break;
-        }
+        client.onClose();
 
         expect((sfu as unknown as {rooms: Map<RoomId, Room>}).rooms.get(roomId)).toBeDefined();
     });
