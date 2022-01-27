@@ -6,7 +6,7 @@ const nodeExternals = require("webpack-node-externals");
 module.exports = {
     mode: "development",
     target: "node",
-    entry: "./src/entry.ts",
+    entry: "./src/v2/entry.ts",
     devtool: "source-map",
     module: {
         rules: [
