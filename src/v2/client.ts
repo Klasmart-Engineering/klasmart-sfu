@@ -114,7 +114,9 @@ export class ClientV2 {
         private readonly sfu: SFU,
         public readonly room: Room,
         public readonly isTeacher: boolean,
-    ) {}
+    ) {
+        Logger.info(`Client(${this.id}) created for User(${this.userId})`);
+    }
 
     public get numProducers() {
         return this._numProducers;
@@ -122,6 +124,7 @@ export class ClientV2 {
 
     public async onMessage({ id, request }: RequestMessage) {
         try {
+            console.log(request);
             const result = await this.handleMessage(request);
             this.emitter.emit("response", { id, result });
         } catch (error: unknown) {

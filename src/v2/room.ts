@@ -7,6 +7,7 @@ import { ClientId, ClientV2 } from "./client";
 import { ProducerId } from "./track";
 import { SfuId } from "./sfu";
 import { TrackRegistrar } from "./registrar";
+import { Logger } from "../logger";
 
 export class Room {
     public readonly on: Room["emitter"]["on"] = (event, listener) => this.emitter.on(event, listener);
@@ -55,7 +56,9 @@ export class Room {
         public readonly sfuId: SfuId,
         public readonly router: MediaSoup.Router,
         public readonly trackRegistrar: TrackRegistrar
-    ) { }
+    ) {
+        Logger.info(`Room(${this.id}) shard created on SFU(${this.sfuId})`);
+    }
 
     private async updateTrackStatus(track: Track, timeout = 5000) {
         try {

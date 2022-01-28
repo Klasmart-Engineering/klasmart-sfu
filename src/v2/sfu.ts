@@ -17,6 +17,7 @@ export class SFU {
         public /*readonly*/ endpoint: string,
         private registrar: SfuRegistrar & TrackRegistrar
     ) {
+        Logger.info(`SFU(${this.id}) created`);
         this.updateStatus();
     }
 

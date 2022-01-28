@@ -49,12 +49,14 @@ export class WSTransport {
     }
 
     private send(message: ResponseMessage) {
+        Logger.info("Websocket tx", message);
         this.resetNetworkSendTimeout();
         const data = JSON.stringify(message);
         this.ws.send(data);
     }
 
     private async onMessage(data: WebSocket.RawData) {
+        Logger.info("Websocket rx", data);
         this.resetNetworkReceiveTimeout();
         if(!data) {return;}
         const messageString = data.toString();
@@ -68,11 +70,13 @@ export class WSTransport {
 
     private async onClose() {
         const client = await this.client;
+        Logger.info(`Websocket closed for Client(${client.id})`);
         client.onClose();
     }
 
-    private onError(e: Error) {
-        Logger.error(e);
+    private async onError(e: Error) {
+        const client = await this.client;
+        Logger.error(`Websocket serving Client(${client.id}): ${e}`);
     }
 
     private async createClient(req: IncomingMessage) {
