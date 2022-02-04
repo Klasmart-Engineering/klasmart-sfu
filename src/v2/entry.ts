@@ -9,13 +9,14 @@ import { getNetworkInterfacesAddresses } from "../networkInterfaces";
 import checkIp from "check-ip";
 import { createWorker, types as MediaSoup } from "mediasoup";
 import { hostname } from "os";
+import { Logger } from "../logger";
 
 async function main() {
     const worker = await createWorker({ logLevel: "debug" });
 
-    const allAddresses = getNetworkInterfacesAddresses();
-    const privateAddresses = allAddresses.filter(x => checkIp(x).isRfc1918);
-    const publicAddresses = allAddresses.filter(x => checkIp(x).isPublicIp);
+    const interfaceAddresses = getNetworkInterfacesAddresses();
+    const privateAddresses = interfaceAddresses.filter(x => checkIp(x).isRfc1918);
+    const publicAddresses = interfaceAddresses.filter(x => checkIp(x).isPublicIp);
     const awsPublicAddress = await getECSTaskENIPublicIP();
     
     const webRtcAddress: MediaSoup.TransportListenIp = {
@@ -49,7 +50,18 @@ async function main() {
         new RedisRegistrar(redis),
     );
     const wsServer = new WsServer(sfu);
-    const address = wsServer.startServer(); 
-    sfu.endpoint = address;
+    wsServer.http.listen({ port: process.env.PORT }, () => {
+        const address = wsServer.http.address();
+        Logger.info(`🌎 Server available at (${JSON.stringify(address)})`);
+        if (!address || typeof address === "string") { throw new Error("Unexpected address format"); }
+        const host = process.env.HTTP_ANNOUNCE_ADDRESS ||
+            process.env.HOSTNAME_OVERRIDE ||
+            (process.env.USE_IP === "1" ? privateAddresses[0] : undefined) ||
+            hostname();
+        const uri = `${host}:${address.port}`;
+        Logger.info(`Announcing address HTTP traffic for webRTC signaling via redis: ${uri}`);
+        sfu.endpoint = uri;
+    });
+
 }
 main();
