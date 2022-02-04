@@ -8,6 +8,7 @@ import {newProducerId, ProducerId} from "../track";
 import {RtpCapabilities, RtpParameters} from "mediasoup/node/lib/RtpParameters";
 import {Response, ClientV2, Result, Request, RequestId} from "../client";
 import {DtlsParameters} from "mediasoup/node/lib/WebRtcTransport";
+import {nanoid} from "nanoid";
 
 export async function setupSfu() {
     const worker = await createWorker({
@@ -18,12 +19,12 @@ export async function setupSfu() {
 
     const announcedIp = "127.0.0.1";
 
-    return new SFU(worker, [{ip: process.env.WEBRTC_INTERFACE_ADDRESS || "0.0.0.0", announcedIp }], MockRegistrar);
+    return new SFU(worker, [{ip: process.env.WEBRTC_INTERFACE_ADDRESS || "0.0.0.0", announcedIp }], "endpoint", MockRegistrar());
 }
 
 export async function setupSingleClient(sfu: SFU, isTeacher = false) {
     const roomId = newRoomId("test-room");
-    return await sfu.createClient(roomId, isTeacher);
+    return await sfu.createClient("user-id", roomId, isTeacher);
 }
 
 export class MockTransport {
@@ -73,7 +74,7 @@ class MockProducer {
             this._id = id;
         }
         else {
-            this._id = newProducerId();
+            this._id = newProducerId(nanoid());
         }
     }
 
@@ -161,11 +162,11 @@ function createMockConsumer(id: string) {
         trigger: mockConsumer};
 }
 
-export async function setupMockConsumer() {
-    const mockTransport = createMockTransport();
-    const producerId = newProducerId();
+export async function setupMockConsumer(transport?: MediaSoup.WebRtcTransport) {
+    if (!transport) transport = createMockTransport();
+    const producerId = newProducerId(nanoid());
     const rtpCapabilities = {codecs: mediaCodecs};
-    return Consumer.create(mockTransport, producerId, rtpCapabilities);
+    return Consumer.create(transport, producerId, rtpCapabilities);
 }
 
 export class MockRouter {
@@ -329,7 +330,6 @@ export async function createProducer(client: ClientV2, id: RequestId, rtpParamet
             produceTrack: {
                 kind: "video",
                 rtpParameters,
-                name: "camera"
             }
         }
     });

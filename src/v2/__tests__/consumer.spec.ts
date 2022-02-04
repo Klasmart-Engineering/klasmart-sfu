@@ -11,7 +11,7 @@ describe("consumer", () => {
 
     it("should close on transport close", async () => {
         const transport = createMockTransport();
-        const producerId = newProducerId();
+        const producerId = newProducerId("producer-id");
         const rtpCapabilities = {codecs: mediaCodecs};
         const consumer = await Consumer.create(transport, producerId, rtpCapabilities);
 
@@ -28,7 +28,7 @@ describe("consumer", () => {
 
     it("should close on producer close", async () => {
         const transport = createMockTransport();
-        const producerId = newProducerId();
+        const producerId = newProducerId("producer-id");
         const rtpCapabilities = {codecs: mediaCodecs};
         const consumer = await Consumer.create(transport, producerId, rtpCapabilities);
 
@@ -51,26 +51,29 @@ describe("consumer", () => {
 
     it("should set a locallyPaused state", async () => {
         const consumer = await setupMockConsumer();
-        expect(consumer.sinkIsPaused).toEqual(true);
+        let parameters = consumer.parameters();
+        expect(parameters.paused).toEqual(true);
 
-        await consumer.setSinkPaused(false);
-        expect(consumer.sinkIsPaused).toEqual(false);
+        await consumer.setPausedByUser({pausedUpstream: false, pausedByUser: false});
+        parameters = consumer.parameters();
+        expect(parameters.paused).toEqual(false);
 
-        await consumer.setSinkPaused(true);
-        expect(consumer.sinkIsPaused).toEqual(true);
+        await consumer.setPausedByUser({pausedUpstream: false, pausedByUser: true});
+        parameters = consumer.parameters();
+        expect(parameters.paused).toEqual(true);
     });
 
     it("should pause when the producer pauses", async () => {
         const transport = createMockTransport();
-        const producerId = newProducerId();
+        const producerId = newProducerId("producer-id");
         const rtpCapabilities = {codecs: mediaCodecs};
         const consumer = await Consumer.create(transport, producerId, rtpCapabilities);
 
         (transport as unknown as MockTransport).setProducerPaused(false);
-        await consumer.setSinkPaused(false);
+        await consumer.setPausedByUser({pausedUpstream: false, pausedByUser: false});
 
         const waitPause = new Promise((resolve) => {
-            consumer.once("paused", (paused) => {
+            consumer.once("senderPaused", (paused) => {
                 resolve(paused);
             });
         });
@@ -83,17 +86,17 @@ describe("consumer", () => {
 
     it("should resume when the producer resumes", async () => {
         const transport = createMockTransport();
-        const producerId = newProducerId();
+        const producerId = newProducerId("producer-id");
         const rtpCapabilities = {codecs: mediaCodecs};
         const consumer = await Consumer.create(transport, producerId, rtpCapabilities);
 
-        await consumer.setSinkPaused(false);
+        await consumer.setPausedByUser({pausedUpstream: false, pausedByUser: false});
         // Not a typo!  This is a quick test to make sure the `setSinkPaused` call is idempotent
-        await consumer.setSinkPaused(false);
+        await consumer.setPausedByUser({pausedUpstream: false, pausedByUser: true});
         (transport as unknown as MockTransport).setProducerPaused(true);
 
         const waitPause = new Promise((resolve) => {
-            consumer.once("paused", (paused) => {
+            consumer.once("senderPaused", (paused) => {
                 resolve(paused);
             });
         });
@@ -105,23 +108,6 @@ describe("consumer", () => {
         await expect(waitPause).resolves.toEqual(false);
     });
 
-    it("should respond to a layerschange event", async () => {
-        const transport = createMockTransport();
-        const producerId = newProducerId();
-        const rtpCapabilities = {codecs: mediaCodecs};
-        const consumer = await Consumer.create(transport, producerId, rtpCapabilities);
-
-        const waitLayersChange = new Promise((resolve) => {
-            consumer.once("layerschange", (layers) => {
-                resolve(layers);
-            });
-        });
-
-        (transport as unknown as MockTransport).triggerConsumer("layerschange");
-
-        await expect(waitLayersChange).resolves.not.toThrow();
-    });
-
     it("should return its parameters", async () => {
         const consumer = await setupMockConsumer();
 
@@ -129,7 +115,8 @@ describe("consumer", () => {
     });
 
     it("should emit on close", async () => {
-        const consumer = await setupMockConsumer();
+        const transport = createMockTransport();
+        const consumer = await setupMockConsumer(transport);
 
         const waitClose = new Promise<void>((resolve) => {
             consumer.once("closed", () => {
@@ -137,9 +124,7 @@ describe("consumer", () => {
             });
         });
 
-        consumer.close();
-        // Not a typo!  This is a quick test to make sure the close operation is idempotent
-        consumer.close();
+        (transport as unknown as MockTransport).triggerConsumer("transportclose");
 
         await expect(waitClose).resolves.not.toThrow();
     });

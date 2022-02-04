@@ -31,7 +31,7 @@ export class Room {
         const track = await Track.create(this.router, owner, transport, kind, rtpParameters, name, sessionId);
         this.localTracks.set(track.producerId, track);
         track.on("closed",() => this.onTrackClosed(track));
-        this.updateTrackStatus(track);
+        this.updateTrackStatus(track).catch((e) => Logger.error(e));
         return track;
     }
 
@@ -89,5 +89,5 @@ export type RoomEventMap = {
     closed: () => void,
 }
 
-export type RoomId = NewType<string, "RoomId">
+export type RoomId = NewType<string, "RoomId">;
 export function newRoomId(id: string) { return id as RoomId; }

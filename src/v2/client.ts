@@ -360,5 +360,5 @@ export type ClientEventMap = {
     producerTransportClosed: () => void,
 }
 
-export type ClientId = NewType<string, "ClientId">
+export type ClientId = NewType<string, "ClientId">;
 export function newClientId(id: string) { return id as ClientId; }
