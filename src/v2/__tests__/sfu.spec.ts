@@ -1,19 +1,16 @@
 import {SFU} from "../sfu";
-import {newRoomId} from "../room";
-import {newClient, setupSfu, TestWssServer} from "./utils";
+import {newRoomId, Room, RoomId} from "../room";
+import { setupSfu } from "./utils";
 
 let sfu: SFU;
-let wss: TestWssServer;
 
 describe("sfu", () => {
     beforeEach(async () => {
         sfu = await setupSfu();
-        wss = new TestWssServer(8080);
     });
 
     afterEach(() => {
         sfu.shutdown();
-        wss.close();
     });
 
     it("should be able to be instantiated", async () => {
@@ -21,74 +18,49 @@ describe("sfu", () => {
     });
 
     it("should be able to add a client", async () => {
-        const client = await newClient(wss);
-
         const roomId = newRoomId("test-room");
         const isTeacher = false;
-        const ws = wss.getSocket(0);
 
-        await expect(sfu.addClient(ws, roomId, isTeacher)).resolves.not.toThrow();
-        client.close();
+        await expect(sfu.createClient(roomId, isTeacher)).resolves.not.toThrow();
     });
 
     it("should create a room when the first client connects", async () => {
-        const client = await newClient(wss);
-
         const roomId = newRoomId("test-room");
         const isTeacher = false;
-        const ws = wss.getSocket(0);
 
-        await sfu.addClient(ws, roomId, isTeacher);
-        const room = sfu.room(roomId);
+        await sfu.createClient(roomId, isTeacher);
+        const room = (sfu as unknown as {rooms: Map<RoomId, Room>}).rooms.get(roomId);
 
         expect(room).toBeDefined();
-        client.close();
     });
 
     it ("should delete a room when the last client disconnects", async () => {
-        const client = await newClient(wss);
-
         const roomId = newRoomId("test-room-solo");
         const isTeacher = false;
-        const ws = wss.getSocket(0);
-        await sfu.addClient(ws, roomId, isTeacher);
-        const room = sfu.room(roomId);
+        await sfu.createClient(roomId, isTeacher);
+        const room = (sfu as unknown as {rooms: Map<RoomId, Room>}).rooms.get(roomId);
         expect(room).toBeDefined();
 
-        const socket = wss.getSocket(0);
-        const wait = new Promise(resolve => socket.on("close", () => {
-            resolve(undefined);
-        }));
-        client.close();
+        const clients = Array.from(room?.clients || []);
 
-        await wait;
+        for (const client of clients) {
+            client.onClose();
+        }
 
-        expect(sfu.room(roomId)).toBeUndefined();
+        expect((sfu as unknown as {rooms: Map<RoomId, Room>}).rooms.get(roomId)).toBeUndefined();
     });
 
     it("should not delete a room if a client disconnects and there are other clients in the room", async () => {
-        const client = await newClient(wss);
-
         const roomId = newRoomId("test-room-multi");
         const isTeacher = false;
 
-        const client2 = await newClient(wss);
-
-        const ws = wss.getSocket(0);
-        const ws2 = wss.getSocket(1);
-
-        await sfu.addClient(ws, roomId, isTeacher);
-        await sfu.addClient(ws2, roomId, isTeacher);
-        const room = sfu.room(roomId);
+        await sfu.createClient(roomId, isTeacher);
+        const client = await sfu.createClient(roomId, isTeacher);
+        const room = (sfu as unknown as {rooms: Map<RoomId, Room>}).rooms.get(roomId);
         expect(room).toBeDefined();
 
-        const socket = wss.getSocket(0);
-        const wait = new Promise(resolve => socket.on("close", () => {
-            resolve(undefined);
-        }));
-        client.close();
-        await wait;
-        expect(sfu.room(roomId)).toBeDefined();
-        client2.close();
+        client.onClose();
+
+        expect((sfu as unknown as {rooms: Map<RoomId, Room>}).rooms.get(roomId)).toBeDefined();
     });
 });

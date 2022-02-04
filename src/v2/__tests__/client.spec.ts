@@ -1,338 +1,482 @@
 import {SFU} from "../sfu";
-import {setupSfu, setupSingleClient, TestWssServer, WebSocketMessageGenerator} from "./utils";
+import {
+    connectConsumerTransport,
+    connectProducerTransport, consumeTrack, createConsumerTransport, createProducer,
+    createProducerTransport, pauseTrack, pauseTrackForEveryone,
+    responseShouldError,
+    responseShouldNotError,
+    rtpParameters, setRtpCapabilities,
+    setupSfu,
+    setupSingleClient,
+} from "./utils";
 import {types as MediaSoup} from "mediasoup";
 import {mediaCodecs} from "../../config";
+import {newRequestId, Request, Response} from "../client";
+import {newProducerId} from "../track";
 
 let sfu: SFU;
-let wss: TestWssServer;
 
 describe("client", () => {
     beforeEach(async () => {
         sfu = await setupSfu();
-        wss = new TestWssServer(8081);
     });
     afterEach(() => {
         sfu.shutdown();
-        wss.close();
-    });
-
-    it("should throw on an malformed message", async () => {
-        const client = await setupSingleClient(wss, sfu);
-        const messageGenerator = new WebSocketMessageGenerator(client);
-
-        const randomMessage = "random-data";
-
-        client.send(randomMessage);
-
-        const response = await messageGenerator.nextMessage();
-
-        await expect(response).toEqual(
-            {
-                type: "error",
-                message: `Error handling message: ${randomMessage}`
-            });
-
-        client.close();
-    });
-
-    it("should throw on an unknown message", async () => {
-        const client = await setupSingleClient(wss, sfu);
-        const messageGenerator = new WebSocketMessageGenerator(client);
-
-        const randomMessage = JSON.stringify({
-            randomData: "random-data"
-        });
-
-        client.send(randomMessage);
-
-        const response = await messageGenerator.nextMessage();
-
-        expect(response).toEqual(
-            {
-                type: "error",
-                message: `Error handling message: ${randomMessage}`
-            });
-
-        client.close();
     });
 
     it("should handle an rtpCapabilities message", async () => {
-        const client = await setupSingleClient(wss, sfu);
-        const messageGenerator = new WebSocketMessageGenerator(client);
+        const client = await setupSingleClient(sfu);
 
         const rtpCapabilities: MediaSoup.RtpCapabilities = {
             codecs: mediaCodecs,
             headerExtensions: []
         };
+        const waitResponse = responseShouldNotError(client);
+        await client.onMessage({
+            id: newRequestId("0"),
+            request: {
+                setRtpCapabilities: rtpCapabilities
+            }
+        });
 
-        client.send(JSON.stringify({
-            rtpCapabilities: rtpCapabilities
-        }));
-
-        const response = await messageGenerator.nextMessage();
-
-        expect(response).toEqual(true);
-        client.close();
+        await waitResponse;
+        client.onClose();
     });
 
     it("should handle a createProducerTransport message", async () => {
-        const client = await setupSingleClient(wss, sfu);
-        const messageGenerator = new WebSocketMessageGenerator(client);
+        const client = await setupSingleClient(sfu);
 
-        const producerTransportMessage = {
-            producerTransport: "yes"
-        };
-
-        client.send(JSON.stringify(producerTransportMessage));
-
-        const response = await messageGenerator.nextMessage();
-
-        expect(response).toMatchObject({
-            producerTransport: {}
+        const waitResponse = responseShouldNotError(client);
+        await client.onMessage({
+            id: newRequestId("0"),
+            request: {
+                createProducerTransport: {}
+            }
         });
-        client.close();
+        await waitResponse;
+        client.onClose();
     });
 
     it("should throw when trying to connect to a producer transport prior to creating a producer transport", async () => {
-        const client = await setupSingleClient(wss, sfu);
-        const messageGenerator = new WebSocketMessageGenerator(client);
+        const client = await setupSingleClient(sfu);
 
-        const producerTransportConnectMessage = JSON.stringify({
-            producerTransportConnect: {dtlsParameters: {}}
+        const request = {
+            connectProducerTransport: {
+                dtlsParameters: {
+                    fingerprints: []
+                }
+            }
+        };
+        const waitResponse = responseShouldError(client);
+        await client.onMessage({
+            id: newRequestId("0"),
+            request
         });
-
-        client.send(producerTransportConnectMessage);
-
-        const response = await messageGenerator.nextMessage();
+        const response = await waitResponse;
 
         expect(response).toEqual(
             {
-                type: "error",
-                message: `Error handling message: ${producerTransportConnectMessage}`
+                id: "0",
+                error: "Error: Producer transport has not been initialized"
             });
 
-        client.close();
+        client.onClose();
     });
 
     it("should handle a createConsumerTransport message", async () => {
-        const client = await setupSingleClient(wss, sfu);
-        const messageGenerator = new WebSocketMessageGenerator(client);
+        const client = await setupSingleClient(sfu);
 
-        const consumerTransportMessage = {
-            consumerTransport: "yes"
+        const request = {
+            createConsumerTransport: {}
         };
 
-        client.send(JSON.stringify(consumerTransportMessage));
-
-        const response = await messageGenerator.nextMessage();
-
-        expect(response).toMatchObject({
-            consumerTransport: {}
-        });
-        client.close();
+        const waitResponse = responseShouldNotError(client);
+        await client.onMessage(
+            {
+                id: newRequestId("0"),
+                request
+            }
+        );
+        await waitResponse;
+        client.onClose();
     });
 
     it("should throw when trying to connect to a consumer transport prior to creating a consumer transport", async () => {
-        const client = await setupSingleClient(wss, sfu);
-        const messageGenerator = new WebSocketMessageGenerator(client);
+        const client = await setupSingleClient(sfu);
 
-        const consumerTransportConnectMessage = JSON.stringify({
-            consumerTransportConnect: {dtlsParameters: {}}
+        const request = {
+            connectConsumerTransport: {dtlsParameters: {fingerprints :[]}}
+        };
+
+        const waitResponse = responseShouldError(client);
+        await client.onMessage({
+            id: newRequestId("0"),
+            request
         });
 
-        client.send(consumerTransportConnectMessage);
-
-        const response = await messageGenerator.nextMessage();
-
+        const response = await waitResponse;
         expect(response).toEqual(
             {
-                type: "error",
-                message: `Error handling message: ${consumerTransportConnectMessage}`
+                id: "0",
+                error: "Error: Consumer transport has not been initialized"
             });
 
-        client.close();
+        client.onClose();
     });
 
     it("should throw when trying to create a track prior to creating a producer transport", async () => {
-        const client = await setupSingleClient(wss, sfu);
-        const messageGenerator = new WebSocketMessageGenerator(client);
+        const client = await setupSingleClient(sfu);
 
-        const createTrackMessage = JSON.stringify({
-            createTrack: {
+        const request: Request = {
+            produceTrack: {
                 kind: "audio",
                 rtpParameters: {
                     codecs: [{
                         mimeType: "audio/opus",
                         clockRate: 48000,
-                        channels: 2
+                        channels: 2,
+                        payloadType: 100
                     }]
-                }
+                },
+                name: "Name"
             }
+        };
+        const waitResponse = responseShouldError(client);
+        await client.onMessage({
+            id: newRequestId("0"),
+            request
         });
 
-        client.send(createTrackMessage);
-
-        const response = await messageGenerator.nextMessage();
-
+        const response = await waitResponse;
         expect(response).toEqual(
             {
-                type: "error",
-                message: `Error handling message: ${createTrackMessage}`
+                id: "0",
+                error: "Error: Producer transport has not been initialized"
             });
 
-        client.close();
+        client.onClose();
     });
 
     it("should throw when trying to create a consumer prior to exchanging rtpCapabilities", async () => {
-        const client = await setupSingleClient(wss, sfu);
-        const messageGenerator = new WebSocketMessageGenerator(client);
+        const client = await setupSingleClient(sfu);
 
-        const createConsumerMessage = JSON.stringify({
-            createConsumer: {
-                producerId: "producer-id"
+        const request: Request = {
+            consumeTrack: {
+                producerId: newProducerId("producer-id")
             }
+        };
+        const waitResponse = responseShouldError(client);
+        await client.onMessage({
+            id: newRequestId("0"),
+            request
         });
 
-        client.send(createConsumerMessage);
-
-        const response = await messageGenerator.nextMessage();
-
+        const response = await waitResponse;
         expect(response).toEqual(
             {
-                type: "error",
-                message: `Error handling message: ${createConsumerMessage}`
+                id: "0",
+                error: "Error: RTP Capabilities has not been initialized"
             });
 
-        client.close();
+        client.onClose();
     });
 
     it("should throw when trying to locally pause a track that doesn't exist", async () => {
-        const client = await setupSingleClient(wss, sfu);
-        const messageGenerator = new WebSocketMessageGenerator(client);
+        const client = await setupSingleClient(sfu);
 
-        const locallyPauseMessage = JSON.stringify({
-            locallyPause: {
+        const request: Request = {
+            pause: {
                 paused: true,
-                trackId: "track-id"
+                id: newProducerId("track-id")
             }
+        };
+
+        const waitResponse = responseShouldError(client);
+        await client.onMessage({
+            id: newRequestId("0"),
+            request
         });
 
-        client.send(locallyPauseMessage);
-
-        const response = await messageGenerator.nextMessage();
-
+        const response = await waitResponse;
         expect(response).toEqual(
             {
-                type: "error",
-                message: `Error handling message: ${locallyPauseMessage}`
+                id: "0",
+                error: "Error: Track track-id not found"
             });
 
-        client.close();
+        client.onClose();
     });
 
     it("should throw when trying to globally pause a track and the client is not a teacher", async () => {
-        const client = await setupSingleClient(wss, sfu);
-        const messageGenerator = new WebSocketMessageGenerator(client);
+        const client = await setupSingleClient(sfu);
 
-        const globallyPauseMessage = JSON.stringify({
-            globallyPause: {
+        const request: Request = {
+            pauseForEveryone: {
                 paused: true,
-                trackId: "track-id"
+                id: newProducerId("track-id")
             }
+        };
+
+        const waitResponse = responseShouldError(client);
+        await client.onMessage({
+            id: newRequestId("0"),
+            request
         });
 
-        client.send(globallyPauseMessage);
-
-        const response = await messageGenerator.nextMessage();
-
+        const response = await waitResponse;
         expect(response).toEqual(
             {
-                type: "error",
-                message: `Error handling message: ${globallyPauseMessage}`
+                id: "0",
+                error: "Error: Only teachers can pause for everyone"
             });
 
-        client.close();
+        client.onClose();
     });
 
     it("should throw when trying to globally pause a track that doesn't exist", async () => {
-        const client = await setupSingleClient(wss, sfu, true);
-        const messageGenerator = new WebSocketMessageGenerator(client);
+        const client = await setupSingleClient(sfu, true);
 
-        const globallyPauseMessage = JSON.stringify({
-            globallyPause: {
+        const request: Request = {
+            pauseForEveryone: {
                 paused: true,
-                trackId: "track-id"
+                id: newProducerId("track-id")
             }
+        };
+        const waitResponse = responseShouldError(client);
+        await client.onMessage({
+            id: newRequestId("0"),
+            request
         });
 
-        client.send(globallyPauseMessage);
-
-        const response = await messageGenerator.nextMessage();
-
+        const response = await waitResponse;
         expect(response).toEqual(
             {
-                type: "error",
-                message: `Error handling message: ${globallyPauseMessage}`
+                id: "0",
+                error: "Error: Track track-id not found"
             });
 
-        client.close();
+        client.onClose();
     });
 
     it("should throw when trying to end a room and the client is not a teacher", async () => {
-        const client = await setupSingleClient(wss, sfu);
-        const messageGenerator = new WebSocketMessageGenerator(client);
+        const client = await setupSingleClient(sfu);
 
-        const endMessage = JSON.stringify({
-            end: true
+        const request: Request = {
+            endRoom: {}
+        };
+        const waitResponse = responseShouldError(client);
+        await client.onMessage({
+            id: newRequestId("0"),
+            request
         });
 
-        client.send(endMessage);
-
-        const response = await messageGenerator.nextMessage();
-
+        const response = await waitResponse;
         expect(response).toEqual(
             {
-                type: "error",
-                message: `Error handling message: ${endMessage}`
+                id: "0",
+                error: "Error: Only teachers can end the room"
             });
 
-        client.close();
+        client.onClose();
     });
 
     it("should handle a connectProducerTransport message", async () => {
-        const client = await setupSingleClient(wss, sfu);
-        const messageGenerator = new WebSocketMessageGenerator(client);
+        const client = await setupSingleClient(sfu);
+        const dtlsParameters = await createProducerTransport(client, newRequestId("0"));
+        await connectProducerTransport(dtlsParameters, client, newRequestId("1"));
+        client.onClose();
+    });
 
-        client.send(JSON.stringify({
-            producerTransport: "yes"
-        }));
+    it("should handle a produceTrack message", async () => {
+        const client = await setupSingleClient(sfu);
+        const dtlsParameters = await createProducerTransport(client, newRequestId("0"));
+        await connectProducerTransport(dtlsParameters, client, newRequestId("1"));
 
-        const createProducerTransportResponse: {producerTransport: {dtlsParameters: MediaSoup.DtlsParameters}} = await messageGenerator.nextMessage();
+        await createProducer(client, newRequestId("2"), rtpParameters);
 
-        if (!createProducerTransportResponse) {
-            expect(createProducerTransportResponse).toBeDefined();
-            return;
-        }
+        client.onClose();
+    });
 
-        expect(createProducerTransportResponse).toHaveProperty("producerTransport" );
-
-        const { dtlsParameters } = createProducerTransportResponse.producerTransport;
-
-        client.send(JSON.stringify({
-            producerTransportConnect: {
-                dtlsParameters
+    it("should get the router RTP capabilities", async () => {
+        const client = await setupSingleClient(sfu);
+        const waitResponse = responseShouldNotError(client);
+        await client.onMessage({
+            id: newRequestId("0"),
+            request: {
+                getRouterRtpCapabilities: {}
             }
-        }));
+        });
 
-        const producerTransportConnectResponse = await messageGenerator.nextMessage();
+        const response = await waitResponse;
+        expect(response.result).toHaveProperty("routerRtpCapabilities");
+        expect(response.result.routerRtpCapabilities).toHaveProperty("codecs");
+        expect(response.result.routerRtpCapabilities).toHaveProperty("headerExtensions");
 
-        if (!producerTransportConnectResponse) {
-            expect(producerTransportConnectResponse).toBeDefined();
-            return;
+        client.onClose();
+    });
+
+    it("should handle a connectConsumerTransport request", async () => {
+        const client = await setupSingleClient(sfu);
+        const dtlsParameters = await createConsumerTransport(client, newRequestId("0"));
+        await connectConsumerTransport(dtlsParameters, client, newRequestId("1"));
+
+        client.onClose();
+    });
+    it("should handle a consumeTrack request", async () => {
+        const client = await setupSingleClient(sfu);
+        const consumeClient = await setupSingleClient(sfu);
+
+        let dtlsParameters = await createProducerTransport(client, newRequestId("0"));
+        await connectProducerTransport(dtlsParameters, client, newRequestId("1"));
+
+        const producerId = await createProducer(client, newRequestId("2"), rtpParameters);
+        await setRtpCapabilities(consumeClient, newRequestId("0"));
+
+        dtlsParameters = await createConsumerTransport(consumeClient, newRequestId("1"));
+        await connectConsumerTransport(dtlsParameters, consumeClient, newRequestId("2"));
+        await consumeTrack(consumeClient, producerId, newRequestId("3"));
+
+        consumeClient.onClose();
+        client.onClose();
+    });
+
+    it("should handle a pause request", async () => {
+        const client = await setupSingleClient(sfu);
+        const dtlsParameters = await createProducerTransport(client, newRequestId("0"));
+        await connectProducerTransport(dtlsParameters, client, newRequestId("1"));
+
+        const producerId = await createProducer(client, newRequestId("2"), rtpParameters);
+        await pauseTrack(client, producerId, true, newRequestId("3"));
+
+        client.onClose();
+    });
+
+    it("should handle a pauseForEveryone request", async () => {
+        const client = await setupSingleClient(sfu, true);
+        const dtlsParameters = await createProducerTransport(client, newRequestId("0"));
+        await connectProducerTransport(dtlsParameters, client, newRequestId("1"));
+
+        const producerId = await createProducer(client, newRequestId("2"), rtpParameters);
+        await pauseTrackForEveryone(client, producerId, true, newRequestId("3"));
+
+        client.onClose();
+    });
+
+    it("should only allow teachers to pause for everyone", async () => {
+        const client = await setupSingleClient(sfu);
+        const dtlsParameters = await createProducerTransport(client, newRequestId("0"));
+        await connectProducerTransport(dtlsParameters, client, newRequestId("1"));
+
+        const producerId = await createProducer(client, newRequestId("2"), rtpParameters);
+
+        client.once("response", (response: Response) => {
+            expect(response).toBeDefined();
+            expect(response).toHaveProperty("error");
+        });
+
+        const waitPause = pauseTrackForEveryone(client, producerId, true, newRequestId("3"));
+        await expect(waitPause).rejects.toThrow();
+
+        client.onClose();
+    });
+
+    it("should handle an endRoom request", async () => {
+        const client = await setupSingleClient(sfu, true);
+        client.once("response", (response: Response) => {
+            expect(response).toBeDefined();
+            expect(response).toHaveProperty("result");
+        });
+        await client.onMessage({
+            id: newRequestId("0"),
+            request: {
+                endRoom: {}
+            }
+        });
+
+        client.onClose();
+    });
+
+    it("should only allow teachers to end the room", async () => {
+        const client = await setupSingleClient(sfu);
+        const waitResponse = responseShouldError(client);
+        await client.onMessage({
+            id: newRequestId("0"),
+            request: {
+                endRoom: {}
+            }
+        });
+
+        const response = await waitResponse;
+        expect(response.id).toEqual(newRequestId("0"));
+        expect(response.error).toEqual("Error: Only teachers can end the room");
+
+        client.onClose();
+    });
+
+    it("should not allow a client to produce to many tracks", async () => {
+        const client = await setupSingleClient(sfu);
+        const dtlsParameters = await createProducerTransport(client, newRequestId("0"));
+        await connectProducerTransport(dtlsParameters, client, newRequestId("1"));
+
+        const numNewProducers = 10;
+        for (let i = 2; i < 2 + numNewProducers; i++) {
+            const rtpParameters = {
+                codecs: [{
+                    mimeType: "video/VP8",
+                    payloadType: 100 + i,
+                    clockRate: 90000,
+                    parameters: {},
+                }],
+                encodings: [{
+                    ssrc: 100 + i,
+                    codecPayloadType: 100 + i,
+                    rtx: {
+                        ssrc: 200 + i,
+                    },
+                }],
+            };
+
+            await createProducer(client, newRequestId(i.toString()), rtpParameters);
         }
 
-        expect(producerTransportConnectResponse).toEqual(true);
+        const waitResponse = responseShouldError(client);
 
-        client.close();
+        await client.onMessage({
+            id: newRequestId("13"),
+            request: {
+                produceTrack: {
+                    kind: "video",
+                    rtpParameters: {
+                        codecs: [{
+                            mimeType: "video/VP8",
+                            payloadType: 100 + 13,
+                            clockRate: 90000,
+                            parameters: {},
+                        }],
+                        encodings: [{
+                            ssrc: 100 + 13,
+                            codecPayloadType: 100 + 13,
+                            rtx: {
+                                ssrc: 200 + 13,
+                            },
+                        }],
+                    },
+                    name: `${13}`
+                },
+            }
+        });
+
+        const response = await waitResponse;
+        expect(response.id).toEqual(newRequestId("13"));
+        expect(response.error).toEqual("Error: Too many producers");
+
+        client.onClose();
+    });
+
+    it("Gets the number of producers", async () => {
+        const client = await setupSingleClient(sfu);
+
+        expect(client.numProducers).toEqual(0);
+        client.onClose();
     });
 });

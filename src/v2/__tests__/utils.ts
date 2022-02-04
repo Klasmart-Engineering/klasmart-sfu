@@ -1,11 +1,13 @@
 import {createWorker, types as MediaSoup} from "mediasoup";
 import {SFU} from "../sfu";
-import {Data, Server, WebSocket} from "ws";
 import {newRoomId} from "../room";
-import {newTrackId} from "../track";
-import {newProducerId, Producer, ProducerParams} from "../producer";
-import {Consumer, ConsumerParams} from "../consumer";
+import {Consumer} from "../consumer";
 import {mediaCodecs} from "../../config";
+import {MockRegistrar} from "../registrar";
+import {newProducerId, ProducerId} from "../track";
+import {RtpCapabilities, RtpParameters} from "mediasoup/node/lib/RtpParameters";
+import {Response, ClientV2, Result, Request, RequestId} from "../client";
+import {DtlsParameters} from "mediasoup/node/lib/WebRtcTransport";
 
 export async function setupSfu() {
     const worker = await createWorker({
@@ -16,120 +18,12 @@ export async function setupSfu() {
 
     const announcedIp = "127.0.0.1";
 
-    return new SFU(worker, [{ip: process.env.WEBRTC_INTERFACE_ADDRESS || "0.0.0.0", announcedIp }]);
+    return new SFU(worker, [{ip: process.env.WEBRTC_INTERFACE_ADDRESS || "0.0.0.0", announcedIp }], MockRegistrar);
 }
 
-export async function newClient(wss: TestWssServer) {
-    const client = new WebSocket(wss.address());
-    await new Promise((resolve) => {
-        wss.attachConnectionHandler(() => resolve(undefined));
-    });
-
-    return client;
-}
-
-export class TestWssServer {
-    private readonly wss: Server;
-    private connections = 0;
-    private readonly sockets = new Map<number, WebSocket>();
-
-    public constructor(private readonly port: number) {
-        this.wss = new Server({port});
-        this.wss.on("connection", (socket) => {
-            this.sockets.set(this.connections, socket);
-            this.connections++;
-        });
-
-        this.wss.on("close", () => {
-            this.sockets.delete(this.connections);
-            this.connections--;
-        });
-    }
-
-    public attachConnectionHandler(handler: () => any) {
-        this.wss.on("connection", handler);
-    }
-    public getSocket(id: number): WebSocket {
-        const socket = this.sockets.get(id);
-        if (!socket) {
-            throw new Error("Socket not found");
-        }
-        return socket;
-    }
-
-    public address() {
-        return `ws://localhost:${this.port}`;
-    }
-
-    public close() {
-        for (const socket of this.sockets.values()) {
-            socket.close();
-        }
-        this.wss.close();
-    }
-}
-
-export async function setupSingleClient(wss: TestWssServer, sfu: SFU, isTeacher = false) {
-    const client = await newClient(wss);
-
+export async function setupSingleClient(sfu: SFU, isTeacher = false) {
     const roomId = newRoomId("test-room");
-    const ws = wss.getSocket(0);
-
-    await sfu.addClient(ws, roomId, isTeacher);
-    return client;
-}
-
-// A class that wraps a `WebSocket` to allow you to `await` on messages.
-// Useful for blocking until a message is received, and continuing to listen
-// afterward.
-export class WebSocketMessageGenerator {
-    private receivedMessages: Data[] = [];
-    private wait: Promise<void>;
-    private waitResolve?: () => void;
-    private generator: AsyncGenerator<Data | undefined, void>;
-    private closed = false;
-    constructor(private readonly client: WebSocket) {
-        this.generator = this.messages();
-        this.wait = new Promise<void>((resolve) => {
-            this.waitResolve = resolve;
-        });
-
-        this.client.on("message", (data: Data) => {
-            this.receivedMessages.push(data);
-            if(!this.waitResolve) {
-                throw new Error("waitResolve is undefined");
-            }
-            this.waitResolve();
-            this.wait = new Promise<void>((resolve) => {
-                this.waitResolve = resolve;
-            });
-        });
-
-        this.client.on("close", () => {
-            this.closed = true;
-        });
-    }
-
-    public async * messages() {
-        while (!this.closed) {
-            if (this.receivedMessages.length > 0) {
-                yield this.receivedMessages.shift();
-                continue;
-            }
-            await this.wait;
-        }
-    }
-
-    public async nextMessage<T>(): Promise<T> {
-        const message = await this.generator.next();
-        if (message.done) {
-            throw new Error("No more messages");
-        }
-        if (!message.value) {
-            throw new Error("No message");
-        }
-        return JSON.parse(message.value.toString());
-    }
+    return await sfu.createClient(roomId, isTeacher);
 }
 
 export class MockTransport {
@@ -166,16 +60,6 @@ export class MockTransport {
 export function createMockTransport() {
     const mockTransport = new MockTransport();
     return mockTransport as unknown as MediaSoup.WebRtcTransport;
-}
-
-export async function setupMockProducer() {
-    const mockTransport = createMockTransport();
-    const params = mockProducerParams();
-    return Producer.create(mockTransport, params);
-}
-
-export function mockProducerParams(): ProducerParams {
-    return {id: newTrackId("id"), kind: "audio", rtpParameters: {codecs: []}};
 }
 
 class MockProducer {
@@ -223,7 +107,7 @@ class MockProducer {
     }
 }
 
-function createMockProducer(id?: string) {
+export function createMockProducer(id?: string) {
     const mockProducer = new MockProducer(id);
     return {producer: mockProducer as unknown as MediaSoup.Producer,
         trigger: mockProducer};
@@ -263,7 +147,6 @@ export class MockConsumer {
     }
 
     public trigger(event: string) {
-        console.log(JSON.stringify(this));
         const handler = this.eventHandlers.get(event);
         if (!handler) {
             throw new Error(`No handler for event ${event}`);
@@ -280,11 +163,245 @@ function createMockConsumer(id: string) {
 
 export async function setupMockConsumer() {
     const mockTransport = createMockTransport();
-    const params = mockConsumerParams();
-    return Consumer.create(mockTransport, params);
+    const producerId = newProducerId();
+    const rtpCapabilities = {codecs: mediaCodecs};
+    return Consumer.create(mockTransport, producerId, rtpCapabilities);
 }
 
-export function mockConsumerParams(): ConsumerParams {
-    const rtpCapabilities = {codecs: mediaCodecs };
-    return {producerId: newProducerId("id"), rtpCapabilities};
+export class MockRouter {
+    // eslint-disable-next-line @typescript-eslint/no-empty-function
+    public constructor() {
+    }
+
+    public canConsume(properties: unknown) {
+        return !!properties;
+    }
+
+    public close() {
+        return;
+    }
+}
+
+export const rtpParameters: RtpParameters = {
+    codecs: [{
+        mimeType: "video/VP8",
+        payloadType: 100,
+        clockRate: 90000,
+        channels: 1,
+        parameters: {},
+    }],
+    headerExtensions: [],
+    encodings: [{
+        ssrc: 100,
+        codecPayloadType: 100,
+        rtx: {
+            ssrc: 200,
+        },
+    }],
+};
+
+export const rtpCapabilities: RtpCapabilities = {
+    codecs: [{
+        mimeType: "video/VP8",
+        kind: "video",
+        clockRate: 90000,
+        channels: 1,
+        parameters: {},
+    }],
+    headerExtensions: [],
+};
+
+export function delay(ms: number) {
+    return new Promise( resolve => setTimeout(resolve, ms) );
+}
+
+export function shouldError(response: Response) {
+    expect(response).toBeDefined();
+    expect(response).toHaveProperty("error");
+    expect(response).not.toHaveProperty("result");
+    return response as unknown as {id: string, error: string};
+}
+
+export function shouldNotError(response: Response) {
+    expect(response).toBeDefined();
+    expect(response).not.toHaveProperty("error");
+    expect(response).toHaveProperty("result");
+    return response as unknown as { id: string, result: Result };
+}
+
+export function responseShouldNotError(client: ClientV2): Promise<{id: string, result: Result}>{
+    return new Promise( (resolve, reject) => {
+        client.once("response", (response: Response) => {
+            try {
+                resolve(shouldNotError(response));
+            } catch (error) {
+                reject(error);
+            }
+        });
+    });
+}
+
+export function responseShouldError(client: ClientV2): Promise<{id: string, error: string}> {
+    return new Promise( (resolve, reject) => {
+        client.once("response", (response: Response) => {
+            try {
+                resolve(shouldError(response));
+            } catch (error) {
+                reject(error);
+            }
+        });
+    });
+}
+
+export async function createProducerTransport(client: ClientV2, id: RequestId) {
+    {
+        const request: Request = {
+            createProducerTransport: {}
+        };
+        const waitResponse = responseShouldNotError(client);
+        await client.onMessage({
+            id,
+            request
+        });
+        const response = await waitResponse;
+        if (!response.result.producerTransportCreated) {
+            throw new Error("Expected a producer transport to be created");
+        }
+        return response.result.producerTransportCreated.dtlsParameters;
+    }
+}
+
+export async function connectProducerTransport(dtlsParameters: DtlsParameters, client: ClientV2, id: RequestId) {
+    const request = {
+        connectProducerTransport: {
+            dtlsParameters
+        }
+    };
+
+    const waitResponse = responseShouldNotError(client);
+    await client.onMessage({
+        id,
+        request
+    });
+    await expect(waitResponse).resolves.toEqual({id, result: undefined});
+}
+
+export async function createConsumerTransport(client: ClientV2, id: RequestId) {
+    {
+        const request: Request = {
+            createConsumerTransport: {}
+        };
+        const waitResponse = responseShouldNotError(client);
+        await client.onMessage({
+            id,
+            request
+        });
+        const response = await waitResponse;
+        if (!response.result.consumerTransportCreated) {
+            throw new Error("Expected a producer transport to be created");
+        }
+        return response.result.consumerTransportCreated.dtlsParameters;
+    }
+}
+
+export async function connectConsumerTransport(dtlsParameters: DtlsParameters, client: ClientV2, id: RequestId) {
+    const request = {
+        connectConsumerTransport: {
+            dtlsParameters
+        }
+    };
+
+    const waitResponse = responseShouldNotError(client);
+    await client.onMessage({
+        id,
+        request
+    });
+    const response = await waitResponse;
+    expect(response.id).toEqual(id);
+    expect(response.result).toBeUndefined();
+}
+
+export async function createProducer(client: ClientV2, id: RequestId, rtpParameters: RtpParameters) {
+    const waitResponse = responseShouldNotError(client);
+    await client.onMessage({
+        id,
+        request: {
+            produceTrack: {
+                kind: "video",
+                rtpParameters,
+                name: "camera"
+            }
+        }
+    });
+    const response = await waitResponse;
+    expect(response.id).toEqual(id);
+    expect(response.result).toHaveProperty("producerCreated");
+    if (!response.result.producerCreated) {
+        throw new Error("Producer not created");
+    }
+    return response.result.producerCreated as unknown as ProducerId;
+}
+
+export async function setRtpCapabilities(consumeClient: ClientV2, id: RequestId) {
+    const waitResponse = responseShouldNotError(consumeClient);
+    await consumeClient.onMessage({
+        id,
+        request: {
+            setRtpCapabilities: {
+                codecs: rtpCapabilities.codecs
+            }
+        }
+    });
+    const response = await waitResponse;
+    expect(response.id).toEqual(id);
+    expect(response.result).toBeUndefined();
+}
+
+export async function consumeTrack(consumeClient: ClientV2, producerId: ProducerId, id: RequestId) {
+    const waitResponse = responseShouldNotError(consumeClient);
+    await consumeClient.onMessage({
+        id,
+        request: {
+            consumeTrack: {
+                producerId,
+            }
+        }
+    });
+    const response = await waitResponse;
+    expect(response.id).toEqual(id);
+    expect(response.result).toHaveProperty("consumerCreated");
+}
+
+export async function pauseTrack(client: ClientV2, producerId: ProducerId, paused: boolean, id: RequestId) {
+    const waitResponse = responseShouldNotError(client);
+    await client.onMessage({
+        id,
+        request: {
+            pause: {
+                id: producerId,
+                paused
+            }
+        }
+    });
+
+    const response = await waitResponse;
+    expect(response.id).toEqual(id);
+    expect(response.result).toBeUndefined();
+}
+
+export async function pauseTrackForEveryone(client: ClientV2, producerId: ProducerId, paused: boolean, id: RequestId) {
+    const waitResponse = responseShouldNotError(client);
+    await client.onMessage({
+        id,
+        request: {
+            pauseForEveryone: {
+                id: producerId,
+                paused
+            }
+        }
+    });
+
+    const response = await waitResponse;
+    expect(response.id).toEqual(id);
+    expect(response.result).toBeUndefined();
 }

@@ -1,4 +1,6 @@
 import { HttpServer } from "../httpServer";
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore
 import request from "supertest";
 
 describe("initializeServer", () => {
