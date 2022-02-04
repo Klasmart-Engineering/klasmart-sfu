@@ -422,16 +422,9 @@ export const MockRegistrar = () => {
     /* eslint-disable @typescript-eslint/no-empty-function */
     return {
         addSfuId: async (sfuId: SfuId) => { sfuIds.add(sfuId); },
-        removeSfuId: async (sfuId: SfuId) => { sfuIds.delete(sfuId); },
-        getSfuIds: async () => (Array.from(sfuIds.values())),
-
-        getSfuStatus: async (sfuId: SfuId) => statuses.get(sfuId),
         setSfuStatus: async (sfuId: SfuId, status: SfuStatus) => { statuses.set(sfuId, status); },
-
         addTrack: async (roomId: RoomId, track: TrackInfo) => { trackMap(roomId).set(track.producerId, track);} ,
         removeTrack: async (roomId: RoomId, id: ProducerId) => { trackMap(roomId).delete(id); },
-        getTracks: async (roomId: RoomId) => Array.from(trackMap(roomId).values()),
-        waitForTrackChanges: async () => ({cursor: "0"}),
     } as SfuRegistrar & TrackRegistrar;
     /* eslint-enable @typescript-eslint/no-empty-function */
 };
