@@ -1,12 +1,11 @@
+import cookie from "cookie";
+import { IncomingMessage } from "http";
+import { checkAuthenticationToken, checkLiveAuthorizationToken } from "kidsloop-token-validation";
+import parseUrl from "parseurl";
 import WebSocket, { Server } from "ws";
+
 import { HttpServer } from "./httpServer";
 import { Logger } from "../logger";
-import { IncomingMessage } from "http";
-import cookie from "cookie";
-import {
-    checkAuthenticationToken,
-    checkLiveAuthorizationToken,
-} from "kidsloop-token-validation";
 import { SFU } from "../v2/sfu";
 import {ClientV2, RequestMessage, ResponseMessage} from "../v2/client";
 import { newRoomId } from "../v2/room";
@@ -43,7 +42,7 @@ export class WSTransport {
         const {promise, resolve} = createDecoupledPromise<ClientV2>();
         this.client = promise;
         ws.on("message", (e) => this.onMessage(e));
-        ws.on("close", () => this.onClose());
+        ws.on("close", (code, reason) => this.onClose(code, reason));
         ws.on("error", (e) =>  this.onError(e));
         resolve(this.createClient(request));
     }
@@ -68,9 +67,9 @@ export class WSTransport {
         await client.onMessage(message);
     }
 
-    private async onClose() {
+    private async onClose(code: number, reason: Buffer) {
         const client = await this.client;
-        Logger.info(`Websocket closed for Client(${client.id})`);
+        Logger.info(`Websocket closed(${code}, ${reason}) for Client(${client.id})`);
         client.onClose();
     }
 
@@ -150,16 +149,10 @@ async function handleAuth(req: IncomingMessage) {
         };
     }
 
-    if(!req.headers.cookie) { throw new Error("No authentication; no cookies"); }
-    const {
-        access,
-        authorization,
-    } = cookie.parse(req.headers.cookie);
+    const authentication = getAuthenticationJwt(req); 
+    const authorization = getAuthorizationJwt(req); 
 
-    if(!access) { throw new Error("No authentication; no access cookie"); }
-    if(!authorization) { throw new Error("No authorization; no authorization cookie"); }
-
-    const authenticationToken = await checkAuthenticationToken(access);
+    const authenticationToken = await checkAuthenticationToken(authentication);
     const authorizationToken = await checkLiveAuthorizationToken(authorization);
     if (authorizationToken.userid !== authenticationToken.id) {
         throw new Error("Authentication and Authorization tokens are not for the same user");
@@ -171,6 +164,33 @@ async function handleAuth(req: IncomingMessage) {
         isTeacher: authorizationToken.teacher || false,
     };
 }
+
+
+const getAuthenticationJwt = (req: IncomingMessage) => {
+    if (!req.headers.cookie) { throw new Error("No authentication; no cookies"); }
+    const cookies = cookie.parse(req.headers.cookie);
+
+    const access = cookies.access;
+    if (!access) { throw new Error("No authentication; no access cookie"); }
+    return access;
+};
+
+const getAuthorizationJwt = (req: IncomingMessage) => {
+    const url = parseUrl(req);
+    if(!url || !url.query) { throw new Error("No authorization; no query params"); }
+    if(typeof url.query === "string") { 
+        const queryParams = new URLSearchParams(url.query);
+        const authorization = queryParams.get("authorization");
+        if (!authorization) { throw new Error("No authorization; no authorization query param"); }
+        return authorization;
+    } else {
+        const authorization = url.query["authorization"] instanceof Array ? url.query["authorization"][0] : url.query["authorization"];
+        if (!authorization) { throw new Error("No authorization; no authorization query param"); }
+        return authorization;
+    }
+    
+};
+
 
 let _debugUserCount = 0;
 function debugUserId() { return `debugUser${_debugUserCount++}`; }
