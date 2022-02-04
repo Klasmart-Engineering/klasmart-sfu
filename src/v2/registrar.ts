@@ -20,8 +20,8 @@ export type TrackInfoEvent = {
 
 export type SfuStatus = {
     endpoint: string
-    producers?: number
-    consumers?: number
+    producers: number
+    consumers: number
     lastUpdateTimestamp?: number
 }
 
