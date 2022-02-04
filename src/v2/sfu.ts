@@ -14,11 +14,11 @@ export class SFU {
     constructor(
         private readonly worker: MediaSoup.Worker,
         public readonly listenIps:MediaSoup.TransportListenIp[],
-        public /*readonly*/ endpoint: string,
+        public endpoint: string,
         private registrar: SfuRegistrar & TrackRegistrar
     ) {
         Logger.info(`SFU(${this.id}) created`);
-        this.updateStatus();
+        this.updateStatus().catch((e) => Logger.error(e));
     }
 
     private async updateStatus(timeout = 5000) {
@@ -26,9 +26,17 @@ export class SFU {
             if(this.worker.closed) { return; }
             setTimeout(() => this.updateStatus(), timeout);
 
+            let numProducers = 0;
+            let numConsumers = 0;
+            for (const room of this.rooms.values()) {
+                numProducers += room.numProducers;
+                numConsumers += room.numConsumers;
+            }
             await this.registrar.addSfuId(this.id);
             await this.registrar.setSfuStatus(this.id, {
                 endpoint: this.endpoint,
+                producers: numProducers,
+                consumers: numConsumers,
             });
         } catch (e) {
             // istanbul ignore next

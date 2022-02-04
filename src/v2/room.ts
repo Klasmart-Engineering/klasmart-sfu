@@ -83,6 +83,24 @@ export class Room {
 
     private readonly emitter = new EventEmitter<RoomEventMap>();
     private readonly localTracks = new Map<ProducerId, Track>();
+
+    public get numProducers() {
+        let numProducers = 0;
+        for (const track of this.localTracks.values()) {
+            if(track.closed) { continue; }
+            numProducers++;
+        }
+        return numProducers;
+    }
+
+    public get numConsumers() {
+        let numConsumers = 0;
+        for (const track of this.localTracks.values()) {
+            if (track.closed) { continue; }
+            numConsumers += track.numConsumers;
+        }
+        return numConsumers;
+    }
 }
 
 export type RoomEventMap = {
