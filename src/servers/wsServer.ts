@@ -44,7 +44,7 @@ export class WSTransport {
         ws.on("message", (e) => this.onMessage(e));
         ws.on("close", (code, reason) => this.onClose(code, reason));
         ws.on("error", (e) =>  this.onError(e));
-        resolve(this.createClient(request));
+        this.createClient(request).then(c => resolve(c));
     }
 
     private send(message: ResponseMessage) {
@@ -69,7 +69,7 @@ export class WSTransport {
 
     private async onClose(code: number, reason: Buffer) {
         const client = await this.client;
-        Logger.info(`Websocket closed(${code}, ${reason}) for Client(${client.id})`);
+        Logger.info(`Websocket closed(${code}, ${reason}) for Client(${client?.id})`);
         client.onClose();
     }
 
@@ -177,7 +177,8 @@ const getAuthenticationJwt = (req: IncomingMessage) => {
 
 const getAuthorizationJwt = (req: IncomingMessage) => {
     const url = parseUrl(req);
-    if(!url || !url.query) { throw new Error("No authorization; no query params"); }
+    if(!url) { throw new Error(`No authorization; no url(${req.url},${url})`); }
+    if(!url.query) { throw new Error("No authorization; no query params"); }
     if(typeof url.query === "string") { 
         const queryParams = new URLSearchParams(url.query);
         const authorization = queryParams.get("authorization");
