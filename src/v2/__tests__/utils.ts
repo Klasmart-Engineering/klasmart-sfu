@@ -1,9 +1,9 @@
 import {createWorker, types as MediaSoup} from "mediasoup";
-import {SFU} from "../sfu";
-import {newRoomId} from "../room";
+import {SFU, SfuId} from "../sfu";
+import {newRoomId, RoomId} from "../room";
 import {Consumer} from "../consumer";
 import {mediaCodecs} from "../../config";
-import {MockRegistrar} from "../registrar";
+import {SfuRegistrar, SfuStatus, TrackInfo, TrackRegistrar} from "../registrar";
 import {newProducerId, ProducerId} from "../track";
 import {RtpCapabilities, RtpParameters} from "mediasoup/node/lib/RtpParameters";
 import {Response, ClientV2, Result, Request, RequestId} from "../client";
@@ -405,3 +405,33 @@ export async function pauseTrackForEveryone(client: ClientV2, producerId: Produc
     expect(response.id).toEqual(id);
     expect(response.result).toBeUndefined();
 }
+
+export const MockRegistrar = () => {
+    const sfuIds = new Set<SfuId>();
+    const statuses = new Map<SfuId, SfuStatus>();
+    const tracks = new Map<RoomId, Map<ProducerId, TrackInfo>>();
+    const trackMap = (roomId: RoomId) => {
+        let map = tracks.get(roomId);
+        if(!map) {
+            map = new Map<ProducerId, TrackInfo>();
+            tracks.set(roomId, map);
+        }
+        return map;
+    };
+
+    /* eslint-disable @typescript-eslint/no-empty-function */
+    return {
+        addSfuId: async (sfuId: SfuId) => { sfuIds.add(sfuId); },
+        removeSfuId: async (sfuId: SfuId) => { sfuIds.delete(sfuId); },
+        getSfuIds: async () => (Array.from(sfuIds.values())),
+
+        getSfuStatus: async (sfuId: SfuId) => statuses.get(sfuId),
+        setSfuStatus: async (sfuId: SfuId, status: SfuStatus) => { statuses.set(sfuId, status); },
+
+        addTrack: async (roomId: RoomId, track: TrackInfo) => { trackMap(roomId).set(track.producerId, track);} ,
+        removeTrack: async (roomId: RoomId, id: ProducerId) => { trackMap(roomId).delete(id); },
+        getTracks: async (roomId: RoomId) => Array.from(trackMap(roomId).values()),
+        waitForTrackChanges: async () => ({cursor: "0"}),
+    } as SfuRegistrar & TrackRegistrar;
+    /* eslint-enable @typescript-eslint/no-empty-function */
+};
