@@ -27,7 +27,7 @@ export class Track {
 
     private readonly consumers = new Map<ClientId, Consumer>();
 
-    public get producerId() { return this.reciever.id as ProducerId; }
+    public get producerId() { return this.receiver.id as ProducerId; }
     public get numConsumers() { return this.consumers.size; }
 
     private readonly emitter = new EventEmitter<TrackEventMap>();
@@ -35,21 +35,21 @@ export class Track {
     public readonly off: Track["emitter"]["off"] = (event, listener) => this.emitter.off(event, listener);
     public readonly once: Track["emitter"]["once"] = (event, listener) => this.emitter.once(event, listener);
 
-    public get closed() { return this.reciever.closed; }
+    public get closed() { return this.receiver.closed; }
 
     public get pausedByProducingUser() { return this._pausedByProducingUser; }
     public get pausedGlobally() { return this._pausedGlobally; }
 
     private constructor(
         public readonly owner: ClientId,
-        private readonly reciever: MediaSoup.Producer,
+        private readonly receiver: MediaSoup.Producer,
         private readonly router: MediaSoup.Router,
         public readonly name?: string,
         public readonly sessionId?: string,
         private _pausedByProducingUser = false,
         private _pausedGlobally = false,
     ) {
-        this.reciever.on("transportclose", () => this.onClose());
+        this.receiver.on("transportclose", () => this.onClose());
     }
 
     public async consume(clientId: ClientId, transport: MediaSoup.WebRtcTransport, rtpCapabilities: MediaSoup.RtpCapabilities) {
@@ -87,7 +87,7 @@ export class Track {
         this.emitter.emit("pausedByProducingUser", paused);
     }
 
-    /* A user recieving this track has paused it for theirselves */
+    /* A user receiving this track has paused it for themselves */
     private async setPausedByConsumingUser(id: ClientId, pausedByUser: boolean) {
         const consumer = this.consumers.get(id);
         if (!consumer) { throw new Error(`Consumer not found in Track(${this.producerId}) for Client(${id})`); }
@@ -100,7 +100,7 @@ export class Track {
     private async updateConsumerPauseState() {
         const pausedUpstream = this._pausedByProducingUser || this._pausedGlobally;
         for(const consumer of this.consumers.values()) {
-            await consumer.updateSenderPauseState(pausedUpstream); 
+            await consumer.updateSenderPauseState(pausedUpstream);
         }
     }
 

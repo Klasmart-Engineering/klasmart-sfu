@@ -18,10 +18,10 @@ async function main() {
     const privateAddresses = interfaceAddresses.filter(x => checkIp(x).isRfc1918);
     const publicAddresses = interfaceAddresses.filter(x => checkIp(x).isPublicIp);
     const awsPublicAddress = await getECSTaskENIPublicIP();
-    
+
     const webRtcAddress: MediaSoup.TransportListenIp = {
         ip: process.env.WEBRTC_INTERFACE_ADDRESS || "0.0.0.0",
-        announcedIp: 
+        announcedIp:
             process.env.WEBRTC_ANNOUCE_IP ||
             awsPublicAddress ||
             publicAddresses[0] ||
@@ -32,7 +32,7 @@ async function main() {
         process.env.PRIVATE_ADDRESS ||
         privateAddresses[0] ||
         hostname();
-    
+
     const redis = new Redis({
         host: process.env.REDIS_HOST,
         port: Number(process.env.REDIS_PORT) || undefined,

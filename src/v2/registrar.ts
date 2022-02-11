@@ -76,7 +76,7 @@ export class RedisRegistrar implements SfuRegistrar, TrackRegistrar {
         await this.redis.xadd(notificationKey, "MAXLEN", "~", 128, "*", "json", JSON.stringify(event));
     }
 
-    private async setJsonEncoded<T=unknown>(key: string, value: T, timeout = 15) {
+    private async setJsonEncoded<T>(key: string, value: T, timeout = 15) {
         await this.redis.set(key, JSON.stringify(value), "EX", timeout);
     }
 

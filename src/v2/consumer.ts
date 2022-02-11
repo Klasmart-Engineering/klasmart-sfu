@@ -71,7 +71,7 @@ export class Consumer {
 
 export type PauseState = {
     pausedUpstream: boolean,
-    pausedByUser: boolean, 
+    pausedByUser: boolean,
 }
 
 export type ConsumerEventEmitter = Consumer["emitter"]
