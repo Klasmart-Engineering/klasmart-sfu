@@ -65,9 +65,9 @@ export class Track {
 
     public async setPausedForUser(client: ClientV2, paused: boolean) {
         if (this.owner === client.id) {
-            this.setPausedByProducingUser(paused);
+            await this.setPausedByProducingUser(paused);
         } else {
-            this.setPausedByConsumingUser(client.id, paused);
+            await this.setPausedByConsumingUser(client.id, paused);
         }
     }
     /* A user (teacher) has paused this for everyone */
