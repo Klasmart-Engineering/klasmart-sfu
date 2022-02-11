@@ -73,7 +73,7 @@ export class Room {
                 sessionId: track.sessionId,
             });
         } catch (e) {
-            console.error(e);
+            Logger.error(e);
         }
     }
 

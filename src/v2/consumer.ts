@@ -40,14 +40,14 @@ export class Consumer {
     public async updateSenderPauseState(pausedUpstream: boolean) {
         const shouldPauseSender = pausedUpstream || this.pausedByUser;
         if(this.sender.paused === shouldPauseSender) {
-            console.info(`setPauseState Consumer(${this.id})  - no change`);
+            Logger.info(`setPauseState Consumer(${this.id})  - no change`);
             return;
         }
         if(shouldPauseSender) {
-            console.info(`setPauseState Consumer(${this.id}) - pause`);
+            Logger.info(`setPauseState Consumer(${this.id}) - pause`);
             await this.sender.pause();
         } else {
-            console.info(`setPauseState Consumer(${this.id}) - resume`);
+            Logger.info(`setPauseState Consumer(${this.id}) - resume`);
             await this.sender.resume();
         }
         this.emitter.emit("senderPaused", this.sender.paused);

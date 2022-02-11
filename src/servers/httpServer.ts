@@ -19,7 +19,7 @@ export class HttpServer {
                 const metrics = await register.metrics();
                 res.end(metrics);
             } catch (ex: unknown) {
-                console.error(ex);
+                Logger.error(ex);
                 res.status(500).end(ex instanceof Error ? ex.toString() : "Error retrieving metrics");
             }
         });

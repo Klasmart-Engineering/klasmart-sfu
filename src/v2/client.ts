@@ -127,7 +127,7 @@ export class ClientV2 {
 
     public async onMessage({ id, request }: RequestMessage) {
         try {
-            console.log(request);
+            Logger.info(request);
             const result = await this.handleMessage(request);
             this.emitter.emit("response", { id, result });
         } catch (error: unknown) {
@@ -207,7 +207,7 @@ export class ClientV2 {
     }
 
     public onClose() {
-        console.log(`Client(${this.id}) disconnect`);
+        Logger.info(`Client(${this.id}) disconnect`);
         this.producerTransport?.close();
         this.consumerTransport?.close();
         this.emitter.emit("close");
@@ -250,7 +250,7 @@ export class ClientV2 {
 
         this._numProducers++;
         track.on("closed", () => {
-            console.log(`Track(${track.producerId}) close`);
+            Logger.info(`Track(${track.producerId}) close`);
             this.emitter.emit("producerClosed", producerId);
             this._numProducers--;
         });

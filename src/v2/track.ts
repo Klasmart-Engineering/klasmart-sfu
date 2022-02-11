@@ -5,6 +5,7 @@ import { types as MediaSoup } from "mediasoup";
 import { ClientId, ClientV2 } from "./client";
 import { Consumer } from "./consumer";
 import { NewType } from "./newType";
+import {Logger} from "../logger";
 
 export type ProducerId = NewType<string, "ProducerId">
 export function newProducerId(id: string) { return id as ProducerId; }
@@ -58,7 +59,7 @@ export class Track {
         if (!this.router.canConsume({rtpCapabilities, producerId})) { throw new Error("Client is not capable of consuming this producer"); }
 
         const consumer = await Consumer.create(transport, producerId, rtpCapabilities);
-        console.log(`Consumer created for Track(${this.producerId}).Client(${clientId})`);
+        Logger.info(`Consumer created for Track(${this.producerId}).Client(${clientId})`);
         this.consumers.set(clientId, consumer);
         return consumer;
     }
@@ -104,7 +105,7 @@ export class Track {
     }
 
     private onClose() {
-        console.log(`Producer(${this.reciever.id}) closed`);
+        Logger.info(`Producer(${this.receiver.id}) closed`);
         this.emitter.emit("closed");
     }
 }

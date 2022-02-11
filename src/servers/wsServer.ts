@@ -125,9 +125,9 @@ export class WSTransport {
 
 function parse(message: string): RequestMessage | undefined {
     const request = JSON.parse(message) as RequestMessage;
-    if (typeof request !== "object") { console.error(`Received request of type '${typeof request}'`); return; }
-    if (!request) { console.error("Received null request"); return; }
-    if (!request.id) { console.error("Received request without id"); return; }
+    if (typeof request !== "object") { Logger.error(`Received request of type '${typeof request}'`); return; }
+    if (!request) { Logger.error("Received null request"); return; }
+    if (!request.id) { Logger.error("Received request without id"); return; }
     return request;
 }
 

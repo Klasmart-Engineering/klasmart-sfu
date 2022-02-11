@@ -27,7 +27,7 @@ async function main() {
             publicAddresses[0] ||
             privateAddresses[0],
     };
-    console.log(webRtcAddress);
+    Logger.info(webRtcAddress);
     const privateAddress =
         process.env.PRIVATE_ADDRESS ||
         privateAddresses[0] ||
@@ -41,7 +41,7 @@ async function main() {
         // TODO: reconnectOnError
     });
     await redis.connect();
-    console.log("🔴 Redis database connected");
+    Logger.info("🔴 Redis database connected");
 
     const sfu = new SFU(
         worker,
