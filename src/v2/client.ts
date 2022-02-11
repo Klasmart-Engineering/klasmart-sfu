@@ -78,7 +78,10 @@ export type Result = {
     routerRtpCapabilities?: MediaSoup.RtpCapabilities;
 
     producerTransportCreated?: WebRtcTransportResult;
-    producerCreated?: ProducerId;
+    producerCreated?: {
+        producerId: ProducerId,
+        pausedGlobally: boolean,
+    };
 
     consumerTransportCreated?: WebRtcTransportResult;
     consumerCreated?: {
@@ -167,8 +170,13 @@ export class ClientV2 {
             return;
         } else if (produceTrack) {
             Logger.info(`produceTrack: ${JSON.stringify(produceTrack)}`);
-            const producerCreated = await this.produceTrack(produceTrack);
-            return { producerCreated };
+            const { producerId, pausedGlobally } = await this.produceTrack(produceTrack);
+            return {
+                producerCreated: {
+                    producerId,
+                    pausedGlobally,
+                }
+            };
         } else if (createConsumerTransport) {
             Logger.info(`consumerTransport: ${JSON.stringify(createConsumerTransport)}`);
             const consumerTransportCreated = await this.createConsumerTransport();
@@ -248,9 +256,8 @@ export class ClientV2 {
         });
 
         track.on("pausedGlobally", paused => this.emitter.emit("pausedGlobally", {producerId, paused}));
-        this.emitter.emit("pausedGlobally", {producerId, paused: track.pausedGlobally});
 
-        return track.producerId;
+        return track;
     }
 
     private async createConsumerTransport(): Promise<WebRtcTransportResult> {
