@@ -216,7 +216,10 @@ export class ClientV2 {
     // Network messages
     private async createProducerTransport(): Promise<WebRtcTransportResult> {
         this.producerTransport = await this.createTransport(this.sfu.listenIps);
-        this.producerTransport.on("routerclose", () => this.emitter.emit("producerTransportClosed"));
+        this.producerTransport.on("routerclose", () => {
+            Logger.info(`Client(${this.id}).ProducerTransport(${this.producerTransport?.id})'s Router(${this.room.router.id}) has closed`);
+            this.emitter.emit("producerTransportClosed");
+        });
         return {
             id: this.producerTransport.id,
             iceCandidates: this.producerTransport.iceCandidates,
@@ -262,7 +265,10 @@ export class ClientV2 {
 
     private async createConsumerTransport(): Promise<WebRtcTransportResult> {
         this.consumerTransport = await this.createTransport(this.sfu.listenIps);
-        this.consumerTransport.on("routerclose", () => this.emitter.emit("consumerTransportClosed"));
+        this.consumerTransport.on("routerclose", () => {
+            Logger.info(`Client(${this.id}).ConsumerTransport(${this.consumerTransport?.id})'s Router(${this.room.router.id}) has closed`);
+            this.emitter.emit("consumerTransportClosed");
+        });
         return {
             id: this.consumerTransport.id,
             iceCandidates: this.consumerTransport.iceCandidates,
@@ -289,7 +295,10 @@ export class ClientV2 {
             this.rtpCapabilities,
         );
 
-        consumer.on("closed", () => this.emitter.emit("consumerClosed", producerId));
+        consumer.on("closed", () => {
+            Logger.info(`Client(${this.id}).Consumer(${this.consumerTransport?.id}) has closed`);
+            this.emitter.emit("consumerClosed", producerId);
+        });
 
         track.on("pausedByProducingUser", paused => this.emitter.emit("pausedByProducingUser", {producerId, paused}));
         this.emitter.emit("pausedByProducingUser", {producerId, paused: track.pausedByProducingUser});

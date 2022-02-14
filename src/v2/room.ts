@@ -78,6 +78,7 @@ export class Room {
     }
 
     private onTrackClosed(track: Track) {
+        Logger.info(`Room(${this.id}).Track(${track.producerId}) closed`);
         this.localTracks.delete(track.producerId);
     }
 

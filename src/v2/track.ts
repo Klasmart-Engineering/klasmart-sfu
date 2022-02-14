@@ -49,7 +49,10 @@ export class Track {
         private _pausedByProducingUser = false,
         private _pausedGlobally = false,
     ) {
-        this.receiver.on("transportclose", () => this.onClose());
+        this.receiver.on("transportclose", () => {
+            Logger.info(`Producer(${this.receiver.id}) owned by Client(${this.owner}) closed`);
+            this.onClose();
+        });
     }
 
     public async consume(clientId: ClientId, transport: MediaSoup.WebRtcTransport, rtpCapabilities: MediaSoup.RtpCapabilities) {
@@ -106,7 +109,7 @@ export class Track {
     }
 
     private onClose() {
-        Logger.info(`Producer(${this.receiver.id}) closed`);
+        Logger.info(`Track(${this.receiver.id}) owned by Client(${this.owner}) closed`);
         this.emitter.emit("closed");
     }
 }

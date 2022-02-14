@@ -15,8 +15,14 @@ export class Consumer {
         private readonly sender: MediaSoup.Consumer,
         private pausedByUser = false
     ) {
-        this.sender.on("transportclose", () => this.onClose());
-        this.sender.on("producerclose", () => this.onClose());
+        this.sender.on("transportclose", () => {
+            Logger.info(`Consumer(${this.sender.id})'s Transport closed`);
+            this.onClose();
+        });
+        this.sender.on("producerclose", () => {
+            Logger.info(`Consumer(${this.sender.id})'s Producer closed`);
+            this.onClose();
+        });
         this.sender.on("layerschange", (layers) => Logger.info(`consumerLayerChange(${this.id}): ${JSON.stringify(layers)}`));
     }
 
@@ -40,7 +46,7 @@ export class Consumer {
     public async updateSenderPauseState(pausedUpstream: boolean) {
         const shouldPauseSender = pausedUpstream || this.pausedByUser;
         if(this.sender.paused === shouldPauseSender) {
-            Logger.info(`setPauseState Consumer(${this.id})  - no change`);
+            Logger.info(`setPauseState Consumer(${this.id}) - no change`);
             return;
         }
         if(shouldPauseSender) {
