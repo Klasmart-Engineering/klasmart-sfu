@@ -60,6 +60,7 @@ export class Track {
 
         const consumer = await Consumer.create(transport, producerId, rtpCapabilities);
         Logger.info(`Consumer created for Track(${this.producerId}).Client(${clientId})`);
+        consumer.on("closed", () => this.consumers.delete(clientId));
         this.consumers.set(clientId, consumer);
         return consumer;
     }
