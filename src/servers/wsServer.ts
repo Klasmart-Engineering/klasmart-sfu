@@ -71,14 +71,12 @@ export class WSTransport {
     }
 
     private send(message: ResponseMessage) {
-        Logger.info("Websocket tx", message);
         this.resetNetworkSendTimeout();
         const data = JSON.stringify(message);
         this.ws.send(data);
     }
 
     private async onMessage(data: RawData) {
-        Logger.info("Websocket rx", data);
         this.resetNetworkReceiveTimeout();
         if (!data) { return; }
         const messageString = data.toString();
