@@ -1,14 +1,11 @@
-import cookie from "cookie";
 import { createServer, IncomingMessage, ServerResponse } from "http";
-import { checkAuthenticationToken, checkLiveAuthorizationToken } from "kidsloop-token-validation";
-import parseUrl from "parseurl";
 import { Duplex } from "stream";
 import { WebSocketServer, WebSocket, RawData } from "ws";
 
 import { Logger } from "../logger";
 import { ClientV2, RequestMessage, ResponseMessage } from "../v2/client";
-import { newRoomId } from "../v2/room";
 import { SFU } from "../v2/sfu";
+import { handleAuth } from "./auth";
 
 export class WsServer {
     public constructor(
@@ -128,58 +125,3 @@ function parse(message: string): RequestMessage | undefined {
     if (!request.id) { Logger.error("Received request without id"); return; }
     return request;
 }
-
-async function handleAuth(req: IncomingMessage) {
-    if (process.env.DISABLE_AUTH) {
-        Logger.warn("RUNNING IN DEBUG MODE - SKIPPING AUTHENTICATION AND AUTHORIZATION");
-        return {
-            userId: debugUserId(),
-            roomId: newRoomId("test-room"),
-            isTeacher: true
-        };
-    }
-
-    const authentication = getAuthenticationJwt(req);
-    const authorization = getAuthorizationJwt(req);
-
-    const authenticationToken = await checkAuthenticationToken(authentication);
-    const authorizationToken = await checkLiveAuthorizationToken(authorization);
-    if (authorizationToken.userid !== authenticationToken.id) {
-        throw new Error("Authentication and Authorization tokens are not for the same user");
-    }
-
-    return {
-        userId: authorizationToken.userid,
-        roomId: newRoomId(authorizationToken.roomid),
-        isTeacher: authorizationToken.teacher || false,
-    };
-}
-
-const getAuthenticationJwt = (req: IncomingMessage) => {
-    if (!req.headers.cookie) { throw new Error("No authentication; no cookies"); }
-    const cookies = cookie.parse(req.headers.cookie);
-
-    const access = cookies.access;
-    if (!access) { throw new Error("No authentication; no access cookie"); }
-    return access;
-};
-
-const getAuthorizationJwt = (req: IncomingMessage) => {
-    const url = parseUrl(req);
-    if (!url) { throw new Error(`No authorization; no url(${req.url},${url})`); }
-    if (!url.query) { throw new Error("No authorization; no query params"); }
-    if (typeof url.query === "string") {
-        const queryParams = new URLSearchParams(url.query);
-        const authorization = queryParams.get("authorization");
-        if (!authorization) { throw new Error("No authorization; no authorization query param"); }
-        return authorization;
-    } else {
-        const authorization = url.query["authorization"] instanceof Array ? url.query["authorization"][0] : url.query["authorization"];
-        if (!authorization) { throw new Error("No authorization; no authorization query param"); }
-        return authorization;
-    }
-
-};
-
-let _debugUserCount = 0;
-function debugUserId() { return `debugUser${_debugUserCount++}`; }
