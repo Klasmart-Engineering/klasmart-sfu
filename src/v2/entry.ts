@@ -1,3 +1,6 @@
+import { Logger } from "../logger";
+process.on("uncaughtException",  (err) => { Logger.error("uncaughtException",err); }); 
+
 import { getECSTaskENIPublicIP } from "../cloudUtils";
 import { WsServer } from "../servers/wsServer";
 import { RedisRegistrar } from "./registrar";
@@ -9,7 +12,8 @@ import { getNetworkInterfacesAddresses } from "../networkInterfaces";
 import checkIp from "check-ip";
 import { createWorker, types as MediaSoup } from "mediasoup";
 import { hostname } from "os";
-import { Logger } from "../logger";
+
+
 
 async function main() {
     const worker = await createWorker({ logLevel: "debug" });
