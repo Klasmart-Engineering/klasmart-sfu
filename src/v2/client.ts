@@ -41,7 +41,7 @@ type ProduceTrackRequest = {
     appData?: Record<string, unknown>,
 };
 type ConsumeTrackRequest = { producerId: ProducerId };
-type PauseRequest = { paused: boolean, id: ProducerId };
+export type PauseRequest = { paused: boolean, id: ProducerId };
 
 
 

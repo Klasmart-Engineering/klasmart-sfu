@@ -16,7 +16,7 @@ export class Room {
 
     public track(id: ProducerId) {
         const track = this.localTracks.get(id);
-        if (!track) { throw new Error(`Track(${id}) not found`); }
+        if (!track) { throw new Error(`Track(${JSON.stringify(id)}) not found`); }
         return track;
     }
 

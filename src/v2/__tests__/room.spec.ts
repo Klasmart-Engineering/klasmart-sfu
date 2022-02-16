@@ -2,8 +2,8 @@ import {newClientId} from "../client";
 import {newProducerId} from "../track";
 import {types as MediaSoup} from "mediasoup";
 import {newRoomId, Room} from "../room";
-import {MockRouter, MockTransport, rtpParameters, setupSfu} from "./utils";
-import {SFU} from "../sfu";
+import {MockRegistrar, MockRouter, MockTransport, rtpParameters, setupSfu} from "./utils";
+import {newSfuId, SFU} from "../sfu";
 
 let sfu: SFU;
 describe("room", () => {
@@ -19,9 +19,11 @@ describe("room", () => {
         const clientId = newClientId("client");
         const transport = new MockTransport() as unknown as MediaSoup.WebRtcTransport;
         const router = new MockRouter() as unknown as MediaSoup.Router;
+        const registrar = MockRegistrar();
+        const sfuId = newSfuId("sfu");
 
         const roomId = newRoomId("room");
-        const room = new Room(roomId, router, () => {console.log("room closed");});
+        const room = new Room(roomId, sfuId, router, registrar);
         const track = await room.createTrack(clientId, transport, "video", rtpParameters);
 
         expect(room.track(track.producerId)).toBe(track);
@@ -29,9 +31,11 @@ describe("room", () => {
 
     it("should throw when trying to retrieve a track that doesn't exist", async () => {
         const router = new MockRouter() as unknown as MediaSoup.Router;
+        const registrar = MockRegistrar();
+        const sfuId = newSfuId("sfu");
 
         const roomId = newRoomId("room");
-        const room = new Room(roomId, router, () => {console.log("room closed");});
+        const room = new Room(roomId, sfuId, router, registrar);
 
         expect(() => {room.track(newProducerId("trackId"));}).toThrow();
     });
@@ -40,21 +44,25 @@ describe("room", () => {
         const clientId = newClientId("client");
         const transport = new MockTransport() as unknown as MediaSoup.WebRtcTransport;
         const router = new MockRouter() as unknown as MediaSoup.Router;
+        const registrar = MockRegistrar();
+        const sfuId = newSfuId("sfu");
 
         const roomId = newRoomId("room");
-        const room = new Room(roomId, router, () => {console.log("room closed");});
+        const room = new Room(roomId, sfuId, router, registrar);
         const track = await room.createTrack(clientId, transport, "video", rtpParameters);
 
-        track.end();
+        (track as unknown as {onClose: () => void}).onClose();
 
         expect(() => room.track(track.producerId)).toThrow();
     });
 
     it("should end a room", async () => {
         const router = new MockRouter() as unknown as MediaSoup.Router;
+        const registrar = MockRegistrar();
+        const sfuId = newSfuId("sfu");
 
         const roomId = newRoomId("room");
-        const room = new Room(roomId, router, () => {console.log("room closed");});
+        const room = new Room(roomId, sfuId, router, registrar);
 
         expect(() => room.end()).not.toThrow();
     });

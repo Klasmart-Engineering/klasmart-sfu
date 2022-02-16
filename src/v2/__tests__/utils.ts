@@ -6,7 +6,7 @@ import {mediaCodecs} from "../../config";
 import {SfuRegistrar, SfuStatus, TrackInfo, TrackRegistrar} from "../registrar";
 import {newProducerId, ProducerId} from "../track";
 import {RtpCapabilities, RtpParameters} from "mediasoup/node/lib/RtpParameters";
-import {Response, ClientV2, Result, Request, RequestId} from "../client";
+import {Response, ClientV2, Result, Request, RequestId, RequestMessage, PauseRequest} from "../client";
 import {DtlsParameters} from "mediasoup/node/lib/WebRtcTransport";
 import {nanoid} from "nanoid";
 
@@ -339,7 +339,7 @@ export async function createProducer(client: ClientV2, id: RequestId, rtpParamet
     if (!response.result.producerCreated) {
         throw new Error("Producer not created");
     }
-    return response.result.producerCreated as unknown as ProducerId;
+    return response.result.producerCreated;
 }
 
 export async function setRtpCapabilities(consumeClient: ClientV2, id: RequestId) {
@@ -391,15 +391,18 @@ export async function pauseTrack(client: ClientV2, producerId: ProducerId, pause
 
 export async function pauseTrackForEveryone(client: ClientV2, producerId: ProducerId, paused: boolean, id: RequestId) {
     const waitResponse = responseShouldNotError(client);
-    await client.onMessage({
+    const pauseRequest: PauseRequest = {
+        id: producerId,
+        paused
+    };
+    const request: Request = {
+        pauseForEveryone: pauseRequest
+    };
+    const requestMessage: RequestMessage = {
         id,
-        request: {
-            pauseForEveryone: {
-                id: producerId,
-                paused
-            }
-        }
-    });
+        request
+    };
+    await client.onMessage(requestMessage);
 
     const response = await waitResponse;
     expect(response.id).toEqual(id);

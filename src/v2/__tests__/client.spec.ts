@@ -138,7 +138,6 @@ describe("client", () => {
                         payloadType: 100
                     }]
                 },
-                name: "Name"
             }
         };
         const waitResponse = responseShouldError(client);
@@ -201,7 +200,7 @@ describe("client", () => {
         expect(response).toEqual(
             {
                 id: "0",
-                error: "Error: Track track-id not found"
+                error: "Error: Track(\"track-id\") not found"
             });
 
         client.onClose();
@@ -252,7 +251,7 @@ describe("client", () => {
         expect(response).toEqual(
             {
                 id: "0",
-                error: "Error: Track track-id not found"
+                error: "Error: Track(\"track-id\") not found"
             });
 
         client.onClose();
@@ -329,7 +328,7 @@ describe("client", () => {
         let dtlsParameters = await createProducerTransport(client, newRequestId("0"));
         await connectProducerTransport(dtlsParameters, client, newRequestId("1"));
 
-        const producerId = await createProducer(client, newRequestId("2"), rtpParameters);
+        const { producerId }  = await createProducer(client, newRequestId("2"), rtpParameters);
         await setRtpCapabilities(consumeClient, newRequestId("0"));
 
         dtlsParameters = await createConsumerTransport(consumeClient, newRequestId("1"));
@@ -345,7 +344,7 @@ describe("client", () => {
         const dtlsParameters = await createProducerTransport(client, newRequestId("0"));
         await connectProducerTransport(dtlsParameters, client, newRequestId("1"));
 
-        const producerId = await createProducer(client, newRequestId("2"), rtpParameters);
+        const { producerId } = await createProducer(client, newRequestId("2"), rtpParameters);
         await pauseTrack(client, producerId, true, newRequestId("3"));
 
         client.onClose();
@@ -356,7 +355,7 @@ describe("client", () => {
         const dtlsParameters = await createProducerTransport(client, newRequestId("0"));
         await connectProducerTransport(dtlsParameters, client, newRequestId("1"));
 
-        const producerId = await createProducer(client, newRequestId("2"), rtpParameters);
+        const { producerId } = await createProducer(client, newRequestId("2"), rtpParameters);
         await pauseTrackForEveryone(client, producerId, true, newRequestId("3"));
 
         client.onClose();
@@ -367,7 +366,7 @@ describe("client", () => {
         const dtlsParameters = await createProducerTransport(client, newRequestId("0"));
         await connectProducerTransport(dtlsParameters, client, newRequestId("1"));
 
-        const producerId = await createProducer(client, newRequestId("2"), rtpParameters);
+        const { producerId } = await createProducer(client, newRequestId("2"), rtpParameters);
 
         client.once("response", (response: Response) => {
             expect(response).toBeDefined();
@@ -461,7 +460,6 @@ describe("client", () => {
                             },
                         }],
                     },
-                    name: `${13}`
                 },
             }
         });

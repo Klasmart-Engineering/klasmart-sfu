@@ -62,29 +62,29 @@ describe("track", () => {
                 resolve();
             });
         });
-        track.end();
+        (track as unknown as {onClose: () => void}).onClose();
 
         await expect(wait).resolves.not.toThrow();
     });
 
-    it("should set a producer to pausedByAdmin", async () => {
+    it("should set a producer to setPausedGlobally", async () => {
         const transport = new MockTransport() as unknown as MediaSoup.WebRtcTransport;
         const client = await setupSingleClient(sfu);
         const clientId = client.id;
         const router = new MockRouter() as unknown as MediaSoup.Router;
         const track = await Track.create(router, clientId, transport, "video", rtpParameters);
 
-        await track.pauseClient(client, false);
+        await track.setPausedForUser(client, false);
 
         const paused = new Promise<boolean>((resolve) => {
-            track.on("pausedByAdmin", (paused) => {
+            track.on("pausedGlobally", (paused) => {
                 resolve(paused);
             });
         });
 
-        await track.setPausedByAdmin(true);
+        await track.setPausedGlobally(true);
 
-        expect(track.pausedByAdmin).toBe(true);
+        expect(track.pausedGlobally).toBe(true);
 
         await expect(paused).resolves.toEqual(true);
     });
@@ -96,18 +96,18 @@ describe("track", () => {
         const router = new MockRouter() as unknown as MediaSoup.Router;
         const track = await Track.create(router, clientId, transport, "video", rtpParameters);
 
-        await track.setPausedByAdmin(false);
-        await track.pauseClient(client, false);
+        await track.setPausedGlobally(false);
+        await track.setPausedForUser(client, false);
 
         const paused = new Promise<boolean>((resolve) => {
-            track.on("pausedByOwner", (paused) => {
+            track.on("pausedByProducingUser", (paused) => {
                 resolve(paused);
             });
         });
 
-        await track.pauseClient(client, true);
+        await track.setPausedForUser(client, true);
 
-        expect(track.pausedByOwner).toBe(true);
+        expect(track.pausedByProducingUser).toBe(true);
 
         await expect(paused).resolves.toEqual(true);
     });
@@ -119,30 +119,30 @@ describe("track", () => {
         const router = new MockRouter() as unknown as MediaSoup.Router;
         const track = await Track.create(router, clientId, transport, "video", rtpParameters);
 
-        await track.setPausedByAdmin(false);
-        await track.pauseClient(client, false);
+        await track.setPausedGlobally(false);
+        await track.setPausedForUser(client, false);
 
         const paused = new Promise<boolean>((resolve) => {
-            track.once("pausedByOwner", (paused) => {
+            track.once("pausedByProducingUser", (paused) => {
                 resolve(paused);
             });
         });
 
-        await track.pauseClient(client, true);
+        await track.setPausedForUser(client, true);
 
-        expect(track.pausedByOwner).toBe(true);
+        expect(track.pausedByProducingUser).toBe(true);
 
         await expect(paused).resolves.toEqual(true);
 
         const resumed = new Promise<boolean>((resolve) => {
-            track.once("pausedByOwner", (resumed) => {
+            track.once("pausedByProducingUser", (resumed) => {
                 resolve(resumed);
             });
         });
 
-        await track.pauseClient(client, false);
+        await track.setPausedForUser(client, false);
 
-        expect(track.pausedByOwner).toBe(false);
+        expect(track.pausedByProducingUser).toBe(false);
 
         await expect(resumed).resolves.toEqual(false);
     });
@@ -158,11 +158,11 @@ describe("track", () => {
 
         const consumer = await track.consume(consumerId, transport, rtpCapabilities);
 
-        await consumer.setSinkPaused(false);
+        await consumer.setPausedByUser({pausedUpstream: false, pausedByUser: false});
 
-        await track.pauseClient(consumerClient, true);
+        await track.setPausedForUser(consumerClient, true);
 
-        expect(consumer.sinkIsPaused).toBe(true);
+        expect(consumer.parameters().paused).toBe(true);
     });
 
     it("should throw if an owner is trying to consume its own producer", async () => {
@@ -188,7 +188,7 @@ describe("track", () => {
         expect(track.numConsumers).toEqual(0);
 
         const wait = new Promise<void>((resolve, reject) => {
-            track.pauseClient(consumerClient, true).catch((error) => {
+            track.setPausedForUser(consumerClient, true).catch((error) => {
                 reject(error);
             }).then(() => {
                 resolve();
@@ -217,7 +217,7 @@ describe("track", () => {
             });
         });
 
-        consumer.close();
+        (consumer as unknown as {onClose: () => void}).onClose();
 
         await expect(wait).resolves.not.toThrow();
 
