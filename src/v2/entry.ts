@@ -1,10 +1,10 @@
 import { Logger } from "../logger";
-process.on("uncaughtException",  (err) => { Logger.error("uncaughtException",err); }); 
+process.on("uncaughtException",  (err) => { Logger.error("uncaughtException",err); });
 
 import { getECSTaskENIPublicIP } from "../cloudUtils";
 import { WsServer } from "../servers/wsServer";
 import { RedisRegistrar } from "./registrar";
-import Redis from "ioredis";
+import Redis, {Cluster, Redis as IORedis} from "ioredis";
 import { SFU } from "./sfu";
 import { getNetworkInterfacesAddresses } from "../networkInterfaces";
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
@@ -12,10 +12,10 @@ import { getNetworkInterfacesAddresses } from "../networkInterfaces";
 import checkIp from "check-ip";
 import { createWorker, types as MediaSoup } from "mediasoup";
 import { hostname } from "os";
-
-
+import dotenv from "dotenv";
 
 async function main() {
+    dotenv.config();
     const worker = await createWorker({ logLevel: "debug" });
 
     const interfaceAddresses = getNetworkInterfacesAddresses();
@@ -37,13 +37,35 @@ async function main() {
         privateAddresses[0] ||
         hostname();
 
-    const redis = new Redis({
-        host: process.env.REDIS_HOST,
-        port: Number(process.env.REDIS_PORT) || undefined,
-        password: process.env.REDIS_PASS || undefined,
-        lazyConnect: true,
-        // TODO: reconnectOnError
-    });
+    const redisMode: string = process.env.REDIS_MODE ?? "NODE";
+    const port = Number(process.env.REDIS_PORT ?? 6379);
+    const host = process.env.REDIS_HOST;
+    const password = process.env.REDIS_PASS;
+    const lazyConnect = true;
+    let redis: IORedis | Cluster;
+
+    if (redisMode === "CLUSTER") {
+        redis = new Cluster([
+            {
+                port,
+                host
+            }
+        ],
+        {
+            lazyConnect,
+            redisOptions: {
+                password
+            }
+        });
+    } else {
+        redis = new Redis({
+            host,
+            port,
+            password,
+            lazyConnect: true,
+            reconnectOnError: (err) => err.message.includes("READONLY"),
+        });
+    }
     await redis.connect();
     Logger.info("🔴 Redis database connected");
 
@@ -66,6 +88,5 @@ async function main() {
         Logger.info(`Announcing address HTTP traffic for webRTC signaling via redis: ${uri}`);
         sfu.endpoint = uri;
     });
-
 }
 main();

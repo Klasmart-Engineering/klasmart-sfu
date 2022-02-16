@@ -13,7 +13,7 @@ export class SFU {
     private readonly rooms = new Map<RoomId, Room>();
     constructor(
         private readonly worker: MediaSoup.Worker,
-        public readonly listenIps:MediaSoup.TransportListenIp[],
+        public readonly listenIps: MediaSoup.TransportListenIp[],
         public endpoint: string,
         private registrar: SfuRegistrar & TrackRegistrar
     ) {
