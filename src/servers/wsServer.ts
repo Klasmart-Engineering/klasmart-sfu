@@ -10,7 +10,7 @@ import { handleAuth } from "./auth";
 export class WsServer {
     public constructor(
         private readonly sfu: SFU,
-        public readonly http = createServer((req, res) => this.onRequest(req, res)),
+        public readonly http = createServer((req, res) => WsServer.onRequest(req, res)),
     ) {
         this.wss = new WebSocketServer({ noServer: true });
         this.http.on("upgrade", (req, socket, head) => this.onUpgrade(req, socket, head));
@@ -18,7 +18,7 @@ export class WsServer {
 
     private readonly wss: WebSocketServer;
 
-    private onRequest(req: IncomingMessage, res: ServerResponse) {
+    private static onRequest(req: IncomingMessage, res: ServerResponse) {
         Logger.info(`Ignoring HTTP Request(${req.method}, ${req.url}) from ${req.socket.remoteAddress}`);
         res.statusCode = 400;
         res.end();
@@ -31,11 +31,18 @@ export class WsServer {
             const client = await this.sfu.createClient(userId, roomId, isTeacher);
             this.wss.handleUpgrade(req, socket, head, ws => new WSTransport(ws, client, null));
         } catch (e) {
+            const error = e as Error;
             Logger.error(e);
+            this.wss.handleUpgrade(req, socket, head, ws => {
+                ws.send(JSON.stringify({
+                    error: error.name,
+                    message: error.message,
+                }));
+                ws.close();
+            });
             if (socket.writable) { socket.end(); }
             if (socket.readable) { socket.destroy(); }
         }
-
     }
 }
 
