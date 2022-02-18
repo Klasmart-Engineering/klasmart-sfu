@@ -7,6 +7,25 @@ import { ClientV2, RequestMessage, ResponseMessage } from "../v2/client";
 import { SFU } from "../v2/sfu";
 import { handleAuth } from "./auth";
 
+function getErrorCode(error: Error) {
+    let code;
+    switch (error.name) {
+    case "JsonWebTokenError":
+        code = 4400;
+        break;
+    case "NotBeforeError":
+        code = 4403;
+        break;
+    case "TokenExpiredError":
+        code = 4401;
+        break;
+    default:
+        code = 4500;
+        break;
+    }
+    return code;
+}
+
 export class WsServer {
     public constructor(
         private readonly sfu: SFU,
@@ -32,11 +51,13 @@ export class WsServer {
             this.wss.handleUpgrade(req, socket, head, ws => new WSTransport(ws, client, null));
         } catch (e) {
             const error = e as Error;
+            const code = getErrorCode(error);
             Logger.error(e);
             this.wss.handleUpgrade(req, socket, head, ws => {
                 ws.send(JSON.stringify({
                     error: error.name,
                     message: error.message,
+                    code
                 }));
                 ws.close();
             });
