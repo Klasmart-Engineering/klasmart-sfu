@@ -7,20 +7,25 @@ import { ClientV2, RequestMessage, ResponseMessage } from "../v2/client";
 import { SFU } from "../v2/sfu";
 import { handleAuth } from "./auth";
 
+const INVALID_AUTHORIZATION = 4400;
+const NOT_BEFORE = 4403;
+const EXPIRED_AUTHORIZATION = 4401;
+const UNKNOWN_ERROR = 4500;
+
 function getErrorCode(error: Error) {
     let code;
     switch (error.name) {
     case "JsonWebTokenError":
-        code = 4400;
+        code = INVALID_AUTHORIZATION;
         break;
     case "NotBeforeError":
-        code = 4403;
+        code = NOT_BEFORE;
         break;
     case "TokenExpiredError":
-        code = 4401;
+        code = EXPIRED_AUTHORIZATION;
         break;
     default:
-        code = 4500;
+        code = UNKNOWN_ERROR;
         break;
     }
     return code;
