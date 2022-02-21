@@ -1,10 +1,20 @@
 import cookie from "cookie";
-import { IncomingMessage } from "http";
-import { checkAuthenticationToken, checkLiveAuthorizationToken } from "kidsloop-token-validation";
+import {IncomingMessage} from "http";
+import {checkAuthenticationToken, checkLiveAuthorizationToken} from "kidsloop-token-validation";
 import parseUrl from "parseurl";
-import { Url } from "url";
-import { Logger } from "../logger";
-import { newRoomId } from "../v2/room";
+import {Url} from "url";
+import {Logger} from "../logger";
+import {newRoomId} from "../v2/room";
+
+export type AuthenticationError = {
+    name: "AuthenticationError",
+    error: Error,
+}
+
+export type AuthorizationError = {
+    name: "AuthorizationError",
+    error: Error,
+}
 
 export async function handleAuth(req: IncomingMessage, url = parseUrl(req)) {
     if (process.env.DISABLE_AUTH) {
@@ -19,8 +29,25 @@ export async function handleAuth(req: IncomingMessage, url = parseUrl(req)) {
     const authentication = getAuthenticationJwt(req, url);
     const authorization = getAuthorizationJwt(req, url);
 
-    const authenticationToken = await checkAuthenticationToken(authentication);
-    const authorizationToken = await checkLiveAuthorizationToken(authorization);
+    let authenticationToken;
+    try {
+        authenticationToken = await checkAuthenticationToken(authentication);
+    } catch (error) {
+        throw {
+            name: "AuthenticationError",
+            error,
+        };
+    }
+
+    let authorizationToken;
+    try {
+        authorizationToken = await checkLiveAuthorizationToken(authorization);
+    } catch (error) {
+        throw {
+            name: "AuthorizationError",
+            error,
+        };
+    }
     if (authorizationToken.userid !== authenticationToken.id) {
         throw new Error("Authentication and Authorization tokens are not for the same user");
     }
@@ -51,7 +78,7 @@ const getAuthorizationJwt = (_req: IncomingMessage, url?: Url) => {
     if(url) {
         const authorization =  getFromUrl(url, "authorization");
         if(authorization) { return authorization; }
-        
+
     }
     throw new Error("No authorization; no authorization query param");
 };

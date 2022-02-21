@@ -5,24 +5,24 @@ import { WebSocketServer, WebSocket, RawData } from "ws";
 import { Logger } from "../logger";
 import { ClientV2, RequestMessage, ResponseMessage } from "../v2/client";
 import { SFU } from "../v2/sfu";
-import { handleAuth } from "./auth";
+import {AuthenticationError, AuthorizationError, handleAuth} from "./auth";
 
-const INVALID_AUTHORIZATION = 4400;
+const INVALID = 4400;
 const NOT_BEFORE = 4403;
-const EXPIRED_AUTHORIZATION = 4401;
+const EXPIRED= 4401;
 const UNKNOWN_ERROR = 4500;
 
 function getErrorCode(error: Error) {
     let code;
     switch (error.name) {
     case "JsonWebTokenError":
-        code = INVALID_AUTHORIZATION;
+        code = INVALID;
         break;
     case "NotBeforeError":
         code = NOT_BEFORE;
         break;
     case "TokenExpiredError":
-        code = EXPIRED_AUTHORIZATION;
+        code = EXPIRED;
         break;
     default:
         code = UNKNOWN_ERROR;
@@ -55,16 +55,17 @@ export class WsServer {
             const client = await this.sfu.createClient(userId, roomId, isTeacher);
             this.wss.handleUpgrade(req, socket, head, ws => new WSTransport(ws, client, null));
         } catch (e) {
-            const error = e as Error;
-            const code = getErrorCode(error);
-            Logger.error(e);
+            Logger.error(JSON.stringify(e));
+            const authError = e as AuthenticationError | AuthorizationError;
+            const code = getErrorCode(authError.error);
+
             this.wss.handleUpgrade(req, socket, head, ws => {
                 ws.send(JSON.stringify({
-                    error: error.name,
-                    message: error.message,
+                    error: authError.name,
+                    message: authError.error.message,
                     code
                 }));
-                ws.close();
+                ws.close(code);
             });
             if (socket.writable) { socket.end(); }
             if (socket.readable) { socket.destroy(); }
