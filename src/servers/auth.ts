@@ -9,7 +9,7 @@ import {JsonWebTokenError, NotBeforeError, TokenExpiredError} from "jsonwebtoken
 
 /// Wraps an error from the token validation library.
 abstract class AuthError extends Error {
-    static getErrorCode<T extends Error>(error: T): number {
+    private static getErrorCode<T extends Error>(error: T): number {
         enum ErrorCodes {
             INVALID = 4400,
             NOT_BEFORE = 4403,
