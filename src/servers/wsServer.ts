@@ -35,11 +35,7 @@ export class WsServer {
             try {
                 const authError = decodeAuthError(<Error>e);
                 this.wss.handleUpgrade(req, socket, head, ws => {
-                    ws.send(JSON.stringify({
-                        error: authError.name,
-                        message: authError.message,
-                        code: authError.code,
-                    }));
+                    ws.send(JSON.stringify(authError));
                     ws.close(authError.code);
                 });
             } catch (e) {
