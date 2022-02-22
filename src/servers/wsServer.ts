@@ -5,7 +5,7 @@ import { WebSocketServer, WebSocket, RawData } from "ws";
 import { Logger } from "../logger";
 import { ClientV2, RequestMessage, ResponseMessage } from "../v2/client";
 import { SFU } from "../v2/sfu";
-import {AuthErrors, handleAuth} from "./auth";
+import {decodeAuthError, handleAuth} from "./auth";
 
 export class WsServer {
     public constructor(
@@ -32,16 +32,28 @@ export class WsServer {
             this.wss.handleUpgrade(req, socket, head, ws => new WSTransport(ws, client, null));
         } catch (e) {
             Logger.error(JSON.stringify(e));
-            const authError = e as AuthErrors;
+            try {
+                const authError = decodeAuthError(<Error>e);
+                this.wss.handleUpgrade(req, socket, head, ws => {
+                    ws.send(JSON.stringify({
+                        error: authError.name,
+                        message: authError.message,
+                        code: authError.code,
+                    }));
+                    ws.close(authError.code);
+                });
+            } catch (e) {
+                const error = <Error> e;
+                this.wss.handleUpgrade(req, socket, head, ws => {
+                    ws.send(JSON.stringify({
+                        error: error.name,
+                        message: error.message,
+                        code: 500,
+                    }));
+                    ws.close(500);
+                });
+            }
 
-            this.wss.handleUpgrade(req, socket, head, ws => {
-                ws.send(JSON.stringify({
-                    error: authError.name,
-                    message: authError.message,
-                    code: authError.code,
-                }));
-                ws.close(authError.code);
-            });
             if (socket.writable) { socket.end(); }
             if (socket.readable) { socket.destroy(); }
         }

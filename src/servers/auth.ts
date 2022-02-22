@@ -5,31 +5,32 @@ import parseUrl from "parseurl";
 import {Url} from "url";
 import {Logger} from "../logger";
 import {newRoomId} from "../v2/room";
-
-enum ErrorCodes {
-    INVALID = 4400,
-    NOT_BEFORE = 4403,
-    EXPIRED = 4401,
-    MISMATCH = 4498,
-    UNKNOWN_ERROR = 4500,
-}
+import {JsonWebTokenError, NotBeforeError, TokenExpiredError} from "jsonwebtoken";
 
 /// Wraps an error from the token validation library.
 abstract class AuthError extends Error {
-    static getErrorCode(error: Error): number {
-        let code;
-        switch (error.name) {
-        case "MissingAuthError":
-        case "JsonWebTokenError":
+    static getErrorCode<T extends Error>(error: T): number {
+        enum ErrorCodes {
+            INVALID = 4400,
+            NOT_BEFORE = 4403,
+            EXPIRED = 4401,
+            MISMATCH = 4498,
+            UNKNOWN_ERROR = 4500,
+        }
+
+        let code: number;
+        switch (error.constructor) {
+        case MissingAuthError:
+        case JsonWebTokenError:
             code = ErrorCodes.INVALID;
             break;
-        case "NotBeforeError":
+        case NotBeforeError:
             code = ErrorCodes.NOT_BEFORE;
             break;
-        case "TokenExpiredError":
+        case TokenExpiredError:
             code = ErrorCodes.EXPIRED;
             break;
-        case "MismatchError":
+        case MismatchError:
             code = ErrorCodes.MISMATCH;
             break;
         default:
@@ -60,6 +61,7 @@ export class AuthorizationError extends AuthError {
 }
 
 export class TokenMismatchError extends AuthError {
+
     name = "TokenMismatchError";
     constructor(message: string) {
         super(new MismatchError(message));
@@ -95,6 +97,23 @@ class MismatchError extends Error {
 }
 
 export type AuthErrors = AuthenticationError | AuthorizationError | TokenMismatchError | MissingAuthenticationError | MissingAuthorizationError;
+
+export function decodeAuthError<T extends Error>(error: T): AuthErrors {
+    switch (error.constructor) {
+    case MissingAuthenticationError:
+        return error as unknown as MissingAuthenticationError;
+    case MissingAuthorizationError:
+        return error as unknown as MissingAuthorizationError;
+    case TokenMismatchError:
+        return error as unknown as TokenMismatchError;
+    case AuthenticationError:
+        return error as unknown as AuthenticationError;
+    case AuthorizationError:
+        return error as unknown as AuthorizationError;
+    default:
+        throw error;
+    }
+}
 
 export async function handleAuth(req: IncomingMessage, url = parseUrl(req)) {
     if (process.env.DISABLE_AUTH) {
