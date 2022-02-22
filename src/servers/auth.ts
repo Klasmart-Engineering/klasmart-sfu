@@ -6,15 +6,82 @@ import {Url} from "url";
 import {Logger} from "../logger";
 import {newRoomId} from "../v2/room";
 
-export type AuthenticationError = {
-    name: "AuthenticationError",
-    error: Error,
+enum ErrorCodes {
+    INVALID = 4400,
+    NOT_BEFORE = 4403,
+    EXPIRED = 4401,
+    ID_MISMATCH = 4498,
+    UNKNOWN_ERROR = 4500,
 }
 
-export type AuthorizationError = {
-    name: "AuthorizationError",
-    error: Error,
+/// Wraps an error from the token validation library.
+abstract class AuthError extends Error {
+    static getErrorCode(error: Error): number {
+        let code;
+        switch (error.name) {
+        case "MissingAuthenticationError":
+        case "MissingAuthorizationError":
+        case "JsonWebTokenError":
+            code = ErrorCodes.INVALID;
+            break;
+        case "NotBeforeError":
+            code = ErrorCodes.NOT_BEFORE;
+            break;
+        case "TokenExpiredError":
+            code = ErrorCodes.EXPIRED;
+            break;
+        case "TokenMismatchError":
+            code = ErrorCodes.ID_MISMATCH;
+            break;
+        default:
+            code = ErrorCodes.UNKNOWN_ERROR;
+            break;
+        }
+        return code;
+    }
+    public readonly code: number;
+    protected constructor(inner: Error) {
+        super(inner.message);
+        this.code = AuthError.getErrorCode(inner);
+    }
 }
+
+export class AuthenticationError extends AuthError {
+    name = "AuthenticationError";
+    constructor(public readonly inner: Error) {
+        super(inner);
+    }
+}
+
+export class AuthorizationError extends AuthError {
+    name = "AuthorizationError";
+    constructor(public readonly inner: Error) {
+        super(inner);
+    }
+}
+
+export class TokenMismatchError extends AuthError {
+    name = "TokenMismatchError";
+    constructor(public readonly inner: Error) {
+        super(inner);
+    }
+}
+
+export class MissingAuthenticationError extends AuthError {
+    name = "MissingAuthenticationError";
+    constructor(public readonly inner: Error) {
+        super(inner);
+    }
+}
+
+export class MissingAuthorizationError extends AuthError {
+    name = "MissingAuthorizationError";
+    constructor(public readonly inner: Error) {
+        super(inner);
+    }
+}
+
+export type AuthErrors = AuthenticationError | AuthorizationError | TokenMismatchError | MissingAuthenticationError | MissingAuthorizationError;
 
 export async function handleAuth(req: IncomingMessage, url = parseUrl(req)) {
     if (process.env.DISABLE_AUTH) {
@@ -33,33 +100,27 @@ export async function handleAuth(req: IncomingMessage, url = parseUrl(req)) {
     try {
         authenticationToken = await checkAuthenticationToken(authentication);
     } catch (error) {
-        throw {
-            name: "AuthenticationError",
-            error,
-        };
+        throw new AuthenticationError(<Error> error);
     }
 
     let authorizationToken;
     try {
         authorizationToken = await checkLiveAuthorizationToken(authorization);
     } catch (error) {
-        throw {
-            name: "AuthorizationError",
-            error,
-        };
+        throw new AuthorizationError(<Error> error);
     }
     if (authorizationToken.userid !== authenticationToken.id) {
-        throw new Error("Authentication and Authorization tokens are not for the same user");
+        throw new TokenMismatchError(new Error("Authentication and Authorization tokens are not for the same user"));
     }
 
     return {
         userId: authorizationToken.userid,
         roomId: newRoomId(authorizationToken.roomid),
-        isTeacher: authorizationToken.teacher || false,
+        isTeacher: authorizationToken.teacher ?? false,
     };
 }
 
-const getAuthenticationJwt = (req: IncomingMessage, url?: Url) => {
+function getAuthenticationJwt (req: IncomingMessage, url?: Url) {
     if(url && process.env.NODE_ENV?.toLowerCase().startsWith("dev")) {
         const authentication =  getFromUrl(url, "authentication");
         if(authentication) { return authentication; }
@@ -71,17 +132,17 @@ const getAuthenticationJwt = (req: IncomingMessage, url?: Url) => {
         if(authentication) { return authentication; }
     }
 
-    throw new Error("No authentication");
-};
+    throw new MissingAuthenticationError(new Error("No authentication"));
+}
 
-const getAuthorizationJwt = (_req: IncomingMessage, url?: Url) => {
+function getAuthorizationJwt (_req: IncomingMessage, url?: Url) {
     if(url) {
         const authorization =  getFromUrl(url, "authorization");
         if(authorization) { return authorization; }
 
     }
-    throw new Error("No authorization; no authorization query param");
-};
+    throw new MissingAuthorizationError(new Error("No authorization; no authorization query param"));
+}
 
 
 function getFromUrl(url: Url, key: string) {
