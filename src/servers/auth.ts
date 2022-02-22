@@ -10,7 +10,7 @@ enum ErrorCodes {
     INVALID = 4400,
     NOT_BEFORE = 4403,
     EXPIRED = 4401,
-    ID_MISMATCH = 4498,
+    MISMATCH = 4498,
     UNKNOWN_ERROR = 4500,
 }
 
@@ -19,8 +19,7 @@ abstract class AuthError extends Error {
     static getErrorCode(error: Error): number {
         let code;
         switch (error.name) {
-        case "MissingAuthenticationError":
-        case "MissingAuthorizationError":
+        case "MissingAuthError":
         case "JsonWebTokenError":
             code = ErrorCodes.INVALID;
             break;
@@ -30,8 +29,8 @@ abstract class AuthError extends Error {
         case "TokenExpiredError":
             code = ErrorCodes.EXPIRED;
             break;
-        case "TokenMismatchError":
-            code = ErrorCodes.ID_MISMATCH;
+        case "MismatchError":
+            code = ErrorCodes.MISMATCH;
             break;
         default:
             code = ErrorCodes.UNKNOWN_ERROR;
@@ -62,22 +61,36 @@ export class AuthorizationError extends AuthError {
 
 export class TokenMismatchError extends AuthError {
     name = "TokenMismatchError";
-    constructor(public readonly inner: Error) {
-        super(inner);
+    constructor(message: string) {
+        super(new MismatchError(message));
     }
 }
 
 export class MissingAuthenticationError extends AuthError {
     name = "MissingAuthenticationError";
-    constructor(public readonly inner: Error) {
-        super(inner);
+    constructor(message: string) {
+        super(new MissingAuthError(message));
     }
 }
 
 export class MissingAuthorizationError extends AuthError {
     name = "MissingAuthorizationError";
-    constructor(public readonly inner: Error) {
-        super(inner);
+    constructor(message: string) {
+        super(new MissingAuthError(message));
+    }
+}
+
+class MissingAuthError extends Error {
+    name = "MissingAuthError";
+    constructor(message: string) {
+        super(message);
+    }
+}
+
+class MismatchError extends Error {
+    name = "MismatchError";
+    constructor(message: string) {
+        super(message);
     }
 }
 
@@ -110,7 +123,7 @@ export async function handleAuth(req: IncomingMessage, url = parseUrl(req)) {
         throw new AuthorizationError(<Error> error);
     }
     if (authorizationToken.userid !== authenticationToken.id) {
-        throw new TokenMismatchError(new Error("Authentication and Authorization tokens are not for the same user"));
+        throw new TokenMismatchError("Authentication and Authorization tokens are not for the same user");
     }
 
     return {
@@ -132,7 +145,7 @@ function getAuthenticationJwt (req: IncomingMessage, url?: Url) {
         if(authentication) { return authentication; }
     }
 
-    throw new MissingAuthenticationError(new Error("No authentication"));
+    throw new MissingAuthenticationError("No authentication");
 }
 
 function getAuthorizationJwt (_req: IncomingMessage, url?: Url) {
@@ -141,7 +154,7 @@ function getAuthorizationJwt (_req: IncomingMessage, url?: Url) {
         if(authorization) { return authorization; }
 
     }
-    throw new MissingAuthorizationError(new Error("No authorization; no authorization query param"));
+    throw new MissingAuthorizationError("No authorization; no authorization query param");
 }
 
 
