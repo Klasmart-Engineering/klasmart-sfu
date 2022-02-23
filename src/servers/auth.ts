@@ -8,7 +8,7 @@ import {newRoomId} from "../v2/room";
 import {JsonWebTokenError, NotBeforeError, TokenExpiredError} from "jsonwebtoken";
 
 /// Wraps an error from the token validation library.
-abstract class AuthError extends Error {
+abstract class AuthError implements Error {
     private static getErrorCode<T extends Error>(error: T): number {
         enum ErrorCodes {
             INVALID = 4400,
@@ -40,8 +40,13 @@ abstract class AuthError extends Error {
         return code;
     }
     public readonly code: number;
+    public readonly message: string;
+    public readonly name: string;
+    public readonly stack?: string;
     protected constructor(inner: Error) {
-        super(inner.message);
+        this.message = inner.message;
+        this.name = inner.name;
+        this.stack = inner.stack;
         this.code = AuthError.getErrorCode(inner);
     }
 }
@@ -61,7 +66,6 @@ export class AuthorizationError extends AuthError {
 }
 
 export class TokenMismatchError extends AuthError {
-
     name = "TokenMismatchError";
     constructor(message: string) {
         super(new MismatchError(message));
