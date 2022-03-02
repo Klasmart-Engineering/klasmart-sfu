@@ -1,4 +1,5 @@
 import { createServer, IncomingMessage, ServerResponse } from "http";
+import { Room } from "src/v2/room";
 import { Duplex } from "stream";
 import { WebSocketServer, WebSocket, RawData } from "ws";
 
@@ -28,8 +29,8 @@ export class WsServer {
         try {
             Logger.info(`WS connection from [${req.socket.remoteFamily}](${req.socket.remoteAddress}:${req.socket.remotePort})`);
             const { roomId, isTeacher, userId } = await handleAuth(req);
-            const client = await this.sfu.createClient(userId, roomId, isTeacher);
-            this.wss.handleUpgrade(req, socket, head, ws => new WSTransport(ws, client, null));
+            const { room, client } = await this.sfu.createClient(userId, roomId, isTeacher);
+            this.wss.handleUpgrade(req, socket, head, ws => new WSTransport(ws, client, room, null));
         } catch (e) {
             Logger.error(JSON.stringify(e));
             try {
@@ -65,6 +66,7 @@ export class WSTransport {
     constructor(
         private readonly ws: WebSocket,
         private readonly client: ClientV2,
+        private readonly room: Room,
         private receiveMessageTimeoutMs: number | null = 5000,
         private sendMessageTimeoutMs: number | null = 1000
     ) {
@@ -97,8 +99,7 @@ export class WSTransport {
         if (messageString.length <= 0) { return; }
         const message = parse(messageString);
         if (!message) { this.ws.close(4400, "Invalid request"); return; }
-
-        await this.client.onMessage(message);
+        this.room.semaphoreQueue.process(() => this.client.onMessage(message));
     }
 
     private async onClose(code: number, reason: Buffer) {

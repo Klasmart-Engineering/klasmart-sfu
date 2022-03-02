@@ -46,7 +46,7 @@ export class SFU {
         if (!room) { room = await this.createRoom(roomId); }
         const client = new ClientV2(userId, this, room, isTeacher);
         room.addClient(client);
-        return client;
+        return { room, client };
     }
 
     private async createRoom(roomId: RoomId) {

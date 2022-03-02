@@ -9,8 +9,10 @@ import { SfuId } from "./sfu";
 import { TrackRegistrar } from "./registrar";
 import { Logger } from "../logger";
 import { mediaCodecs } from "../config";
+import { SemaphoreQueue } from "./semaphoreQueue";
 
 export class Room {
+    public readonly semaphoreQueue = SemaphoreQueue.createWithTimeoutProcessor();
     public readonly on: Room["emitter"]["on"] = (event, listener) => this.emitter.on(event, listener);
     public readonly off: Room["emitter"]["off"] = (event, listener) => this.emitter.off(event, listener);
     public readonly once: Room["emitter"]["once"] = (event, listener) => this.emitter.once(event, listener);
