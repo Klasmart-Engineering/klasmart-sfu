@@ -10,14 +10,12 @@ import { getNetworkInterfacesAddresses } from "../networkInterfaces";
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore
 import checkIp from "check-ip";
-import { createWorker, types as MediaSoup } from "mediasoup";
+import { types as MediaSoup } from "mediasoup";
 import { hostname } from "os";
 import dotenv from "dotenv";
 
 async function main() {
     dotenv.config();
-    const worker = await createWorker({ logLevel: "debug" });
-
     const interfaceAddresses = getNetworkInterfacesAddresses();
     const privateAddresses = interfaceAddresses.filter(x => checkIp(x).isRfc1918);
     const publicAddresses = interfaceAddresses.filter(x => checkIp(x).isPublicIp);
@@ -70,7 +68,6 @@ async function main() {
     Logger.info("🔴 Redis database connected");
 
     const sfu = new SFU(
-        worker,
         [webRtcAddress],
         privateAddress,
         new RedisRegistrar(redis),

@@ -5,14 +5,12 @@ import { ClientV2 } from "./client";
 import { RoomId, Room } from "./room";
 import { NewType } from "./newType";
 import { SfuRegistrar, TrackRegistrar } from "./registrar";
-import { mediaCodecs } from "../config";
 import { Logger } from "../logger";
 
 export class SFU {
     public readonly id: SfuId = newSfuId(nanoid());
     private readonly rooms = new Map<RoomId, Room>();
     constructor(
-        private readonly worker: MediaSoup.Worker,
         public readonly listenIps: MediaSoup.TransportListenIp[],
         public endpoint: string,
         private registrar: SfuRegistrar & TrackRegistrar
@@ -23,7 +21,6 @@ export class SFU {
 
     private async updateStatus(timeout = 5000) {
         try {
-            if(this.worker.closed) { return; }
             setTimeout(() => this.updateStatus(), timeout);
 
             let numProducers = 0;
@@ -54,15 +51,10 @@ export class SFU {
 
     private async createRoom(roomId: RoomId) {
         if(this.rooms.has(roomId)) { throw new Error(`Room(${roomId}) already exists`); }
-        const router = await this.worker.createRouter({mediaCodecs});
-        const room = new Room(roomId, this.id, router, this.registrar);
+        const room = await Room.create(roomId, this.id, this.registrar);
         this.rooms.set(room.id, room);
         room.on("closed", () => this.rooms.delete(room.id));
         return room;
-    }
-
-    public shutdown() {
-        this.worker.close();
     }
 }
 

@@ -1,5 +1,5 @@
 import { EventEmitter } from "eventemitter3";
-import { types as MediaSoup } from "mediasoup";
+import { createWorker, types as MediaSoup } from "mediasoup";
 
 import { NewType } from "./newType";
 import { Track } from "./track";
@@ -8,6 +8,7 @@ import { ProducerId } from "./track";
 import { SfuId } from "./sfu";
 import { TrackRegistrar } from "./registrar";
 import { Logger } from "../logger";
+import { mediaCodecs } from "../config";
 
 export class Room {
     public readonly on: Room["emitter"]["on"] = (event, listener) => this.emitter.on(event, listener);
@@ -46,14 +47,28 @@ export class Room {
     public end() {
         //TODO: Distribute
         this.router.close();
+        this.worker.close();
         this.emitter.emit("closed");
     }
 
     public readonly clients = new Set<ClientV2>();
 
-    public constructor(
+    public static async create(
+        id: RoomId,
+        sfuId: SfuId,
+        trackRegistrar: TrackRegistrar
+    ) {
+        const worker = await createWorker({ logLevel: "debug" });
+        worker.on("died", e => console.error("MediaSoup worker died", e));
+        const router = await worker.createRouter({mediaCodecs});
+
+        return new Room(id, sfuId, worker, router, trackRegistrar);
+    }
+
+    private constructor(
         public readonly id: RoomId,
         public readonly sfuId: SfuId,
+        public readonly worker: MediaSoup.Worker,
         public readonly router: MediaSoup.Router,
         public readonly trackRegistrar: TrackRegistrar
     ) {
