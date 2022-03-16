@@ -99,7 +99,6 @@ definitions:
             docker run
             --volume $BITBUCKET_CLONE_DIR/kubeconfig.yml:/mnt/kubeconfig.yml
             --env KUBECONFIG=/mnt/kubeconfig.yml
-            --network host
             --publish 8080:8080
             --hostname kubeproxy
             --detach bitnami/kubectl:1.21
