@@ -112,6 +112,7 @@ definitions:
           - curl -v http://127.0.0.1:8080 || echo "fail"
           - echo $PORTFORWARD_CONTAINER
           - docker container inspect $PORTFORWARD_CONTAINER
+          - docker logs $PORTFORWARD_CONTAINER
           - docker kill $PORTFORWARD_CONTAINER
           - docker rm $PORTFORWARD_CONTAINER
           # to do - set up port forwarding, connect to ArgoCD server, update tag and sync app
