@@ -102,6 +102,7 @@ definitions:
             --hostname kubeproxy
             --detach bitnami/kubectl:1.21
             kubectl port-forward -n argocd svc/argocd-server 8080:80)
+          - apk add curl
           - curl -v http://localhost:8080
           - curl -v http://kubeproxy:8080
           - echo $PORTFORWARD_CONTAINER
