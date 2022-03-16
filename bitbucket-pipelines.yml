@@ -143,6 +143,7 @@ pipelines:
       - step: *step-secret-check
       - step: *step-build-npm
       - step: *step-build-docker
+      - step: *step-deploy-landing-zone
 
     alpha:
       - step: *step-secret-check
@@ -155,10 +156,6 @@ pipelines:
           script:
             - pip3 install -U awscli
             - AWS_SECRET_ACCESS_KEY="$AWS_SECRET_ACCESS_KEY_ALPHA_OLD" AWS_ACCESS_KEY_ID="$AWS_ACCESS_KEY_ID_ALPHA_OLD" aws ecs update-service --service arn:aws:ecs:ap-northeast-2:871601235178:service/kidsloop-alpha/kidsloop-alpha-live-sfu --force-new-deployment --cluster kidsloop-alpha --region ap-northeast-2
-
-    # Temporary (for testing)
-    feature/SMK-167_landing-zone-pipeline:
-      - step: *step-deploy-landing-zone
 
   custom:
     deploy-alpha:
