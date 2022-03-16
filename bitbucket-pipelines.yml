@@ -84,13 +84,26 @@ definitions:
         image: argoproj/argocd:v2.3.1
         script:
           - which docker
-          - which kubectl
+          # - which kubectl
           - which argocd
           - export BRANCH_TAG=$(echo "$BITBUCKET_BRANCH" | sed -E 's/([^0-9a-zA-Z]+)/-/g' | awk '{print tolower($0)}')
           - export REPO=$DOCKER_REPO_URL/kidsloop-sfu # DOCKER_REPO_URL is workspace wide variable
           - export COMMIT_TAG=$(echo $BITBUCKET_COMMIT | cut -c1-7)
           - printf '"Git tag":"%s", "Git commit":"%s" "ECR repo":"%s"' $BRANCH_TAG $COMMIT_TAG $REPO
           - export DEPLOY_TAG=$BRANCH_TAG-$COMMIT_TAG
+          # Set up port forwarding
+          - echo $TOOLS_KUBECONFIG_CONTENT_B64 | base64 -d > /tmp/kubeconfig.yml
+          - >
+            PORTFORWARD_CONTAINER=$(docker run
+            -v /tmp/kubeconfig.yml:/mnt/kubeconfig.yml
+            -e KUBECONFIG=/mnt/kubeconfig.yml
+            -p 8080:8080
+            -d bitnami/kubectl:1.21
+            kubectl port-forward -n argocd svc/argocd-server 8080:80)
+          - curl -v http://localhost:8080
+          - echo $PORTFORWARD_CONTAINER
+          - docker kill $PORTFORWARD_CONTAINER
+          - docker rm $PORTFORWARD_CONTAINER
           # to do - set up port forwarding, connect to ArgoCD server, update tag and sync app
         services:
           - docker
