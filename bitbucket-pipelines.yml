@@ -92,10 +92,10 @@ definitions:
           - printf '"Git tag":"%s", "Git commit":"%s" "ECR repo":"%s"' $BRANCH_TAG $COMMIT_TAG $REPO
           - export DEPLOY_TAG=$BRANCH_TAG-$COMMIT_TAG
           # Set up port forwarding
-          - echo $TOOLS_KUBECONFIG_CONTENT_B64 | base64 -d > /tmp/kubeconfig.yml
+          - echo $TOOLS_KUBECONFIG_CONTENT_B64 | base64 -d > $BITBUCKET_CLONE_DIR/kubeconfig.yml
           - >
             PORTFORWARD_CONTAINER=$(docker run
-            -v /tmp/kubeconfig.yml:/mnt/kubeconfig.yml
+            -v $BITBUCKET_CLONE_DIR/kubeconfig.yml:/mnt/kubeconfig.yml
             -e KUBECONFIG=/mnt/kubeconfig.yml
             -p 8080:8080
             -d bitnami/kubectl:1.21
