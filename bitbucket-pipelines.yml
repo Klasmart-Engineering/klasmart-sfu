@@ -86,7 +86,7 @@ definitions:
         script:
           - which docker
           # - which kubectl
-          - which argocd
+          # - which argocd
           - export BRANCH_TAG=$(echo "$BITBUCKET_BRANCH" | sed -E 's/([^0-9a-zA-Z]+)/-/g' | awk '{print tolower($0)}')
           - export REPO=$DOCKER_REPO_URL/kidsloop-sfu # DOCKER_REPO_URL is workspace wide variable
           - export COMMIT_TAG=$(echo $BITBUCKET_COMMIT | cut -c1-7)
