@@ -100,7 +100,8 @@ definitions:
             --publish 8080:8080
             --hostname kubeproxy
             --detach bitnami/kubectl:1.21
-            port-forward -n argocd svc/argocd-server 8080:80
+            port-forward -n argocd svc/argocd-server
+            --address 0.0.0.0 8080:80
             )
           - sleep 5
           - apk add curl
