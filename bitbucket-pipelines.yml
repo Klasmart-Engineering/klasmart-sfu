@@ -100,17 +100,12 @@ definitions:
             --publish 8080:8080
             --hostname kubeproxy
             --detach bitnami/kubectl:1.21
-            port-forward -n argocd svc/argocd-server
-            --address 0.0.0.0 8080:80
+            port-forward -n argocd svc/argocd-server 8080:80
             )
-          - apk add curl
           - sleep 5
-          - curl -v http://localhost:8080 || echo "fail"
-          - curl -v http://kubeproxy:8080 || echo "fail"
-          - curl -v http://host.docker.internal:8080 || echo "fail"
-          - curl -v http://127.0.0.1:8080 || echo "fail"
-          - echo $PORTFORWARD_CONTAINER
-          - docker container inspect $PORTFORWARD_CONTAINER
+          - apk add curl
+          - curl -v http://localhost:8080
+
           - docker logs $PORTFORWARD_CONTAINER
           - docker kill $PORTFORWARD_CONTAINER
           - docker rm $PORTFORWARD_CONTAINER
