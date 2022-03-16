@@ -81,7 +81,8 @@ definitions:
 
     - step: &step-deploy-landing-zone
         name: "Deploy built image to the Kidsloop landing zone"
-        image: argoproj/argocd:v2.3.1
+        image: python:3.9-alpine
+        # image: argoproj/argocd:v2.3.1
         script:
           - which docker
           # - which kubectl
@@ -95,12 +96,14 @@ definitions:
           - echo $TOOLS_KUBECONFIG_CONTENT_B64 | base64 -d > $BITBUCKET_CLONE_DIR/kubeconfig.yml
           - >
             PORTFORWARD_CONTAINER=$(docker run
-            -v $BITBUCKET_CLONE_DIR/kubeconfig.yml:/mnt/kubeconfig.yml
-            -e KUBECONFIG=/mnt/kubeconfig.yml
-            -p 8080:8080
-            -d bitnami/kubectl:1.21
+            --volume $BITBUCKET_CLONE_DIR/kubeconfig.yml:/mnt/kubeconfig.yml
+            --env KUBECONFIG=/mnt/kubeconfig.yml
+            --publish 8080:8080
+            --hostname kubeproxy
+            --detach bitnami/kubectl:1.21
             kubectl port-forward -n argocd svc/argocd-server 8080:80)
           - curl -v http://localhost:8080
+          - curl -v http://kubeproxy:8080
           - echo $PORTFORWARD_CONTAINER
           - docker kill $PORTFORWARD_CONTAINER
           - docker rm $PORTFORWARD_CONTAINER
