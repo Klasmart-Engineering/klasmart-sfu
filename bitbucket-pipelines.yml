@@ -103,10 +103,12 @@ definitions:
             --detach bitnami/kubectl:1.21
             kubectl port-forward -n argocd svc/argocd-server 8080:80)
           - apk add curl
-          # - curl -v http://localhost:8080
-          # - curl -v http://kubeproxy:8080
-          - curl -v http://host.docker.internal:8080
+          - curl -v http://localhost:8080 || echo "fail"
+          - curl -v http://kubeproxy:8080 || echo "fail"
+          - curl -v http://host.docker.internal:8080 || echo "fail"
+          - curl -v http://127.0.0.1:8080 || echo "fail"
           - echo $PORTFORWARD_CONTAINER
+          - docker container inspect $PORTFORWARD_CONTAINER
           - docker kill $PORTFORWARD_CONTAINER
           - docker rm $PORTFORWARD_CONTAINER
           # to do - set up port forwarding, connect to ArgoCD server, update tag and sync app
