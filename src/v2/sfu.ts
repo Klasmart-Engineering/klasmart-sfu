@@ -23,12 +23,11 @@ export class SFU {
         try {
             setTimeout(() => this.updateStatus(), timeout);
 
-            let numProducers = 0;
-            let numConsumers = 0;
-            for (const room of this.rooms.values()) {
-                numProducers += room.numProducers;
-                numConsumers += room.numConsumers;
-            }
+            const numProducers = Array.from(this.rooms.values())
+                .reduce((acc, room) => acc + room.numProducers, 0);
+            const numConsumers = Array.from(this.rooms.values())
+                .reduce((acc, room) => acc + room.numConsumers, 0);
+
             await this.registrar.addSfuId(this.id);
             await this.registrar.setSfuStatus(this.id, {
                 endpoint: this.endpoint,

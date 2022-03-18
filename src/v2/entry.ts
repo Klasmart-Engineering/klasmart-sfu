@@ -29,7 +29,7 @@ async function main() {
             publicAddresses[0] ||
             privateAddresses[0],
     };
-    Logger.info(webRtcAddress);
+    Logger.info(JSON.stringify(webRtcAddress));
     const privateAddress =
         process.env.PRIVATE_ADDRESS ||
         privateAddresses[0] ||

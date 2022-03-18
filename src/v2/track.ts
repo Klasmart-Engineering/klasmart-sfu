@@ -28,7 +28,7 @@ export class Track {
     private readonly consumers = new Map<ClientId, Consumer>();
 
     public get producerId() { return this.receiver.id as ProducerId; }
-    public get numConsumers() { return this.consumers.size; }
+    public get numConsumers() { return Array.from(this.consumers.values()).filter(c => !c.closed).length; }
 
     private readonly emitter = new EventEmitter<TrackEventMap>();
     public readonly on: Track["emitter"]["on"] = (event, listener) => this.emitter.on(event, listener);
@@ -63,8 +63,8 @@ export class Track {
 
         const consumer = await Consumer.create(transport, producerId, rtpCapabilities);
         Logger.info(`Consumer created for Track(${this.producerId}).Client(${clientId})`);
-        consumer.on("closed", () => this.consumers.delete(clientId));
         this.consumers.set(clientId, consumer);
+        consumer.on("closed", () => this.consumers.delete(clientId));
         return consumer;
     }
 

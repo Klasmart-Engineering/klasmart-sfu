@@ -1,15 +1,14 @@
-import { EventEmitter } from "eventemitter3";
-import { createWorker, types as MediaSoup } from "mediasoup";
+import {EventEmitter} from "eventemitter3";
+import {createWorker, types as MediaSoup} from "mediasoup";
 
-import { NewType } from "./newType";
-import { Track } from "./track";
-import { ClientId, ClientV2 } from "./client";
-import { ProducerId } from "./track";
-import { SfuId } from "./sfu";
-import { TrackRegistrar } from "./registrar";
-import { Logger } from "../logger";
-import { mediaCodecs } from "../config";
-import { SemaphoreQueue } from "./semaphoreQueue";
+import {NewType} from "./newType";
+import {ProducerId, Track} from "./track";
+import {ClientId, ClientV2} from "./client";
+import {SfuId} from "./sfu";
+import {TrackRegistrar} from "./registrar";
+import {Logger} from "../logger";
+import {mediaCodecs} from "../config";
+import {SemaphoreQueue} from "./semaphoreQueue";
 
 export class Room {
     public readonly semaphoreQueue = SemaphoreQueue.createWithTimeoutProcessor();
@@ -103,21 +102,15 @@ export class Room {
     private readonly localTracks = new Map<ProducerId, Track>();
 
     public get numProducers() {
-        let numProducers = 0;
-        for (const track of this.localTracks.values()) {
-            if(track.closed) { continue; }
-            numProducers++;
-        }
-        return numProducers;
+        return Array.from(this.localTracks.values())
+            .filter(track => !track.closed)
+            .length;
     }
 
     public get numConsumers() {
-        let numConsumers = 0;
-        for (const track of this.localTracks.values()) {
-            if (track.closed) { continue; }
-            numConsumers += track.numConsumers;
-        }
-        return numConsumers;
+        return Array.from(this.localTracks.values())
+            .filter(track => !track.closed)
+            .reduce((acc, track) => acc + track.numConsumers, 0);
     }
 }
 

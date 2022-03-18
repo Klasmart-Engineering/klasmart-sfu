@@ -11,6 +11,10 @@ export class Consumer {
     public readonly off: ConsumerEventEmitter["off"] = (event, listener) => this.emitter.off(event, listener);
     public readonly once: ConsumerEventEmitter["once"] = (event, listener) => this.emitter.once(event, listener);
 
+    public get closed() {
+        return this.sender.closed;
+    }
+
     private constructor(
         private readonly sender: MediaSoup.Consumer,
         private pausedByUser = false
