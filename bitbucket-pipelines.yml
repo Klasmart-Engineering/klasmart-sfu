@@ -142,7 +142,7 @@ pipelines:
     master:
       - step: *step-secret-check
       - step: *step-build-npm
-      - step: *step-build-docker
+      - step: *step-build-docker-loadtest
       - step: *step-deploy-landing-zone
 
     alpha:
