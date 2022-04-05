@@ -156,7 +156,7 @@ export async function handleAuth(req: IncomingMessage, url = parseUrl(req)) {
     };
 }
 
-function getAuthenticationJwt (req: IncomingMessage, url?: Url) {
+export function getAuthenticationJwt (req: IncomingMessage, url?: Url) {
     if(url && process.env.NODE_ENV?.toLowerCase().startsWith("dev")) {
         const authentication =  getFromUrl(url, "authentication");
         if(authentication) { return authentication; }

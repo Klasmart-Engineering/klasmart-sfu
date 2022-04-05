@@ -15,6 +15,29 @@ export class Room {
     public readonly on: Room["emitter"]["on"] = (event, listener) => this.emitter.on(event, listener);
     public readonly off: Room["emitter"]["off"] = (event, listener) => this.emitter.off(event, listener);
     public readonly once: Room["emitter"]["once"] = (event, listener) => this.emitter.once(event, listener);
+    public readonly clients = new Map<ClientId, ClientV2>();
+
+    private constructor(
+        public readonly id: RoomId,
+        public readonly sfuId: SfuId,
+        public readonly worker: MediaSoup.Worker,
+        public readonly router: MediaSoup.Router,
+        public readonly trackRegistrar: TrackRegistrar
+    ) {
+        Logger.info(`Room(${this.id}) shard created on SFU(${this.sfuId})`);
+    }
+
+    public static async create(
+        id: RoomId,
+        sfuId: SfuId,
+        trackRegistrar: TrackRegistrar
+    ) {
+        const worker = await createWorker({ logLevel: "debug" });
+        worker.on("died", e => console.error("MediaSoup worker died", e));
+        const router = await worker.createRouter({mediaCodecs});
+
+        return new Room(id, sfuId, worker, router, trackRegistrar);
+    }
 
     public track(id: ProducerId) {
         const track = this.localTracks.get(id);
@@ -38,11 +61,15 @@ export class Room {
     }
 
     public addClient(client: ClientV2) {
-        this.clients.add(client);
+        this.clients.set(client.id, client);
         client.on("close", () => {
-            this.clients.delete(client);
+            this.clients.delete(client.id);
             if(this.clients.size === 0) { this.end(); }
         });
+    }
+
+    public getClient(clientId: ClientId) {
+        return this.clients.get(clientId);
     }
 
     public end() {
@@ -50,30 +77,6 @@ export class Room {
         this.router.close();
         this.worker.close();
         this.emitter.emit("closed");
-    }
-
-    public readonly clients = new Set<ClientV2>();
-
-    public static async create(
-        id: RoomId,
-        sfuId: SfuId,
-        trackRegistrar: TrackRegistrar
-    ) {
-        const worker = await createWorker({ logLevel: "debug" });
-        worker.on("died", e => console.error("MediaSoup worker died", e));
-        const router = await worker.createRouter({mediaCodecs});
-
-        return new Room(id, sfuId, worker, router, trackRegistrar);
-    }
-
-    private constructor(
-        public readonly id: RoomId,
-        public readonly sfuId: SfuId,
-        public readonly worker: MediaSoup.Worker,
-        public readonly router: MediaSoup.Router,
-        public readonly trackRegistrar: TrackRegistrar
-    ) {
-        Logger.info(`Room(${this.id}) shard created on SFU(${this.sfuId})`);
     }
 
     private async updateTrackStatus(track: Track, timeout = 5000) {

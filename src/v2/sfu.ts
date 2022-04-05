@@ -1,7 +1,7 @@
 import { types as MediaSoup } from "mediasoup";
 import { nanoid } from "nanoid";
 
-import { ClientV2 } from "./client";
+import {ClientId, ClientV2} from "./client";
 import { RoomId, Room } from "./room";
 import { NewType } from "./newType";
 import { SfuRegistrar, TrackRegistrar } from "./registrar";
@@ -45,7 +45,19 @@ export class SFU {
         if (!room) { room = await this.createRoom(roomId); }
         const client = new ClientV2(userId, this, room, isTeacher);
         room.addClient(client);
-        return { room, client };
+        return client;
+    }
+
+    public getClient(roomId: RoomId, clientId: ClientId) {
+        const room = this.rooms.get(roomId);
+        if (!room) { return; }
+        return room.getClient(clientId);
+    }
+
+    public getRoom(roomId: RoomId): Room {
+        const room = this.rooms.get(roomId);
+        if (!room) { throw new Error(`Room ${roomId} not found`); }
+        return room;
     }
 
     private async createRoom(roomId: RoomId) {

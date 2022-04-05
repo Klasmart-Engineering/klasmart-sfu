@@ -43,8 +43,6 @@ type ProduceTrackRequest = {
 type ConsumeTrackRequest = { producerId: ProducerId };
 export type PauseRequest = { paused: boolean, id: ProducerId };
 
-
-
 export type ResponseMessage = {
     response?: Response,
 
@@ -107,6 +105,7 @@ export class ClientV2 {
     public readonly off: ClientV2["emitter"]["off"] = (event, listener) => this.emitter.off(event, listener);
     public readonly once: ClientV2["emitter"]["once"] = (event, listener) => this.emitter.once(event, listener);
 
+    private closeTimer?: NodeJS.Timeout;
     private rtpCapabilities?: MediaSoup.RtpCapabilities;
     private producerTransport?: MediaSoup.WebRtcTransport;
     private consumerTransport?: MediaSoup.WebRtcTransport;
@@ -208,9 +207,15 @@ export class ClientV2 {
 
     public onClose() {
         Logger.info(`Client(${this.id}) disconnect`);
-        this.producerTransport?.close();
-        this.consumerTransport?.close();
-        this.emitter.emit("close");
+        this.closeTimer = setTimeout(() => {
+            this.producerTransport?.close();
+            this.consumerTransport?.close();
+            this.emitter.emit("close");
+        }, 30000);
+    }
+
+    public clearClose() {
+        if (this.closeTimer) clearTimeout(this.closeTimer);
     }
 
     // Network messages
@@ -225,8 +230,6 @@ export class ClientV2 {
             iceCandidates: this.producerTransport.iceCandidates,
             iceParameters: this.producerTransport.iceParameters,
             dtlsParameters: this.producerTransport.dtlsParameters,
-            // Disable data channels
-            // sctpParameters: this.producerTransport.sctpParameters,
         };
     }
 
@@ -274,8 +277,6 @@ export class ClientV2 {
             iceCandidates: this.consumerTransport.iceCandidates,
             iceParameters: this.consumerTransport.iceParameters,
             dtlsParameters: this.consumerTransport.dtlsParameters,
-            // Disable data channels
-            // sctpParameters: this.consumerTransport.sctpParameters,
         };
     }
 

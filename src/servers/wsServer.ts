@@ -4,20 +4,20 @@ import { Duplex } from "stream";
 import { WebSocketServer, WebSocket, RawData } from "ws";
 
 import { Logger } from "../logger";
-import { ClientV2, RequestMessage, ResponseMessage } from "../v2/client";
+import {ClientV2, newClientId, RequestMessage, ResponseMessage} from "../v2/client";
 import { SFU } from "../v2/sfu";
 import {decodeAuthError, handleAuth} from "./auth";
 
 export class WsServer {
+    private readonly wss: WebSocketServer;
     public constructor(
         private readonly sfu: SFU,
         public readonly http = createServer((req, res) => WsServer.onRequest(req, res)),
     ) {
-        this.wss = new WebSocketServer({ noServer: true });
+        this.wss = new WebSocketServer(
+            { noServer: true});
         this.http.on("upgrade", (req, socket, head) => this.onUpgrade(req, socket, head));
     }
-
-    private readonly wss: WebSocketServer;
 
     private static onRequest(req: IncomingMessage, res: ServerResponse) {
         Logger.info(`Ignoring HTTP Request(${req.method}, ${req.url}) from ${req.socket.remoteAddress}`);
@@ -29,8 +29,18 @@ export class WsServer {
         try {
             Logger.info(`WS connection from [${req.socket.remoteFamily}](${req.socket.remoteAddress}:${req.socket.remotePort})`);
             const { roomId, isTeacher, userId } = await handleAuth(req);
-            const { room, client } = await this.sfu.createClient(userId, roomId, isTeacher);
-            this.wss.handleUpgrade(req, socket, head, ws => new WSTransport(ws, client, room, null));
+            const clientId = getClientIdFromRequest(req);
+            const client = clientId ?
+                this.sfu.getClient(roomId, clientId) ??
+                await this.sfu.createClient(userId, roomId, isTeacher) :
+                await this.sfu.createClient(userId, roomId, isTeacher);
+
+            const room = this.sfu.getRoom(roomId);
+
+            this.wss.handleUpgrade(req, socket, head, (ws) =>  {
+                ws.send(JSON.stringify({ clientId: client.id }));
+                return new WSTransport(ws, client, room, null);
+            });
         } catch (e) {
             Logger.error(JSON.stringify(e));
             try {
@@ -57,6 +67,22 @@ export class WsServer {
     }
 }
 
+function getClientIdFromRequest(req: IncomingMessage) {
+    Logger.warn(`headers: ${JSON.stringify(req.headers["sec-websocket-protocol"])}`);
+    const rawClientId = req
+        .headers["sec-websocket-protocol"]
+        ?.split(",")
+        .map(s => s.trim())
+        .filter((s) => s.startsWith("clientId"))[0]
+        ?.split("clientId")[1];
+    let clientId;
+    if (rawClientId) {
+        clientId = newClientId(rawClientId);
+    }
+    Logger.warn(clientId);
+    return clientId;
+}
+
 type Timeout = ReturnType<typeof setTimeout>;
 
 export class WSTransport {
@@ -74,6 +100,7 @@ export class WSTransport {
         ws.on("error", (e) => this.onError(e));
         ws.on("message", (e) => this.onMessage(e));
 
+        this.client.clearClose();
         this.client.on("response", (response) => this.send({ response }));
         this.client.on("pausedByProducingUser", (pausedSource) => this.send({ pausedSource }));
         this.client.on("pausedGlobally", (pausedGlobally) => this.send({ pausedGlobally }));
