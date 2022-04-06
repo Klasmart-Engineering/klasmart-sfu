@@ -2,7 +2,7 @@ import { Logger } from "../logger";
 process.on("uncaughtException",  (err) => { Logger.error("uncaughtException",err); });
 
 import { getECSTaskENIPublicIP } from "../cloudUtils";
-import { WsServer } from "../servers/wsServer";
+import { Sfu2HttpServer } from "../servers/sfu2HttpServer";
 import { RedisRegistrar } from "./registrar";
 import Redis, {Cluster, Redis as IORedis} from "ioredis";
 import { SFU } from "./sfu";
@@ -12,10 +12,12 @@ import { getNetworkInterfacesAddresses } from "../networkInterfaces";
 import checkIp from "check-ip";
 import { types as MediaSoup } from "mediasoup";
 import { hostname } from "os";
+import { collectDefaultMetrics } from "prom-client";
 import dotenv from "dotenv";
 
 async function main() {
     dotenv.config();
+    collectDefaultMetrics();
     const interfaceAddresses = getNetworkInterfacesAddresses();
     const privateAddresses = interfaceAddresses.filter(x => checkIp(x).isRfc1918);
     const publicAddresses = interfaceAddresses.filter(x => checkIp(x).isPublicIp);
@@ -72,7 +74,7 @@ async function main() {
         privateAddress,
         new RedisRegistrar(redis),
     );
-    const wsServer = new WsServer(sfu);
+    const wsServer = new Sfu2HttpServer(sfu);
     wsServer.http.listen({ port: process.env.PORT }, () => {
         const address = wsServer.http.address();
         Logger.info(`🌎 Server available at (${JSON.stringify(address)})`);

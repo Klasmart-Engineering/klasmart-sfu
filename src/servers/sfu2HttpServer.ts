@@ -1,6 +1,8 @@
-import { createServer, IncomingMessage, ServerResponse } from "http";
+import express, {Express} from "express";
+import { createServer, IncomingMessage, Server } from "http";
 import { Room } from "src/v2/room";
 import { Duplex } from "stream";
+import { register } from "prom-client";
 import { WebSocketServer, WebSocket, RawData } from "ws";
 
 import { Logger } from "../logger";
@@ -8,22 +10,33 @@ import {ClientV2, newClientId, RequestMessage, ResponseMessage} from "../v2/clie
 import { SFU } from "../v2/sfu";
 import {decodeAuthError, handleAuth} from "./auth";
 
-export class WsServer {
-    private readonly wss: WebSocketServer;
+export class Sfu2HttpServer {
+    public readonly http: Server;
     public constructor(
         private readonly sfu: SFU,
-        public readonly http = createServer((req, res) => WsServer.onRequest(req, res)),
     ) {
-        this.wss = new WebSocketServer(
-            { noServer: true});
+
+        this.app.get("/.well-known/health-check", async (_req, res) => {
+            res.statusCode = 204;
+            res.end();
+        });
+
+        this.app.get("/metrics", async (_req, res) => {
+            try {
+                res.set("Content-Type", register.contentType);
+                const metrics = await register.metrics();
+                res.end(metrics);
+            } catch (e) {
+                Logger.error(e);
+                res.status(500).end(e instanceof Error ? e.toString() : "Error retrieving metrics");
+            }
+        });
+        this.http = createServer(this.app);
         this.http.on("upgrade", (req, socket, head) => this.onUpgrade(req, socket, head));
     }
 
-    private static onRequest(req: IncomingMessage, res: ServerResponse) {
-        Logger.info(`Ignoring HTTP Request(${req.method}, ${req.url}) from ${req.socket.remoteAddress}`);
-        res.statusCode = 400;
-        res.end();
-    }
+    private readonly app: Express = express();
+    private readonly wss = new WebSocketServer({ noServer: true });
 
     private async onUpgrade(req: IncomingMessage, socket: Duplex, head: Buffer) {
         try {
