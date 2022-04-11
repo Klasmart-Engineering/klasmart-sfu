@@ -1,0 +1,35 @@
+
+name: Bump version
+
+concurrency: 
+    group: BumpVersion
+    cancel-in-progress: true
+
+on:
+    workflow_dispatch:
+        inputs:
+            prerelease:
+                description: Prerelease tag (optional)
+                required: false
+                type: string
+                default: ''
+
+jobs:
+    confirm-version-generation:
+        runs-on: ubuntu-latest
+        environment: latest
+        steps:
+            - name: Debug message
+              run: echo Version generation confirmed
+
+    install:
+        needs: [confirm-version-generation]
+        uses: KL-Engineering/github-action-workflows/.github/workflows/npm-ci.yml@v2.1.0
+        secrets:
+            NODE_AUTH_TOKEN: ${{ secrets.PACKAGES_TOKEN }}
+
+    generate-version:
+        needs: [install]
+        uses: KL-Engineering/github-action-workflows/.github/workflows/npm-generate-version.yml@v2.1.0
+        secrets:
+            NODE_AUTH_TOKEN: ${{ secrets.PACKAGES_TOKEN }}
