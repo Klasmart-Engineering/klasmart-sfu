@@ -1,0 +1,17 @@
+# Config files
+.eslintignore
+.eslintrc.cjs
+.npmrc
+.prettierignore
+.versionrc.js
+commitlint.config.js
+jest.config.ts
+package-lock.json
+rollup.config.js
+tsconfig.json
+
+# Docs
+CHANGELOG.md
+
+# Generated build files
+dist
