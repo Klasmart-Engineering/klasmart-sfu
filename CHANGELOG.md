@@ -2,6 +2,36 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+### [2.1.1](https://github.com/KL-Engineering/kidsloop-sfu/branches/compare/v2.1.1%0Dv2.1.0) (2022-04-12)
+
+
+### ♻️ Chores
+
+* rename dockerfile, update node installation, fix bbpiline ([156b809](https://github.com/KL-Engineering/kidsloop-sfu/commits/156b8094189c9f07217981e1fab416df0374902e))
+
+
+### 🔨 Build
+
+* **workflows:** update workflow ([633f6ca](https://github.com/KL-Engineering/kidsloop-sfu/commits/633f6ca766c661f44a1e270ec0f8b4d9febb6b52))
+
+
+### 🐛 Bug Fixes
+
+* **workflow:** bump-version test step ([93626e9](https://github.com/KL-Engineering/kidsloop-sfu/commits/93626e96b86152b585c511072ee908dd4ea9e8a9))
+
+
+### ⚙️ Continuous Integrations
+
+* **package:** add test script ([9fe9cea](https://github.com/KL-Engineering/kidsloop-sfu/commits/9fe9cea0c9830e2a293f8f96a2983f9215c4ad6d))
+* **workflows:** update version workflow ([e45bf7d](https://github.com/KL-Engineering/kidsloop-sfu/commits/e45bf7d1abc6585abc590aacaa328c3c51b5e3f5))
+* **workflows:** update workflows ([cd1f1bb](https://github.com/KL-Engineering/kidsloop-sfu/commits/cd1f1bbd92e0d448925d38caf4b1332d57222b86))
+
+
+### 🧪 Tests
+
+* **v2:** force exit jest to stop locking on mediasoup handles ([834903f](https://github.com/KL-Engineering/kidsloop-sfu/commits/834903f8c90e72771df6c9afa4cfb615b4eb3a29))
+* **v2:** update tests to latest version ([e2638c2](https://github.com/KL-Engineering/kidsloop-sfu/commits/e2638c275366092f161ec49cd1be235f6fda1382))
+
 ## 2.1.0 (2022-04-11)
 
 
