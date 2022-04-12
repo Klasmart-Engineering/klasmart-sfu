@@ -7,7 +7,7 @@
     "start": "node dist/index.js",
     "build": "webpack",
     "dev": "ts-node-dev src/v2/entry.ts",
-    "test:unit": "ENV_FILE=./config/.env.test jest --coverage",
+    "test:unit": "ENV_FILE=./config/.env.test jest --coverage --forceExit",
     "test": "npm run test:unit",
     "release": "standard-version"
   },

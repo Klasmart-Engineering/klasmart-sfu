@@ -9,6 +9,11 @@ describe("sfu", () => {
         sfu = await setupSfu();
     });
 
+    afterEach(async () => {
+        await sfu.shutdown();
+        await new Promise(resolve => setTimeout(resolve, 100));
+    });
+
     it("should be able to be instantiated", async () => {
         expect(sfu).toBeDefined();
     });

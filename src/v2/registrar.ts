@@ -41,11 +41,6 @@ export class RedisRegistrar implements SfuRegistrar, TrackRegistrar {
         await this.redis.zadd(key, "GT", timestamp, sfuId);
     }
 
-    public async removeSfuId(sfuId: SfuId) {
-        const key = RedisRegistrar.keySfuIds();
-        await this.redis.zrem(key, sfuId);
-    }
-
     public async setSfuStatus(sfuId: SfuId, status: SfuStatus) {
         status.lastUpdateTimestamp = Date.now();
         const key = RedisRegistrar.keySfuStatus(sfuId);

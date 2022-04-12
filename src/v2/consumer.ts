@@ -74,7 +74,7 @@ export class Consumer {
     }
 
     private onClose() {
-        console.log(`Consumer(${this.sender.id}) closed`);
+        Logger.info(`Consumer(${this.sender.id}) closed`);
         this.emitter.emit("closed");
     }
 }

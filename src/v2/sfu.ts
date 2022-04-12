@@ -10,6 +10,7 @@ import { Logger } from "../logger";
 export class SFU {
     public readonly id: SfuId = newSfuId(nanoid());
     private readonly rooms = new Map<RoomId, Room>();
+    private statusUpdateTimeout?: NodeJS.Timeout;
     constructor(
         public readonly listenIps: MediaSoup.TransportListenIp[],
         public endpoint: string,
@@ -21,7 +22,7 @@ export class SFU {
 
     private async updateStatus(timeout = 5000) {
         try {
-            setTimeout(() => this.updateStatus(), timeout);
+            this.statusUpdateTimeout = setTimeout(() => this.updateStatus(), timeout);
 
             const numProducers = Array.from(this.rooms.values())
                 .reduce((acc, room) => acc + room.numProducers, 0);
@@ -66,6 +67,17 @@ export class SFU {
         this.rooms.set(room.id, room);
         room.on("closed", () => this.rooms.delete(room.id));
         return room;
+    }
+
+    public shutdown() {
+        if (this.statusUpdateTimeout) {
+            clearTimeout(this.statusUpdateTimeout);
+            this.statusUpdateTimeout?.unref();
+        }
+        for (const room of this.rooms.values()) {
+            room.end();
+        }
+        this.rooms.clear();
     }
 }
 
