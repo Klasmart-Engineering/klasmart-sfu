@@ -20,9 +20,6 @@ describe("client", () => {
     beforeEach(async () => {
         sfu = await setupSfu();
     });
-    afterEach(() => {
-        sfu.shutdown();
-    });
 
     it("should handle an rtpCapabilities message", async () => {
         const client = await setupSingleClient(sfu);

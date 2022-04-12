@@ -10,9 +10,7 @@ describe("track", () => {
     beforeEach(async () => {
         sfu = await setupSfu();
     });
-    afterEach(() => {
-        sfu.shutdown();
-    });
+
     it("should be able to be created", async () => {
         const clientId = newClientId("client");
         const transport = new MockTransport() as unknown as MediaSoup.WebRtcTransport;

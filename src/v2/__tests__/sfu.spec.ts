@@ -9,10 +9,6 @@ describe("sfu", () => {
         sfu = await setupSfu();
     });
 
-    afterEach(() => {
-        sfu.shutdown();
-    });
-
     it("should be able to be instantiated", async () => {
         expect(sfu).toBeDefined();
     });
@@ -44,10 +40,11 @@ describe("sfu", () => {
         const room = (sfu as unknown as {rooms: Map<RoomId, Room>}).rooms.get(roomId);
         expect(room).toBeDefined();
 
-        const clients = Array.from(room?.clients || []);
+        const clients = Array.from(room?.clients.values() || []);
 
         for (const client of clients) {
-            client.onClose();
+            client.onClose(10);
+            await new Promise(resolve => setTimeout(resolve, 100));
         }
 
         expect((sfu as unknown as {rooms: Map<RoomId, Room>}).rooms.get(roomId)).toBeUndefined();

@@ -1,4 +1,4 @@
-import {createWorker, types as MediaSoup} from "mediasoup";
+import {types as MediaSoup} from "mediasoup";
 import {SFU, SfuId} from "../sfu";
 import {newRoomId, RoomId} from "../room";
 import {Consumer} from "../consumer";
@@ -11,15 +11,9 @@ import {DtlsParameters} from "mediasoup/node/lib/WebRtcTransport";
 import {nanoid} from "nanoid";
 
 export async function setupSfu() {
-    const worker = await createWorker({
-        logLevel: "warn",
-        rtcMinPort: 10000,
-        rtcMaxPort: 59999,
-    });
-
     const announcedIp = "127.0.0.1";
 
-    return new SFU(worker, [{ip: process.env.WEBRTC_INTERFACE_ADDRESS || "0.0.0.0", announcedIp }], "endpoint", MockRegistrar());
+    return new SFU([{ip: process.env.WEBRTC_INTERFACE_ADDRESS || "0.0.0.0", announcedIp }], "endpoint", MockRegistrar());
 }
 
 export async function setupSingleClient(sfu: SFU, isTeacher = false) {

@@ -205,13 +205,13 @@ export class ClientV2 {
         return;
     }
 
-    public onClose() {
+    public onClose(timeout = 30000) {
         Logger.info(`Client(${this.id}) disconnect`);
         this.closeTimer = setTimeout(() => {
             this.producerTransport?.close();
             this.consumerTransport?.close();
             this.emitter.emit("close");
-        }, 30000);
+        }, timeout);
     }
 
     public clearClose() {
