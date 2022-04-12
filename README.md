@@ -12,10 +12,10 @@
 
 
 ## How to make PR
-
-Project has `master` and `alpha` (dev) branches. `master` branch contains production ready code.  
-If there are any feature/bug_fixes need to be added. Start new branch onto `alpha`.  
-When feature/bug_fixes are ready to merge, make ***PR*** (Pull Request) targeting `alpha`.
+`main` branch contains production ready code.  
+If there are any feature/bug_fixes need to be added. Start new branch onto `main`.  
+When feature/bug_fixes are ready to merge, make ***PR*** (Pull Request) targeting `main`.  
+All commits [must be signed](https://git-scm.com/book/en/v2/Git-Tools-Signing-Your-Work).
 
 ## How to make commit
 We follow [Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0-beta.2/)
