@@ -31,8 +31,6 @@ jobs:
     test:
         needs: [install]
         uses: KL-Engineering/github-action-workflows/.github/workflows/npm-test-jest.yml@v3.0.1
-        secrets:
-            NODE_AUTH_TOKEN: ${{ secrets.PACKAGES_TOKEN }}
 
     generate-version:
         needs: [test]
