@@ -1,7 +1,7 @@
 
 name: Bump version
 
-concurrency: 
+concurrency:
     group: BumpVersion
     cancel-in-progress: true
 
@@ -28,15 +28,39 @@ jobs:
         secrets:
             NODE_AUTH_TOKEN: ${{ secrets.PACKAGES_TOKEN }}
 
-    generate-version:
+    test:
         needs: [install]
+        uses: KL-Engineering/github-action-workflows/.github/workflows/npm-test-jest.yml@v3.0.1
+        secrets:
+            NODE_AUTH_TOKEN: ${{ secrets.PACKAGES_TOKEN }}
+
+    generate-version:
+        needs: [test]
         uses: KL-Engineering/github-action-workflows/.github/workflows/npm-generate-version.yml@v3.0.1
         secrets:
             NODE_AUTH_TOKEN: ${{ secrets.PACKAGES_TOKEN }}
 
-    build-and-push:
+    get-latest-tag:
         needs: [generate-version]
+        runs-on: ubuntu-latest
+        outputs:
+            tag: ${{ steps.get-latest-tag.outputs.tag }}
+        steps:
+            - name: Get latest tag
+              id: get-latest-tag
+              run: echo ::set-output name=tag::$(git describe --tags --abbrev=0)
+
+    build-and-push:
+        needs: [generate-version, get-latest-tag]
         uses: KL-Engineering/github-action-workflows/.github/workflows/docker-build-push.yml@v3.0.1
-        secrets: 
+        with:
+          environment: ${{ needs.get-latest-tag.outputs.tag }}
+          region: eu-west-2
+          ecr_repository: kidsloop-sfu
+          dockerfile_dir: deploy/
+          dockerfile_name: Dockerfile.ci-pipeline
+          ecr_aws_region: eu-west-2
+          ecr_registry: 942095822719.dkr.ecr.eu-west-2.amazonaws.com
+        secrets:
             ECR_AWS_ACCESS_KEY_ID: ${{ secrets.ECR_AWS_ACCESS_KEY_ID }}
             ECR_AWS_SECRET_ACCESS_KEY: ${{ secrets.ECR_AWS_SECRET_ACCESS_KEY }}
