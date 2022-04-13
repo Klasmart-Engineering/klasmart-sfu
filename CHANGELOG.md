@@ -2,6 +2,17 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+### [2.1.4](https://github.com/KL-Engineering/kidsloop-sfu/branches/compare/v2.1.4%0Dv2.1.3) (2022-04-13)
+
+
+### ♻️ Chores
+
+* change bump version ([15583f8](https://github.com/KL-Engineering/kidsloop-sfu/commits/15583f82f6768cd0b43ff4479b152729e8cc1b2f))
+* ci build pipeline to dockerise ([fda2833](https://github.com/KL-Engineering/kidsloop-sfu/commits/fda2833829ca4cd36fcb96cf8391ce0ec0ac8b42))
+* simplify pr check ([7a6ad6d](https://github.com/KL-Engineering/kidsloop-sfu/commits/7a6ad6d7ed5a290619bcc214744999831086b890))
+* update trigger ([71315eb](https://github.com/KL-Engineering/kidsloop-sfu/commits/71315eb252a944801ee91729fc17285b7fa6626a))
+* use different workflow ([96e94f0](https://github.com/KL-Engineering/kidsloop-sfu/commits/96e94f013f3d16001d78d9fff94b580756b21065))
+
 ### [2.1.3](https://github.com/KL-Engineering/kidsloop-sfu/branches/compare/v2.1.3%0Dv2.1.2) (2022-04-13)
 
 
