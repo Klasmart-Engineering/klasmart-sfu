@@ -5,7 +5,7 @@ RUN apt-get update && apt-get --yes upgrade
 RUN apt-get install --yes curl gnupg2
 
 # Add nodesource GPG Key to list of trusted sources
-COPY ./nodesource.gpg.key .
+COPY ./deploy/nodesource.gpg.key .
 RUN apt-key add nodesource.gpg.key
 
 RUN curl -sL https://deb.nodesource.com/setup_16.x | bash -

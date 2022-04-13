@@ -44,10 +44,10 @@ jobs:
         outputs:
             tag: ${{ steps.get-latest-tag.outputs.tag }}
         steps:
-            - name: Get latest tag
-              id: get-latest-tag
-              run: echo ::set-output name=tag::$(git describe --tags --abbrev=0)
-            - run: ls -alrth
+          - uses: actions/checkout@v2
+          - name: Get latest tag
+            id: get-latest-tag
+            run: echo ::set-output name=tag::$(git describe --tags --abbrev=0)
 
     build-and-push:
         needs: [get-latest-tag]
@@ -57,13 +57,14 @@ jobs:
               with:
                 NODE_AUTH_TOKEN: ${{ secrets.PACKAGES_TOKEN }}
             - name: Build and Push Container
-              uses: KL-Engineering/github-action-workflows/.github/actions/docker-build-push@d51babc87eeba745b2ceaf8aa51b9381dec9f71e
+              uses: KL-Engineering/github-action-workflows/.github/actions/docker-build-push@ba70d467ab03c339edc93ca849837b6a860981fe
               with:
                 environment: ${{ needs.get-latest-tag.outputs.tag }}
                 region: eu-west-2
                 ecr_repository: kidsloop-sfu
                 dockerfile_dir: deploy
                 dockerfile_name: Dockerfile.ci-pipeline
+                dockerfile_context: .
                 ecr_aws_region: eu-west-2
                 ecr_registry: 942095822719.dkr.ecr.eu-west-2.amazonaws.com
                 ECR_AWS_ACCESS_KEY_ID: ${{ secrets.ECR_AWS_ACCESS_KEY_ID }}
