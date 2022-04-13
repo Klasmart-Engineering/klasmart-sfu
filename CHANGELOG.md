@@ -2,6 +2,25 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+### [2.1.2](https://github.com/KL-Engineering/kidsloop-sfu/branches/compare/v2.1.2%0Dv2.1.1) (2022-04-13)
+
+
+### 🔨 Build
+
+* **package:** remove unused dep ([077a099](https://github.com/KL-Engineering/kidsloop-sfu/commits/077a09973a776f1cc60637b2782c3d07b7467377))
+* **package:** remove unused deps and upgrade existing ones ([3199c50](https://github.com/KL-Engineering/kidsloop-sfu/commits/3199c50ef0aef7a6c549afd4a1e9dd8e3ce79337))
+
+
+### 📚 Docs
+
+* **readme:** add status badge on readme ([e1252d0](https://github.com/KL-Engineering/kidsloop-sfu/commits/e1252d042f512d3bab004c3c4b9e4a70e5b1ca53))
+
+
+### ⚙️ Continuous Integrations
+
+* **run-tests:** add workflow to run tests on commits & prs to main ([10061db](https://github.com/KL-Engineering/kidsloop-sfu/commits/10061db982233db3f81d5a17ef2c71b983b44e5c))
+* **workflow:** update dockerfile dir ([377e30f](https://github.com/KL-Engineering/kidsloop-sfu/commits/377e30fbc12d67d3fa25caa2695d0df3dd972c3b))
+
 ### [2.1.1](https://github.com/KL-Engineering/kidsloop-sfu/branches/compare/v2.1.1%0Dv2.1.0) (2022-04-12)
 
 
