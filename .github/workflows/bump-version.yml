@@ -56,6 +56,9 @@ jobs:
             - uses: KL-Engineering/github-action-workflows/.github/actions/npm-ci@d51babc87eeba745b2ceaf8aa51b9381dec9f71e
               with:
                 NODE_AUTH_TOKEN: ${{ secrets.PACKAGES_TOKEN }}
+            - name: NPM Build
+              id: npm-build
+              run: npm run build
             - name: Build and Push Container
               uses: KL-Engineering/github-action-workflows/.github/actions/docker-build-push@257bb0e28fbe6163c9c7e333471aa571bd226bf0
               with:
