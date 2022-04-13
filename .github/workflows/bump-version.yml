@@ -66,7 +66,7 @@ jobs:
               uses: KL-Engineering/github-action-workflows/.github/actions/docker-build-push@257bb0e28fbe6163c9c7e333471aa571bd226bf0
               with:
                 environment: ${{ needs.get-latest-tag.outputs.tag }}
-                region: eu-west-2
+                region: global
                 ecr_repository: kidsloop-sfu
                 dockerfile_dir: deploy
                 dockerfile_name: Dockerfile.ci-pipeline
