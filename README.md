@@ -1,6 +1,10 @@
+[![Tests](https://github.com/KL-Engineering/kidsloop-sfu/actions/workflows/run-tests.yml/badge.svg?branch=main)](https://github.com/KL-Engineering/kidsloop-sfu/actions/workflows/run-tests.yml)
+
 **Description:**
 
 ---
+
+The SFU is a server that manages the live streaming of audio & video for clients of KidsLoop Live.
 
 ## How to set up locally
 
