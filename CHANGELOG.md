@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+### [2.1.5](https://github.com/KL-Engineering/kidsloop-sfu/branches/compare/v2.1.5%0Dv2.1.3) (2022-04-13)
+
+
+### ♻️ Chores
+
+* **package:** update version ([9d3c5a5](https://github.com/KL-Engineering/kidsloop-sfu/commits/9d3c5a5f291ff89aea306f1ec17837c2cd3384a0))
+
 ### [2.1.3](https://github.com/KL-Engineering/kidsloop-sfu/branches/compare/v2.1.3%0Dv2.1.2) (2022-04-13)
 
 
