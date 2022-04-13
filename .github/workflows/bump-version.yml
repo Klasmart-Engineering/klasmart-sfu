@@ -45,6 +45,9 @@ jobs:
             tag: ${{ steps.get-latest-tag.outputs.tag }}
         steps:
           - uses: actions/checkout@v2
+          - name: Prune Unshallow
+            id: prune-unshallow
+            run: git fetch --prune --unshallow --tags
           - name: Get latest tag
             id: get-latest-tag
             run: echo ::set-output name=tag::$(git describe --tags --abbrev=0)
