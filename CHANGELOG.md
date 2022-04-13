@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+### [2.1.9](https://github.com/KL-Engineering/kidsloop-sfu/branches/compare/v2.1.9%0Dv2.1.8) (2022-04-13)
+
+
+### ⚙️ Continuous Integrations
+
+* **bump-version:** run build before trying to build dockerfile ([d75f076](https://github.com/KL-Engineering/kidsloop-sfu/commits/d75f076ab00ed44cfd55e8d195761f756483dfc6))
+
 ### [2.1.8](https://github.com/KL-Engineering/kidsloop-sfu/branches/compare/v2.1.8%0Dv2.1.7) (2022-04-13)
 
 
