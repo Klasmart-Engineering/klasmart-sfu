@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+### [2.1.10](https://github.com/KL-Engineering/kidsloop-sfu/branches/compare/v2.1.10%0Dv2.1.9) (2022-04-13)
+
+
+### ⚙️ Continuous Integrations
+
+* **bump-version:** get tags from git ([87bf4e0](https://github.com/KL-Engineering/kidsloop-sfu/commits/87bf4e084d6a6dff9d1aab60117572da40313a48))
+* **bump-version:** set region to global ([e198883](https://github.com/KL-Engineering/kidsloop-sfu/commits/e1988839e84d1b6a5a3c65ea9f46985f48e1c4ad))
+
 ### [2.1.9](https://github.com/KL-Engineering/kidsloop-sfu/branches/compare/v2.1.9%0Dv2.1.8) (2022-04-13)
 
 
