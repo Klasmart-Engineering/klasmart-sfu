@@ -44,6 +44,10 @@ jobs:
         outputs:
             tag: ${{ steps.get-latest-tag.outputs.tag }}
         steps:
+            - uses: actions/checkout@v3
+              with:
+                fetch-depth: 1
+                clean: true
             - name: Get latest tag
               id: get-latest-tag
               run: echo ::set-output name=tag::$(git describe --tags --abbrev=0)
