@@ -57,7 +57,7 @@ jobs:
               with:
                 NODE_AUTH_TOKEN: ${{ secrets.PACKAGES_TOKEN }}
             - name: Build and Push Container
-              uses: KL-Engineering/github-action-workflows/.github/actions/docker-build-push@ba70d467ab03c339edc93ca849837b6a860981fe
+              uses: KL-Engineering/github-action-workflows/.github/actions/docker-build-push@257bb0e28fbe6163c9c7e333471aa571bd226bf0
               with:
                 environment: ${{ needs.get-latest-tag.outputs.tag }}
                 region: eu-west-2
