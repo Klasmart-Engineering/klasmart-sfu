@@ -55,7 +55,7 @@ jobs:
           environment: ${{ needs.get-latest-tag.outputs.tag }}
           region: eu-west-2
           ecr_repository: kidsloop-sfu
-          dockerfile_dir: deploy/
+          dockerfile_dir: deploy
           dockerfile_name: Dockerfile.ci-pipeline
           ecr_aws_region: eu-west-2
           ecr_registry: 942095822719.dkr.ecr.eu-west-2.amazonaws.com
