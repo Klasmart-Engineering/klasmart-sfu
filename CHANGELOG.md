@@ -2,6 +2,24 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+### [2.1.3](https://github.com/KL-Engineering/kidsloop-sfu/branches/compare/v2.1.3%0Dv2.1.2) (2022-04-13)
+
+
+### 🔨 Build
+
+* **package:** remove dep ([625cf91](https://github.com/KL-Engineering/kidsloop-sfu/commits/625cf9116c876b237cbb09389d013ef1435f22cd))
+
+
+### ♻️ Chores
+
+* **eslint, package:** remove unused file, update eslint ([1609f2c](https://github.com/KL-Engineering/kidsloop-sfu/commits/1609f2ca4ca1887daae49d056bd15c4c0cd85088))
+* pull request ([d1f6c68](https://github.com/KL-Engineering/kidsloop-sfu/commits/d1f6c6879125305e0d8a19b17b9ccb866ba761a1))
+
+
+### 🐛 Bug Fixes
+
+* pipeline for PR and adding some debugging to the bump version workflow ([e72f260](https://github.com/KL-Engineering/kidsloop-sfu/commits/e72f260d1a5aae40654ff21b35de84409584f4cd))
+
 ### [2.1.2](https://github.com/KL-Engineering/kidsloop-sfu/branches/compare/v2.1.2%0Dv2.1.1) (2022-04-13)
 
 
