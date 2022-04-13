@@ -1,7 +1,7 @@
 {
   "name": "sfu",
   "version": "2.1.1",
-  "description": "",
+  "description": "Backend server for processing realtime audio & video",
   "main": "index.js",
   "scripts": {
     "start": "node dist/index.js",
@@ -40,7 +40,6 @@
   },
   "dependencies": {
     "@kl-engineering/kidsloop-token-validation": "^1.5.2",
-    "@newrelic/apollo-server-plugin": "^1.1.2",
     "@newrelic/winston-enricher": "^2.1.0",
     "@types/jsonwebtoken": "^8.5.6",
     "aws-sdk": "^2.1036.0",
