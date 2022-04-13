@@ -1,11 +1,10 @@
 import {Logger} from "./logger";
-import fetch from "node-fetch";
 import {setClusterId} from "./reporting";
 import ECS from "aws-sdk/clients/ecs";
 import EC2 from "aws-sdk/clients/ec2";
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore
-import checkIp from "check-ip";
+const fetch = (...args: string[]) => import("node-fetch").then(({default: fetch}) => fetch(...args));
 
 export async function getECSTaskENIPublicIP() {
     const ECSClient = new ECS();
