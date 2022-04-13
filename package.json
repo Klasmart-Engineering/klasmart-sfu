@@ -9,7 +9,8 @@
     "dev": "ts-node-dev src/v2/entry.ts",
     "test:unit": "ENV_FILE=./config/.env.test jest --coverage --forceExit",
     "test": "npm run test:unit",
-    "release": "standard-version"
+    "release": "standard-version",
+    "lint": "eslint --ext .ts src/**"
   },
   "author": "",
   "license": "ISC",
@@ -25,8 +26,11 @@
     "@types/supertest": "^2.0.11",
     "@types/uuid": "^8.3.3",
     "@types/ws": "^8.2.2",
-    "@typescript-eslint/eslint-plugin": "^5.4.0",
-    "eslint": "^8.3.0",
+    "@typescript-eslint/eslint-plugin": "^5.19.0",
+    "@typescript-eslint/parser": "^5.19.0",
+    "eslint": "^8.13.0",
+    "eslint-config-airbnb-base": "^15.0.0",
+    "eslint-plugin-import": "^2.26.0",
     "jest": "27.5.1",
     "nodemon": "^2.0.15",
     "standard-version": "^9.3.2",

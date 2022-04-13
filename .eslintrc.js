@@ -1,49 +1,36 @@
 module.exports = {
-    env: {
-        browser: true,
-        es2020: true,
+    "env": {
+        "es2021": true,
+        "node": true
     },
-    ignorePatterns: ["node_modules/"],
-    extends: [
+    "extends": [
         "eslint:recommended",
-        "plugin:@typescript-eslint/eslint-recommended",
-        "plugin:@typescript-eslint/recommended",
+        "plugin:@typescript-eslint/recommended"
     ],
-    parser: "@typescript-eslint/parser",
-    parserOptions: {
-        ecmaFeatures: {
-            jsx: true,
-        },
-        ecmaVersion: 11,
-        sourceType: "module",
+    "parser": "@typescript-eslint/parser",
+    "parserOptions": {
+        "ecmaVersion": "latest",
+        "sourceType": "module"
     },
-    plugins: [
-        "@typescript-eslint",
+    "plugins": [
+        "@typescript-eslint"
     ],
-    rules: {
-        "@typescript-eslint/explicit-module-boundary-types": "off",
-        "@typescript-eslint/no-unused-vars": [
-            1,
-        ],
+    "rules": {
         "indent": [
             "error",
             4
         ],
         "linebreak-style": [
             "error",
-            "unix",
+            "unix"
         ],
         "quotes": [
             "error",
-            "double",
-        ],
-        "react/display-name": [
-            "off",
+            "double"
         ],
         "semi": [
             "error",
-            "always",
-        ],
-    },
+            "always"
+        ]
+    }
 };
-
