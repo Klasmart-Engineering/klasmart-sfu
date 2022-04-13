@@ -18,34 +18,8 @@ on:
           - minor
           - patch
 
-      ecs_aws_service:
-        required: true
-        type: string
-        default: kidsloop-sfu
-        description: ECS target cluster
-      aws_account_id:
-        required: false
-        type: string
-        default: "871601235178"
-        description: AWS account
-      ecs_aws_cluster:
-        required: false
-        type: string
-        default: kidsloop-alpha
-        description: ECS cluster
-      ecs_aws_region:
-        required: false
-        type: string
-        default: ap-northeast-2
-        description: default AWS region
-    secrets:
-      AWS_ACCESS_KEY_ID_ALPHA_DEV:
-        required: true
-      AWS_SECRET_ACCESS_KEY_ALPHA_DEV:
-        required: true
-
 concurrency:
-  group: ci-${{ github.ref }}
+  group: rc-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
