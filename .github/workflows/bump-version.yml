@@ -47,6 +47,7 @@ jobs:
             - name: Get latest tag
               id: get-latest-tag
               run: echo ::set-output name=tag::$(git describe --tags --abbrev=0)
+            - run: ls -alrth
 
     build-and-push:
         needs: [generate-version, get-latest-tag]
