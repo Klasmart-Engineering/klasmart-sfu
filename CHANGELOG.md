@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+### [2.1.6](https://github.com/KL-Engineering/kidsloop-sfu/branches/compare/v2.1.6%0Dv2.1.5) (2022-04-13)
+
+
+### ⚙️ Continuous Integrations
+
+* **dockerfile:** remove load test specific steps (.env file) ([b55a873](https://github.com/KL-Engineering/kidsloop-sfu/commits/b55a8733f6b786b39e87c1958291509758866937))
+
 ### [2.1.5](https://github.com/KL-Engineering/kidsloop-sfu/branches/compare/v2.1.5%0Dv2.1.3) (2022-04-13)
 
 
