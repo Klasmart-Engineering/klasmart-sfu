@@ -14,10 +14,10 @@ RUN apt-get update && apt-get --yes upgrade
 RUN apt-get install --yes nodejs build-essential
 
 # LOADTEST
-RUN node --version
-COPY ./.env .env
-RUN set -o allexport; source .env; set +o allexport
-RUN env
+# RUN node --version
+# COPY ./.env .env
+# RUN set -o allexport; source .env; set +o allexport
+# RUN env
 
 # Install SFU and dependencies
 WORKDIR /usr/src/app
