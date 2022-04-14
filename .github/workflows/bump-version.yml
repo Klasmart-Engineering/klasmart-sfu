@@ -15,15 +15,15 @@ on:
                 default: ''
 
 jobs:
-    # confirm-version-generation:
-    #     runs-on: ubuntu-latest
-    #     environment: latest
-    #     steps:
-    #         - name: Debug message
-    #           run: echo Version generation confirmed
+    confirm-version-generation:
+        runs-on: ubuntu-latest
+        environment: latest
+        steps:
+            - name: Debug message
+              run: echo Version generation confirmed
 
     install:
-        # needs: [confirm-version-generation]
+        needs: [confirm-version-generation]
         uses: KL-Engineering/github-action-workflows/.github/workflows/npm-ci.yml@d4a107eea49a9e8f2b0e411b59884723301c3213
         secrets:
             NODE_AUTH_TOKEN: ${{ secrets.PACKAGES_TOKEN }}
@@ -61,35 +61,3 @@ jobs:
                 ecr_registry: 942095822719.dkr.ecr.eu-west-2.amazonaws.com
                 ECR_AWS_ACCESS_KEY_ID: ${{ secrets.ECR_AWS_ACCESS_KEY_ID }}
                 ECR_AWS_SECRET_ACCESS_KEY: ${{ secrets.ECR_AWS_SECRET_ACCESS_KEY }}
-    
-    deploy-alpha-dev:
-        needs: [generate-version, build-and-push]
-        name: Deploy to ECS
-        runs-on: ubuntu-latest
-        steps:
-            - name: Configure AWS credentials
-              uses: aws-actions/configure-aws-credentials@v1
-              with:
-                aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID_ALPHA_DEV }}
-                aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY_ALPHA_DEV }}
-                aws-region: ap-northeast-2
-
-            - name: Login to Amazon ECR
-              uses: aws-actions/amazon-ecr-login@v1
-
-            - name: Update service
-              env:
-                # alpha-dev
-                ACCOUNT_ID: 871601235178
-                ECS_SERVICE: kidsloop-alpha-live-sfu
-                ECS_CLUSTER: kidsloop-alpha
-                ECS_REGION: ap-northeast-2
-              run: |
-                aws ecs update-service \
-                    --region $ECS_REGION \
-                    --cluster $ECS_CLUSTER \
-                    --force-new-deployment \
-                    --service arn:aws:ecs:$ECS_REGION:$ACCOUNT_ID:service/$ECS_CLUSTER/$ECS_SERVICE
-                aws ecs wait services-stable \
-                    --cluster $ECS_CLUSTER \
-                    --services $ECS_SERVICE
