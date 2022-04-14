@@ -2,6 +2,17 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+### [2.1.11](https://github.com/KL-Engineering/kidsloop-sfu/branches/compare/v2.1.11%0Dv2.1.10) (2022-04-14)
+
+
+### ⚙️ Continuous Integrations
+
+* **bump-version:** update generate-version ([ab66eb5](https://github.com/KL-Engineering/kidsloop-sfu/commits/ab66eb5a46411fe2abaefd039ff68807fd774ba2))
+* **bump-version:** update name for step ([1788477](https://github.com/KL-Engineering/kidsloop-sfu/commits/17884779041e2a0867539fece01f5a70fa21d717))
+* **bump-version:** update workflow ([5a40f3f](https://github.com/KL-Engineering/kidsloop-sfu/commits/5a40f3fa42eea4103bfc628a31d3223faf0315e0))
+* **bump-version:** update workflow ([7c33559](https://github.com/KL-Engineering/kidsloop-sfu/commits/7c33559685b8ca65f4c9c9bdf12a103365e9c388))
+* **bump-version:** update workflow ([260ab38](https://github.com/KL-Engineering/kidsloop-sfu/commits/260ab38f4e3063d50a8f4d8f9cee031ef4253290))
+
 ### [2.1.10](https://github.com/KL-Engineering/kidsloop-sfu/branches/compare/v2.1.10%0Dv2.1.9) (2022-04-13)
 
 
