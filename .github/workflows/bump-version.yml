@@ -17,7 +17,7 @@ on:
 jobs:
     confirm-version-generation:
         runs-on: ubuntu-latest
-        environment: latest
+        # environment: latest
         steps:
             - name: Debug message
               run: echo Version generation confirmed
