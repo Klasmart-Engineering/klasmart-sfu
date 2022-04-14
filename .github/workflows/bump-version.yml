@@ -44,7 +44,7 @@ jobs:
       runs-on: ubuntu-latest
       environment: latest
       steps:
-        - name: Debug message
+        - name: Wait for generated version push
           run: sleep 30s
 
     get-latest-tag:
