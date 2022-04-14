@@ -24,42 +24,19 @@ jobs:
 
     install:
         needs: [confirm-version-generation]
-        uses: KL-Engineering/github-action-workflows/.github/workflows/npm-ci.yml@v3.0.1
+        uses: KL-Engineering/github-action-workflows/.github/workflows/npm-ci.yml@af92bc4dae9521b06053761eefba78151c529f2a
         secrets:
             NODE_AUTH_TOKEN: ${{ secrets.PACKAGES_TOKEN }}
 
     test:
         needs: [install]
-        uses: KL-Engineering/github-action-workflows/.github/workflows/npm-test-jest.yml@v3.0.1
+        uses: KL-Engineering/github-action-workflows/.github/workflows/npm-test-jest.yml@af92bc4dae9521b06053761eefba78151c529f2a
 
     generate-version:
         needs: [test]
-        uses: KL-Engineering/github-action-workflows/.github/workflows/npm-generate-version.yml@v3.0.1
+        uses: KL-Engineering/github-action-workflows/.github/workflows/npm-generate-version.yml@af92bc4dae9521b06053761eefba78151c529f2a
         secrets:
             NODE_AUTH_TOKEN: ${{ secrets.PACKAGES_TOKEN }}
-
-    # Give time for the generated version to be pushed and available to the workflow
-    wait-version-push:
-      needs: [generate-version]
-      runs-on: ubuntu-latest
-      environment: latest
-      steps:
-        - name: Wait for generated version push
-          run: sleep 30s
-
-    get-latest-tag:
-      needs: [wait-version-push]
-      runs-on: ubuntu-latest
-      outputs:
-        tag: ${{ steps.get-latest-tag.outputs.tag }}
-      steps:
-        - uses: actions/checkout@v2
-        - name: Prune Unshallow
-          id: prune-unshallow
-          run: git fetch --prune --unshallow --tags
-        - name: Get latest tag
-          id: get-latest-tag
-          run: echo ::set-output name=tag::$(git describe --tags --abbrev=0)
 
     build-and-push:
         needs: [get-latest-tag]
@@ -72,9 +49,9 @@ jobs:
               id: npm-build
               run: npm run build
             - name: Build and Push Container
-              uses: KL-Engineering/github-action-workflows/.github/actions/docker-build-push@72697e1014be51b7e1879f115eb1db31817baa70
+              uses: KL-Engineering/github-action-workflows/.github/actions/docker-build-push@af92bc4dae9521b06053761eefba78151c529f2a
               with:
-                environment: ${{ needs.get-latest-tag.outputs.tag }}
+                environment: ${{ needs.generate-version.outputs.tag }}
                 region: global
                 ecr_repository: kidsloop-sfu
                 dockerfile_dir: deploy
