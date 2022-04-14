@@ -1,6 +1,6 @@
 {
   "name": "sfu",
-  "version": "2.1.11",
+  "version": "2.1.12",
   "description": "Backend server for processing realtime audio & video",
   "main": "index.js",
   "scripts": {

@@ -2,6 +2,24 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+### [2.1.12](https://github.com/KL-Engineering/kidsloop-sfu/branches/compare/v2.1.12%0Dv2.1.11) (2022-04-14)
+
+
+### ♻️ Chores
+
+* ci build pipeline to dockerise ([dfa2e81](https://github.com/KL-Engineering/kidsloop-sfu/commits/dfa2e81081cfce586d1e8b9b1a53b240f53fd40c))
+* simplify pr check ([1d60052](https://github.com/KL-Engineering/kidsloop-sfu/commits/1d60052e6abec6e5dde8f027e0acaf536f4962de))
+* update trigger ([523fd33](https://github.com/KL-Engineering/kidsloop-sfu/commits/523fd3313ba4bdab670e24656b47a85e45d7892d))
+* use different workflow ([c7d0b37](https://github.com/KL-Engineering/kidsloop-sfu/commits/c7d0b377f467f32e6553324c0fe121bb16c2ce5e))
+
+
+### 🐛 Bug Fixes
+
+* adding deployment to dev-alpha ([993d018](https://github.com/KL-Engineering/kidsloop-sfu/commits/993d0189d2f958ac52d2daf7583c40e9b228e688))
+* change commit reference to the github workflows shared ([0d0ae48](https://github.com/KL-Engineering/kidsloop-sfu/commits/0d0ae48a7d3b1a05dd13bcd156cdf007dd8a3e03))
+* disable env restriction to test auto-deployment ([b1571a1](https://github.com/KL-Engineering/kidsloop-sfu/commits/b1571a19387b44c0079ea60ac6c997a54d84b4c1))
+* disable env restriction to test auto-deployment ([fbf4a33](https://github.com/KL-Engineering/kidsloop-sfu/commits/fbf4a33490d799c76b10c7afcc278dc80d9f6cc1))
+
 ### [2.1.11](https://github.com/KL-Engineering/kidsloop-sfu/branches/compare/v2.1.11%0Dv2.1.10) (2022-04-14)
 
 
