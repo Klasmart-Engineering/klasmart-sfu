@@ -1,4 +1,4 @@
-name: rt Deploy to Alpha (job)
+name: Deploy to Alpha (job)
 
 on:
   workflow_call:
