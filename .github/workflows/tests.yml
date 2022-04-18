@@ -13,5 +13,5 @@ jobs:
     uses: KL-Engineering/github-action-workflows/.github/workflows/npm-lint.yml@v3.0.1
 
   test:
-    needs: [install, lint, conventional-pr-title]
+    needs: [install, lint]
     uses: KL-Engineering/github-action-workflows/.github/workflows/npm-test-jest.yml@v3.0.1
