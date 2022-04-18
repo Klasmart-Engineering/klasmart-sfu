@@ -79,24 +79,18 @@ jobs:
             --cluster $ECS_CLUSTER \
             --force-new-deployment \
             --service arn:aws:ecs:$ECS_REGION:$ACCOUNT_ID:service/$ECS_CLUSTER/$ECS_SERVICE
-          aws ecs wait services-stable \
+          export AWS_ECS_IMAGE=$(aws ecs wait services-stable \
             --cluster $ECS_CLUSTER \
-            --services $ECS_SERVICE
-          export AWS_ECS_IMAGE=$(aws ecs describe-task-definition \
-            --region $ECS_REGION \
-            --task-definition $ECS_SERVICE./ \
-            --query "taskDefinition.containerDefinitions[*] | [?name=='$ECS_SERVICE'].image" \
-            --output text)
-          echo "deployed => $AWS_ECS_IMAGE"
-          export OCI_TAG=$(echo $AWS_ECS_IMAGE | awk -F ':' '{ print $NF }')
-          echo "Oci tag => $OCI_TAG"
-          echo ::set-output name=ocitag::$OCI_TAG
+            --services $ECS_SERVICE)
+          export TASK_DEF=$(echo $AWS_ECS_IMAGE | grep -m 1 taskDefinition)
+          echo "Task definition => $TASK_DEF"
+          echo ::set-output name=task_definition::$TASK_DEF
       - uses: ravsamhq/notify-slack-action@v1
         if: always()
         with:
           status: ${{ job.status }}
           notification_title: '{workflow} has {status_message}'
-          message_format: '{emoji} *{workflow}* {status_message} when deploying ${{ inputs.ecs_aws_cluster }}:${{ inputs.ecs_aws_service }}:${{ steps.deploy.outputs.ocitag }}'
+          message_format: '{emoji} *{workflow}* {status_message} when deploying ${{ inputs.ecs_aws_cluster }}:${{ inputs.ecs_aws_service }}:${{ steps.deploy.outputs.task_definition }}'
           footer: '${{ inputs.aws_account_id }}:${{ inputs.ecs_aws_region }}'
           notify_when: 'failure'
           # mention_users: ''
