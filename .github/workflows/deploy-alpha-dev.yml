@@ -24,6 +24,33 @@ on:
         required: true
       AWS_SECRET_ACCESS_KEY_ALPHA_DEV:
         required: true
+  workflow_dispatch:
+    inputs:
+      ecs_aws_service:
+        required: true
+        type: string
+        default: kidsloop-alpha-live-sfu
+        description: "AWS ECS service name"
+      aws_account_id:
+        required: false
+        type: string
+        default: "871601235178"
+        description: "AWS account id"
+      ecs_aws_cluster:
+        required: false
+        type: string
+        default: kidsloop-alpha
+        description: "AWS ECS cluster name"
+      ecs_aws_region:
+        required: false
+        type: string
+        default: ap-northeast-2
+        description: "AWS region ECS cluster is deployed"
+    secrets:
+      AWS_ACCESS_KEY_ID_ALPHA_DEV:
+        required: true
+      AWS_SECRET_ACCESS_KEY_ALPHA_DEV:
+        required: true
 
 jobs:
   deploy:
