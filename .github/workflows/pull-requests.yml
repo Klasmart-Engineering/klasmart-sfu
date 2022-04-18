@@ -17,4 +17,12 @@ jobs:
 
   test:
     needs: [install, lint, conventional-pr-title]
-    uses: KL-Engineering/github-action-workflows/.github/workflows/npm-test-jest.yml@v3.0.1 
+    uses: KL-Engineering/github-action-workflows/.github/workflows/npm-test-jest.yml@v3.0.1
+
+  deploy-alpha-temporary-trigger-test:
+    uses: ./.github/workflows/deploy-alpha-dev.yml
+    with:
+      ecs_aws_service: kidsloop-alpha-live-sfu
+    secrets:
+      AWS_ACCESS_KEY_ID_ALPHA_DEV: ${{ secrets.AWS_ACCESS_KEY_ID_ALPHA_DEV }}
+      AWS_SECRET_ACCESS_KEY_ALPHA_DEV: ${{ secrets.AWS_SECRET_ACCESS_KEY_ALPHA_DEV }}
