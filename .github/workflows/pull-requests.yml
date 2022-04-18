@@ -11,4 +11,4 @@ jobs:
     uses: KL-Engineering/github-action-workflows/.github/workflows/conventional-pr-title.yml@v3.0.1
 
   tests:
-    uses: KL-Engineering/kidsloop-sfu/.github/workflows/tests.yml@16a11c310ef64a0b0ef68e2ca8ecae9c3460e1ad
+    uses: KL-Engineering/kidsloop-sfu/.github/workflows/tests.yml@bb6cacc0cd1ad243b9c9bbf69b779f778af329b6
