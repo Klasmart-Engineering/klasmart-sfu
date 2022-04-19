@@ -2,6 +2,40 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+### [2.1.12](https://github.com/KL-Engineering/kidsloop-sfu/compare/v2.1.11...v2.1.12) (2022-04-19)
+
+
+### ♻️ Chores
+
+* add slack notification and info on which OCI tag just got deployed ([2791377](https://github.com/KL-Engineering/kidsloop-sfu/commit/27913773b4996166c5219272944d8b815d9798a8))
+* change name otherwise git is silly and realized there's a new job in 6h from now ([4fcb478](https://github.com/KL-Engineering/kidsloop-sfu/commit/4fcb4787ffcbb60a31c042bc905a1997ab98e062))
+* change versionrc url formats from Bitbucket to GitHub ([2070e23](https://github.com/KL-Engineering/kidsloop-sfu/commit/2070e234989960376eec2042a747ed9761818399))
+* ci build pipeline to dockerise ([a031c9f](https://github.com/KL-Engineering/kidsloop-sfu/commit/a031c9f94ac03efea48383109fb264be36f71ee9))
+* job name overwrite ([b23e527](https://github.com/KL-Engineering/kidsloop-sfu/commit/b23e527b6e77d493c09a81bb386c608a9cf88bc5))
+* **release:** 2.1.12 ([022b71c](https://github.com/KL-Engineering/kidsloop-sfu/commit/022b71cbabfa01a1cf34d11322db3b8b96c22886))
+* simplify pr check ([b92efa5](https://github.com/KL-Engineering/kidsloop-sfu/commit/b92efa56b97b5cf67b7bc5c4c7b312710bdc9395))
+* sync to main, remove unused job ([301a689](https://github.com/KL-Engineering/kidsloop-sfu/commit/301a689fa15dccfee1c6bc409a2327b63bc4d3e1))
+* update trigger ([5f3b331](https://github.com/KL-Engineering/kidsloop-sfu/commit/5f3b331ae73d35f279e6b53368671e975a489489))
+* use different workflow ([5496fae](https://github.com/KL-Engineering/kidsloop-sfu/commit/5496fae8fcaf6c02a3b72e4bb37a3246134cbff2))
+
+
+### 🐛 Bug Fixes
+
+* adding deployment to dev-alpha ([462c7e0](https://github.com/KL-Engineering/kidsloop-sfu/commit/462c7e0462134ffc1df270a374429229abffd878))
+* change commit reference to the github workflows shared ([b4821ac](https://github.com/KL-Engineering/kidsloop-sfu/commit/b4821ac8c237c7a1f959763168d3f8a5ce822592))
+* disable env restriction to test auto-deployment ([22d9dd4](https://github.com/KL-Engineering/kidsloop-sfu/commit/22d9dd4627640c5a4f27b1fbd173132b3cadfd5f))
+* disable env restriction to test auto-deployment ([61008c7](https://github.com/KL-Engineering/kidsloop-sfu/commit/61008c789b8255ebaa22d2bcc64cd35b58bc60e3))
+* fix axios call ([7014a80](https://github.com/KL-Engineering/kidsloop-sfu/commit/7014a80e9e3fb3582accc74869bcc310dcc9bab5))
+* Fix axios call ([c8cb8c2](https://github.com/KL-Engineering/kidsloop-sfu/commit/c8cb8c20370a2385aba07c141970de58df4bc672))
+* **package, cloudutils:** remove node-fetch because it is garbage ([49a6a0f](https://github.com/KL-Engineering/kidsloop-sfu/commit/49a6a0f4c9f13d687921c3329fe5e39a48991aac))
+* removed version bump notes ([9ccbc53](https://github.com/KL-Engineering/kidsloop-sfu/commit/9ccbc53cc7bb9bb070cbf4f6104ecae08953abe3))
+* revert back app version ([d9277b1](https://github.com/KL-Engineering/kidsloop-sfu/commit/d9277b1f00852344bb2ea9223221bee31653dbfd))
+* revert back app version ([1006284](https://github.com/KL-Engineering/kidsloop-sfu/commit/100628485a6433ece71eb28073211eca3d515551))
+* skip bump version, move deploy to alpha dev on a different worklow ([5d11cd4](https://github.com/KL-Engineering/kidsloop-sfu/commit/5d11cd4044523e5b728545af11651bb91c524485))
+* skip mention on build failure ([9b9acdb](https://github.com/KL-Engineering/kidsloop-sfu/commit/9b9acdb66fbcf0663af68596dc621e7eb2af1c47))
+* **workflow:** fix workflow for tests ([16a11c3](https://github.com/KL-Engineering/kidsloop-sfu/commit/16a11c310ef64a0b0ef68e2ca8ecae9c3460e1ad))
+* **workflows:** fix workflows for tests on pushes ([82f5250](https://github.com/KL-Engineering/kidsloop-sfu/commit/82f5250f1495526b5f9f95e75ec4421d9f7a2fd4))
+
 ### [2.1.11](https://github.com/KL-Engineering/kidsloop-sfu/branches/compare/v2.1.11%0Dv2.1.10) (2022-04-14)
 
 
