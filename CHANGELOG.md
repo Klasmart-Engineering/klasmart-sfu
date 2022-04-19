@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+### [2.1.13](https://github.com/KL-Engineering/kidsloop-sfu/compare/v2.1.12...v2.1.13) (2022-04-19)
+
+
+### 🔨 Build
+
+* update package lock ([8fff3b3](https://github.com/KL-Engineering/kidsloop-sfu/commit/8fff3b32815b550c1b00ad5c0f07320fbc9694f4))
+
 ### [2.1.12](https://github.com/KL-Engineering/kidsloop-sfu/compare/v2.1.11...v2.1.12) (2022-04-19)
 
 
