@@ -2,9 +2,7 @@ import {Logger} from "./logger";
 import {setClusterId} from "./reporting";
 import ECS from "aws-sdk/clients/ecs";
 import EC2 from "aws-sdk/clients/ec2";
-// eslint-disable-next-line @typescript-eslint/ban-ts-comment
-// @ts-ignore
-const fetch = (...args: string[]) => import("node-fetch").then(({default: fetch}) => fetch(...args));
+import {Axios} from "axios";
 
 export async function getECSTaskENIPublicIP() {
     const ECSClient = new ECS();
@@ -15,9 +13,9 @@ export async function getECSTaskENIPublicIP() {
         return;
     }
     Logger.info(ecsMetadataURI);
-    const response = await fetch(`${ecsMetadataURI}`);
+    const response = await new Axios().get(`${ecsMetadataURI}`);
     // TODO: Type this response
-    const ecsMetadata: any = await response.json();
+    const ecsMetadata: any = await response.data;
     const clusterARN = ecsMetadata.Labels && ecsMetadata.Labels["com.amazonaws.ecs.cluster"] as string;
     setClusterId(clusterARN);
     const taskARN = ecsMetadata.Labels && ecsMetadata.Labels["com.amazonaws.ecs.task-arn"] as string;
