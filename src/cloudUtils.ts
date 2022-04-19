@@ -2,7 +2,7 @@ import {Logger} from "./logger";
 import {setClusterId} from "./reporting";
 import ECS from "aws-sdk/clients/ecs";
 import EC2 from "aws-sdk/clients/ec2";
-import {Axios} from "axios";
+import {axios} from "axios";
 
 export async function getECSTaskENIPublicIP() {
     const ECSClient = new ECS();
@@ -13,7 +13,7 @@ export async function getECSTaskENIPublicIP() {
         return;
     }
     Logger.info(ecsMetadataURI);
-    const response = await new Axios().get(`${ecsMetadataURI}`);
+    const response = await axios().get(`${ecsMetadataURI}`);
     // TODO: Type this response
     const ecsMetadata: any = await response.data;
     const clusterARN = ecsMetadata.Labels && ecsMetadata.Labels["com.amazonaws.ecs.cluster"] as string;
