@@ -62,17 +62,17 @@ jobs:
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID_ALPHA_DEV }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY_ALPHA_DEV }}
-          aws-region: ${{ inputs.ecs_aws_region }}
+          aws-region: ${{ github.event.inputs.ecs_aws_region }}
 
       - name: Login to Amazon ECR
         uses: aws-actions/amazon-ecr-login@v1
 
       - name: Update service
         env:
-          ACCOUNT_ID: ${{ inputs.aws_account_id }}
-          ECS_SERVICE: ${{ inputs.ecs_aws_service }}
-          ECS_CLUSTER: ${{ inputs.ecs_aws_cluster }}
-          ECS_REGION: ${{ inputs.ecs_aws_region }}
+          ACCOUNT_ID: ${{ github.event.inputs.aws_account_id }}
+          ECS_SERVICE: ${{ github.event.inputs.ecs_aws_service }}
+          ECS_CLUSTER: ${{ github.event.inputs.ecs_aws_cluster }}
+          ECS_REGION: ${{ github.event.inputs.ecs_aws_region }}
         run: |
           aws ecs update-service \
             --region $ECS_REGION \
@@ -90,8 +90,8 @@ jobs:
         with:
           status: ${{ job.status }}
           notification_title: '{workflow} has {status_message}'
-          message_format: '{emoji} *{workflow}* {status_message} when deploying ${{ inputs.ecs_aws_cluster }}:${{ inputs.ecs_aws_service }}:${{ steps.deploy.outputs.task_definition }}'
-          footer: '${{ inputs.aws_account_id }}:${{ inputs.ecs_aws_region }}'
+          message_format: '{emoji} *{workflow}* {status_message} when deploying ${{ github.event.inputs.ecs_aws_cluster }}:${{ github.event.inputs.ecs_aws_service }}:${{ steps.deploy.outputs.task_definition }}'
+          footer: '${{ github.event.inputs.aws_account_id }}:${{ github.event.inputs.ecs_aws_region }}'
           notify_when: 'failure'
           # mention_users: ''
           # mention_users_when: 'failure,warnings'
