@@ -79,7 +79,7 @@ export class Track {
     public async setPausedGlobally(paused: boolean) {
         if(this._pausedGlobally === paused) { return; }
         this._pausedGlobally = paused;
-        await this.updateConsumerPauseState();
+        paused ? await this.receiver.pause() : await this.receiver.resume();
         this.emitter.emit("pausedGlobally", paused);
     }
 
@@ -87,7 +87,7 @@ export class Track {
     private async setPausedByProducingUser(paused: boolean) {
         if(this._pausedByProducingUser === paused) { return; }
         this._pausedByProducingUser = paused;
-        await this.updateConsumerPauseState();
+        paused ? await this.receiver.pause() : await this.receiver.resume();
         this.emitter.emit("pausedByProducingUser", paused);
     }
 
@@ -99,13 +99,6 @@ export class Track {
             pausedUpstream: this._pausedByProducingUser || this._pausedGlobally,
             pausedByUser,
         });
-    }
-
-    private async updateConsumerPauseState() {
-        const pausedUpstream = this._pausedByProducingUser || this._pausedGlobally;
-        for(const consumer of this.consumers.values()) {
-            await consumer.updateSenderPauseState(pausedUpstream);
-        }
     }
 
     private onClose() {

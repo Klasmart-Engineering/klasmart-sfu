@@ -27,6 +27,8 @@ export class Consumer {
             Logger.info(`Consumer(${this.sender.id})'s Producer closed`);
             this.onClose();
         });
+        this.sender.on("producerpause", async () => {await this.updateSenderPauseState(true);});
+        this.sender.on("producerresume", async () => {await this.updateSenderPauseState(false);});
         this.sender.on("layerschange", (layers) => Logger.info(`consumerLayerChange(${this.id}): ${JSON.stringify(layers)}`));
     }
 
