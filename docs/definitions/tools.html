@@ -1,0 +1,198 @@
+<!DOCTYPE HTML>
+<html lang="en" class="sidebar-visible no-js light">
+    <head>
+        <!-- Book generated using mdBook -->
+        <meta charset="UTF-8">
+        <title>Tools - KidsLoop Live Audio/Video Guide</title>
+
+
+        <!-- Custom HTML head -->
+        
+        <meta content="text/html; charset=utf-8" http-equiv="Content-Type">
+        <meta name="description" content="">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta name="theme-color" content="#ffffff" />
+
+        <link rel="icon" href="../favicon.svg">
+        <link rel="shortcut icon" href="../favicon.png">
+        <link rel="stylesheet" href="../css/variables.css">
+        <link rel="stylesheet" href="../css/general.css">
+        <link rel="stylesheet" href="../css/chrome.css">
+        <link rel="stylesheet" href="../css/print.css" media="print">
+
+        <!-- Fonts -->
+        <link rel="stylesheet" href="../FontAwesome/css/font-awesome.css">
+        <link rel="stylesheet" href="../fonts/fonts.css">
+
+        <!-- Highlight.js Stylesheets -->
+        <link rel="stylesheet" href="../highlight.css">
+        <link rel="stylesheet" href="../tomorrow-night.css">
+        <link rel="stylesheet" href="../ayu-highlight.css">
+
+        <!-- Custom theme stylesheets -->
+
+        <!-- MathJax -->
+        <script async type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
+    </head>
+    <body>
+        <!-- Provide site root to javascript -->
+        <script type="text/javascript">
+            var path_to_root = "../";
+            var default_theme = window.matchMedia("(prefers-color-scheme: dark)").matches ? "navy" : "light";
+        </script>
+
+        <!-- Work around some values being stored in localStorage wrapped in quotes -->
+        <script type="text/javascript">
+            try {
+                var theme = localStorage.getItem('mdbook-theme');
+                var sidebar = localStorage.getItem('mdbook-sidebar');
+
+                if (theme.startsWith('"') && theme.endsWith('"')) {
+                    localStorage.setItem('mdbook-theme', theme.slice(1, theme.length - 1));
+                }
+
+                if (sidebar.startsWith('"') && sidebar.endsWith('"')) {
+                    localStorage.setItem('mdbook-sidebar', sidebar.slice(1, sidebar.length - 1));
+                }
+            } catch (e) { }
+        </script>
+
+        <!-- Set the theme before any content is loaded, prevents flash -->
+        <script type="text/javascript">
+            var theme;
+            try { theme = localStorage.getItem('mdbook-theme'); } catch(e) { }
+            if (theme === null || theme === undefined) { theme = default_theme; }
+            var html = document.querySelector('html');
+            html.classList.remove('no-js')
+            html.classList.remove('light')
+            html.classList.add(theme);
+            html.classList.add('js');
+        </script>
+
+        <!-- Hide / unhide sidebar before it is displayed -->
+        <script type="text/javascript">
+            var html = document.querySelector('html');
+            var sidebar = 'hidden';
+            if (document.body.clientWidth >= 1080) {
+                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+                sidebar = sidebar || 'visible';
+            }
+            html.classList.remove('sidebar-visible');
+            html.classList.add("sidebar-" + sidebar);
+        </script>
+
+        <nav id="sidebar" class="sidebar" aria-label="Table of contents">
+            <div class="sidebar-scrollbox">
+                <ol class="chapter"><li class="chapter-item expanded affix "><a href="../intro.html">Introduction</a></li><li class="chapter-item expanded affix "><li class="part-title">Concepts</li><li class="chapter-item expanded "><a href="../concepts/p2p.html"><strong aria-hidden="true">1.</strong> P2P</a></li><li class="chapter-item expanded "><a href="../concepts/sfu.html"><strong aria-hidden="true">2.</strong> Selective Forwarding Units (SFU)</a></li><li class="chapter-item expanded "><a href="../concepts/mcu.html"><strong aria-hidden="true">3.</strong> Multipoint Control Units (MCU)</a></li><li class="chapter-item expanded affix "><li class="part-title">Definitions</li><li class="chapter-item expanded "><a href="../definitions/technologies.html"><strong aria-hidden="true">4.</strong> Technologies</a></li><li><ol class="section"><li class="chapter-item expanded "><a href="../definitions/technologies/net_protocols.html"><strong aria-hidden="true">4.1.</strong> Network Protocols</a></li><li><ol class="section"><li class="chapter-item expanded "><a href="../definitions/technologies/udp.html"><strong aria-hidden="true">4.1.1.</strong> UDP</a></li><li class="chapter-item expanded "><a href="../definitions/technologies/tcp.html"><strong aria-hidden="true">4.1.2.</strong> TCP</a></li><li class="chapter-item expanded "><a href="../definitions/technologies/rtp.html"><strong aria-hidden="true">4.1.3.</strong> RTP</a></li><li class="chapter-item expanded "><a href="../definitions/technologies/srtp.html"><strong aria-hidden="true">4.1.4.</strong> SRTP</a></li><li class="chapter-item expanded "><a href="../definitions/technologies/tls.html"><strong aria-hidden="true">4.1.5.</strong> TLS</a></li><li class="chapter-item expanded "><a href="../definitions/technologies/dtls.html"><strong aria-hidden="true">4.1.6.</strong> DTLS</a></li><li class="chapter-item expanded "><a href="../definitions/technologies/webrtc.html"><strong aria-hidden="true">4.1.7.</strong> WebRTC</a></li><li class="chapter-item expanded "><a href="../definitions/technologies/ws.html"><strong aria-hidden="true">4.1.8.</strong> WebSocket</a></li><li class="chapter-item expanded "><a href="../definitions/http.html"><strong aria-hidden="true">4.1.9.</strong> HTTP</a></li><li class="chapter-item expanded "><a href="../definitions/https.html"><strong aria-hidden="true">4.1.10.</strong> HTTPS</a></li></ol></li><li class="chapter-item expanded "><a href="../definitions/technologies/libs.html"><strong aria-hidden="true">4.2.</strong> Libraries</a></li><li><ol class="section"><li class="chapter-item expanded "><a href="../definitions/technologies/mediasoup.html"><strong aria-hidden="true">4.2.1.</strong> Mediasoup</a></li><li class="chapter-item expanded "><a href="../definitions/technologies/webapi.html"><strong aria-hidden="true">4.2.2.</strong> WebAPI</a></li><li class="chapter-item expanded "><a href="../definitions/technologies/kl-state-lib.html"><strong aria-hidden="true">4.2.3.</strong> KidsLoop State Library</a></li><li class="chapter-item expanded "><a href="../definitions/technologies/codecs.html"><strong aria-hidden="true">4.2.4.</strong> Codecs</a></li><li><ol class="section"><li class="chapter-item expanded "><a href="../definitions/technologies/video_codecs.html"><strong aria-hidden="true">4.2.4.1.</strong> Video</a></li><li><ol class="section"><li class="chapter-item expanded "><a href="../definitions/technologies/vp8.html"><strong aria-hidden="true">4.2.4.1.1.</strong> VP8</a></li><li class="chapter-item expanded "><a href="../definitions/technologies/vp9.html"><strong aria-hidden="true">4.2.4.1.2.</strong> VP9</a></li><li class="chapter-item expanded "><a href="../definitions/technologies/h264.html"><strong aria-hidden="true">4.2.4.1.3.</strong> H.264</a></li></ol></li><li class="chapter-item expanded "><a href="../definitions/technologies/audio_codecs.html"><strong aria-hidden="true">4.2.4.2.</strong> Audio</a></li><li><ol class="section"><li class="chapter-item expanded "><a href="../definitions/technologies/opus.html"><strong aria-hidden="true">4.2.4.2.1.</strong> Opus</a></li></ol></li></ol></li><li class="chapter-item expanded "><a href="../definitions/technologies/react.html"><strong aria-hidden="true">4.2.5.</strong> React</a></li></ol></li><li class="chapter-item expanded "><a href="../definitions/technologies/cloud.html"><strong aria-hidden="true">4.3.</strong> Cloud Providers</a></li><li><ol class="section"><li class="chapter-item expanded "><a href="../definitions/technologies/aws.html"><strong aria-hidden="true">4.3.1.</strong> AWS</a></li><li><ol class="section"><li class="chapter-item expanded "><a href="../definitions/technologies/ecr.html"><strong aria-hidden="true">4.3.1.1.</strong> ECR</a></li><li class="chapter-item expanded "><a href="../definitions/technologies/ecs.html"><strong aria-hidden="true">4.3.1.2.</strong> ECS</a></li><li class="chapter-item expanded "><a href="../definitions/technologies/eks.html"><strong aria-hidden="true">4.3.1.3.</strong> EKS</a></li></ol></li><li class="chapter-item expanded "><a href="../definitions/technologies/gcp.html"><strong aria-hidden="true">4.3.2.</strong> GCP</a></li><li class="chapter-item expanded "><a href="../definitions/technologies/k8s.html"><strong aria-hidden="true">4.3.3.</strong> Kubernetes</a></li></ol></li><li class="chapter-item expanded "><a href="../definitions/state.html"><strong aria-hidden="true">4.4.</strong> Distributed State</a></li><li><ol class="section"><li class="chapter-item expanded "><a href="../definitions/redis.html"><strong aria-hidden="true">4.4.1.</strong> Redis</a></li></ol></li><li class="chapter-item expanded "><a href="../definitions/technologies/services.html"><strong aria-hidden="true">4.5.</strong> Services</a></li><li><ol class="section"><li class="chapter-item expanded "><a href="../definitions/technologies/kl-live-fe.html"><strong aria-hidden="true">4.5.1.</strong> KidsLoop Live FE</a></li><li class="chapter-item expanded "><a href="../definitions/technologies/kl-sfu.html"><strong aria-hidden="true">4.5.2.</strong> KidsLoop SFU</a></li><li class="chapter-item expanded "><a href="../definitions/technologies/kl-sfu-gate.html"><strong aria-hidden="true">4.5.3.</strong> KidsLoop SFU Gateway</a></li><li class="chapter-item expanded "><a href="../definitions/technologies/cms.html"><strong aria-hidden="true">4.5.4.</strong> KidsLoop CMS</a></li><li class="chapter-item expanded "><a href="../definitions/technologies/live.html"><strong aria-hidden="true">4.5.5.</strong> KidsLoop Live Services</a></li><li class="chapter-item expanded "><a href="../definitions/technologies/auth.html"><strong aria-hidden="true">4.5.6.</strong> KidsLoop Auth</a></li></ol></li><li class="chapter-item expanded "><a href="../definitions/tools.html" class="active"><strong aria-hidden="true">4.6.</strong> Tools</a></li><li><ol class="section"><li class="chapter-item expanded "><a href="../definitions/loadero.html"><strong aria-hidden="true">4.6.1.</strong> Loadero</a></li><li class="chapter-item expanded "><a href="../definitions/docker.html"><strong aria-hidden="true">4.6.2.</strong> Docker</a></li><li class="chapter-item expanded "><a href="../definitions/gstreamer.html"><strong aria-hidden="true">4.6.3.</strong> Gstreamer</a></li></ol></li><li class="chapter-item expanded "><a href="../definitions/producer.html"><strong aria-hidden="true">4.7.</strong> Producer</a></li><li class="chapter-item expanded "><a href="../definitions/consumer.html"><strong aria-hidden="true">4.8.</strong> Consumer</a></li></ol></li><li class="chapter-item expanded "><a href="../index.html">Index</a></li></ol>
+            </div>
+            <div id="sidebar-resize-handle" class="sidebar-resize-handle"></div>
+        </nav>
+
+        <div id="page-wrapper" class="page-wrapper">
+
+            <div class="page">
+                                <div id="menu-bar-hover-placeholder"></div>
+                <div id="menu-bar" class="menu-bar sticky bordered">
+                    <div class="left-buttons">
+                        <button id="sidebar-toggle" class="icon-button" type="button" title="Toggle Table of Contents" aria-label="Toggle Table of Contents" aria-controls="sidebar">
+                            <i class="fa fa-bars"></i>
+                        </button>
+                        <button id="theme-toggle" class="icon-button" type="button" title="Change theme" aria-label="Change theme" aria-haspopup="true" aria-expanded="false" aria-controls="theme-list">
+                            <i class="fa fa-paint-brush"></i>
+                        </button>
+                        <ul id="theme-list" class="theme-popup" aria-label="Themes" role="menu">
+                            <li role="none"><button role="menuitem" class="theme" id="light">Light (default)</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="rust">Rust</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="coal">Coal</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="navy">Navy</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="ayu">Ayu</button></li>
+                        </ul>
+                        <button id="search-toggle" class="icon-button" type="button" title="Search. (Shortkey: s)" aria-label="Toggle Searchbar" aria-expanded="false" aria-keyshortcuts="S" aria-controls="searchbar">
+                            <i class="fa fa-search"></i>
+                        </button>
+                    </div>
+
+                    <h1 class="menu-title">KidsLoop Live Audio/Video Guide</h1>
+
+                    <div class="right-buttons">
+                        <a href="../print.html" title="Print this book" aria-label="Print this book">
+                            <i id="print-button" class="fa fa-print"></i>
+                        </a>
+
+                    </div>
+                </div>
+
+                <div id="search-wrapper" class="hidden">
+                    <form id="searchbar-outer" class="searchbar-outer">
+                        <input type="search" id="searchbar" name="searchbar" placeholder="Search this book ..." aria-controls="searchresults-outer" aria-describedby="searchresults-header">
+                    </form>
+                    <div id="searchresults-outer" class="searchresults-outer hidden">
+                        <div id="searchresults-header" class="searchresults-header"></div>
+                        <ul id="searchresults">
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- Apply ARIA attributes after the sidebar and the sidebar toggle button are added to the DOM -->
+                <script type="text/javascript">
+                    document.getElementById('sidebar-toggle').setAttribute('aria-expanded', sidebar === 'visible');
+                    document.getElementById('sidebar').setAttribute('aria-hidden', sidebar !== 'visible');
+                    Array.from(document.querySelectorAll('#sidebar a')).forEach(function(link) {
+                        link.setAttribute('tabIndex', sidebar === 'visible' ? 0 : -1);
+                    });
+                </script>
+
+                <div id="content" class="content">
+                    <main>
+                        <h1 id="tools"><a class="header" href="#tools">Tools</a></h1>
+
+                    </main>
+
+                    <nav class="nav-wrapper" aria-label="Page navigation">
+                        <!-- Mobile navigation buttons -->
+                            <a rel="prev" href="../definitions/technologies/auth.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                                <i class="fa fa-angle-left"></i>
+                            </a>
+
+                            <a rel="next" href="../definitions/loadero.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                                <i class="fa fa-angle-right"></i>
+                            </a>
+
+                        <div style="clear: both"></div>
+                    </nav>
+                </div>
+            </div>
+
+            <nav class="nav-wide-wrapper" aria-label="Page navigation">
+                    <a rel="prev" href="../definitions/technologies/auth.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                        <i class="fa fa-angle-left"></i>
+                    </a>
+
+                    <a rel="next" href="../definitions/loadero.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                        <i class="fa fa-angle-right"></i>
+                    </a>
+            </nav>
+
+        </div>
+
+
+
+
+        <script type="text/javascript">
+            window.playground_copyable = true;
+        </script>
+
+
+        <script src="../elasticlunr.min.js" type="text/javascript" charset="utf-8"></script>
+        <script src="../mark.min.js" type="text/javascript" charset="utf-8"></script>
+        <script src="../searcher.js" type="text/javascript" charset="utf-8"></script>
+
+        <script src="../clipboard.min.js" type="text/javascript" charset="utf-8"></script>
+        <script src="../highlight.js" type="text/javascript" charset="utf-8"></script>
+        <script src="../book.js" type="text/javascript" charset="utf-8"></script>
+
+        <!-- Custom JS scripts -->
+
+
+    </body>
+</html>

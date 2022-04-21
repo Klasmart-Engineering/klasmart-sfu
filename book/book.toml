@@ -1,9 +1,12 @@
 [book]
-authors = ["Josiah Evans"]
+authors = ["Josiah Evans <josiah.evans@kidsloop.live>"]
 language = "en"
 multilingual = false
 src = "src"
 title = "KidsLoop Live Audio/Video Guide"
+
+[build]
+build-dir = "../docs"
 
 [output.html]
 mathjax-support = true

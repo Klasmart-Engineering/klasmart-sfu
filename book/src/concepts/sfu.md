@@ -1,6 +1,6 @@
 # Selective Forwarding Units (SFU)
 
-In order to solve the challenges presented by a [P2P architecture](./p2p.md), we can introduce a central server to improve the scaling profile of upload bandwidth for each participant.  This server will handle routing of the uploaded media (audio and video) to all the other participants of the room:
+In order to solve the challenges presented by a [P2P architecture](p2p.md), we can introduce a central server to improve the scaling profile of upload bandwidth for each participant.  This server will handle routing of the uploaded media (audio and video) to all the other participants of the room:
 
 ![SFU with participants](../assets/sfu_with_participants.png)
 

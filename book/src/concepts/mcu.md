@@ -1,6 +1,6 @@
 # Multipoint Control Units (MCU)
 
-An important thing to note about the previous section on [SFUs](./sfu.md) is that the SFU does not itself do *any* decoding or encoding of the media streams.  This is because these operations are extremely computationally expensive.  To decode or encode media typically has a 1:1 ratio with the length of the media (1s of computation to encode 1s of video).  
+An important thing to note about the previous section on [SFUs](sfu.md) is that the SFU does not itself do *any* decoding or encoding of the media streams.  This is because these operations are extremely computationally expensive.  To decode or encode media typically has a 1:1 ratio with the length of the media (1s of computation to encode 1s of video).  
 
 A multipoint control unit (MCU) is a server that decodes the received media and re-encodes (transcodes) it for consumption for another client or service.  An MCU can focus solely on transcoding media or can also function like an SFU, routing the transcoded media to the appropriate clients.  
 
