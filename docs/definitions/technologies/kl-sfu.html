@@ -145,6 +145,116 @@
                 <div id="content" class="content">
                     <main>
                         <h1 id="kidsloop-sfu"><a class="header" href="#kidsloop-sfu">KidsLoop SFU</a></h1>
+<p>The KidsLoop SFU is a service built using <a href="./mediasoup.html">mediasoup</a> and <a href="./webrtc.html">WebRTC</a> to provide a live streaming 
+experience for students and teachers.</p>
+<h2 id="api"><a class="header" href="#api">API</a></h2>
+<p>The SFU is accessed via two methods:</p>
+<ul>
+<li><a href="./websocket.html">WebSocket</a> for signaling instructions.  WebSocket connections are proxied via the <a href="./kl-sfu-gate.html">SFU Gateway</a>.</li>
+<li>WebRTC via the mediasoup library</li>
+</ul>
+<h3 id="websocket-api"><a class="header" href="#websocket-api">WebSocket API</a></h3>
+<p>Each request over WebSocket must have the following form:</p>
+<pre><code class="language-json">{
+    id: RequestId,
+    request: Request,
+}
+</code></pre>
+<p>where <code>RequestId</code> is a unique identifier for the request, and <code>Request</code> is the request itself.</p>
+<p>A <code>Request</code> is a JSON object with the following fields:</p>
+<pre><code class="language-json">{
+    &quot;getRouterRtpCapabilities&quot;: {},
+    &quot;createProducerTransport&quot;: {},
+    &quot;connectProducerTransport&quot;: TransportConnectRequest,
+    &quot;produceTrack&quot;: ProduceTrackRequest,
+
+    &quot;setRtpCapabilities&quot;: MediaSoup.RtpCapabilities,
+    &quot;createConsumerTransport&quot;: {},
+    &quot;connectConsumerTransport&quot;: TransportConnectRequest,
+    &quot;consumeTrack&quot;: ConsumeTrackRequest,
+
+    &quot;pause&quot;: PauseRequest,
+    &quot;pauseForEveryone&quot;: PauseRequest,
+    &quot;endRoom&quot;: {}
+}
+</code></pre>
+<p>A field with a type of <code>{}</code> indicates that the value of the field is defined (but not used) by the protocol.
+Each request will only process one of the supplied fields.  If additional fields are supplied, they will be ignored.</p>
+<p>Likewise, responses for each of the above requests are as defined:</p>
+<pre><code class="language-json">{
+    &quot;id&quot;: RequestId,
+    &quot;error&quot;: string,
+} | {
+    &quot;id&quot;: RequestId,
+    &quot;result&quot;: Result | void,
+}
+</code></pre>
+<p>where the presence of a <code>result</code> field indicates success, and the <code>error</code> field indicates failure.<br />
+The <code>id</code> field is the same as the <code>id</code> field of the request.</p>
+<p>A <code>Result</code> is a JSON object with the following possible fields:</p>
+<pre><code class="language-json">{
+    &quot;routerRtpCapabilities&quot;: MediaSoup.RtpCapabilities,
+    &quot;producerTransportCreated&quot;: WebRtcTransportResult,
+    &quot;producerCreated&quot;: {
+        &quot;producerId&quot;: ProducerId,
+        &quot;pausedGlobally&quot;: boolean,
+    },
+
+    &quot;consumerTransportCreated&quot;: WebRtcTransportResult,
+    &quot;consumerCreated&quot;: {
+        &quot;id&quot;: ConsumerId,
+        &quot;producerId&quot;: ProducerId,
+        &quot;kind&quot;: MediaSoup.MediaKind,
+        &quot;rtpParameters&quot;: MediaSoup.RtpParameters,
+    }
+}
+</code></pre>
+<p>Only one of the fields will be present in any given <code>Result</code>.  For some responses, the <code>result</code> field will be <code>void</code> and 
+no data will present.  This is to indicate that the response is a success and no data needs to be returned.</p>
+<h3 id="additional-messages"><a class="header" href="#additional-messages">Additional messages</a></h3>
+<p>In addition to responding to requests, the SFU will also send messages on certain events to the client.</p>
+<h4 id="pausedbyproducinguser"><a class="header" href="#pausedbyproducinguser">pausedByProducingUser</a></h4>
+<p>Emitted when a track is paused by its producer (source):</p>
+<pre><code class="language-json">{
+    &quot;pausedSource&quot;: {
+        &quot;producerId&quot;: ProducerId,
+        &quot;paused&quot;: boolean
+    }
+}
+</code></pre>
+<h4 id="pausedglobally"><a class="header" href="#pausedglobally">pausedGlobally</a></h4>
+<p>Emitted when a track is paused by a teacher (globally):</p>
+<pre><code class="language-json">{
+    &quot;pausedGlobally&quot;: {
+        &quot;producerId&quot;: ProducerId,
+        &quot;paused&quot;: boolean
+    }
+}
+</code></pre>
+<h4 id="consumerclosed"><a class="header" href="#consumerclosed">consumerClosed</a></h4>
+<p>Emitted when a consumer is closed:</p>
+<pre><code class="language-json">{
+  &quot;consumerClosed&quot;: ProducerId
+}
+</code></pre>
+<h4 id="producerclosed"><a class="header" href="#producerclosed">producerClosed</a></h4>
+<p>Emitted when a producer is closed:</p>
+<pre><code class="language-json">{
+  &quot;producerClosed&quot;: ProducerId
+}
+</code></pre>
+<h4 id="consumertransportclosed"><a class="header" href="#consumertransportclosed">consumerTransportClosed</a></h4>
+<p>Emitted when the WebRTC transport for a consumer is closed:</p>
+<pre><code class="language-json">{
+  &quot;consumerTransportClosed&quot;: {}
+}
+</code></pre>
+<h4 id="producertransportclosed"><a class="header" href="#producertransportclosed">producerTransportClosed</a></h4>
+<p>Emitted when the WebRTC transport for a producer is closed:</p>
+<pre><code class="language-json">{
+  &quot;producerTransportClosed&quot;: {}
+}
+</code></pre>
 
                     </main>
 
