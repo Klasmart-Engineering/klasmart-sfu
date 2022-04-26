@@ -12,6 +12,8 @@ This removes the dependency on the number of other participants on the [producer
 
 With this architecture, the burden of possessing a very high upload bandwidth rests now on the server architecture.  Luckily, datacenters generally have much better bandwidth compared to average people, with connections in excess of 1Gbps and sometimes 10Gbps.  
 
+
+## Codecs
 But there are some additional tricks the SFU can do in addition to reducing the number of upload streams for each producer.  Consider the situation where one participant happens to have a particularly bad download bandwidth, say half that of the upload bandwidth for participant 1:
 
 ![One participant with poor download speeds](../assets/one_bad_bandwidth.png)
@@ -33,3 +35,13 @@ Simulcast
 ![SVC](../assets/svc.png)  
 SVC
 
+## Further Optimizations
+Futhermore, if we limit the number of downloaded streams for each participant, we can change the total scaling profile from *quadratic* to *linear* scaling.  This works since if the number of downloaded streams is limited for each user than the downloading scale profile goes from:
+
+\\[B_d = R(N - 1)\\]
+
+to:
+
+\\[B_d = R \min(N, L) \\]
+
+where \\[L \\] is the limit on the number of download streams.  This makes the entire scaling profile linear. Linear scaling is considered a form of "perfect" scaling since it means that adding more servers will always increase the capacity of the system by a fixed rate.

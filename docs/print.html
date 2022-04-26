@@ -168,6 +168,7 @@
 <p>\[B_u = R\]</p>
 <p>This removes the dependency on the number of other participants on the <a href="concepts/../definitions/producer.html">producer</a> and lets anyone capable of uploading at least one stream participate in the room!</p>
 <p>With this architecture, the burden of possessing a very high upload bandwidth rests now on the server architecture.  Luckily, datacenters generally have much better bandwidth compared to average people, with connections in excess of 1Gbps and sometimes 10Gbps.</p>
+<h2 id="codecs"><a class="header" href="#codecs">Codecs</a></h2>
 <p>But there are some additional tricks the SFU can do in addition to reducing the number of upload streams for each producer.  Consider the situation where one participant happens to have a particularly bad download bandwidth, say half that of the upload bandwidth for participant 1:</p>
 <p><img src="concepts/../assets/one_bad_bandwidth.png" alt="One participant with poor download speeds" /></p>
 <p>In this scenario, it wouldn't make sense to ask participant 1 to lower the quality of their video.  After all, everyone else is able to handle it just fine.  There are a few ways we could handle this situation, depending on how advanced the <a href="concepts/../definitions/technologies/codecs.html">codec</a> we are using is:</p>
@@ -182,6 +183,12 @@
 Simulcast</p>
 <p><img src="concepts/../assets/svc.png" alt="SVC" /><br />
 SVC</p>
+<h2 id="further-optimizations"><a class="header" href="#further-optimizations">Further Optimizations</a></h2>
+<p>Futhermore, if we limit the number of downloaded streams for each participant, we can change the total scaling profile from <em>quadratic</em> to <em>linear</em> scaling.  This works since if the number of downloaded streams is limited for each user than the downloading scale profile goes from:</p>
+<p>\[B_d = R(N - 1)\]</p>
+<p>to:</p>
+<p>\[B_d = R \min(N, L) \]</p>
+<p>where \[L \] is the limit on the number of download streams.  This makes the entire scaling profile linear. Linear scaling is considered a form of &quot;perfect&quot; scaling since it means that adding more servers will always increase the capacity of the system by a fixed rate.</p>
 <div style="break-before: page; page-break-before: always;"></div><h1 id="multipoint-control-units-mcu"><a class="header" href="#multipoint-control-units-mcu">Multipoint Control Units (MCU)</a></h1>
 <p>An important thing to note about the previous section on <a href="concepts/sfu.html">SFUs</a> is that the SFU does not itself do <em>any</em> decoding or encoding of the media streams.  This is because these operations are extremely computationally expensive.  To decode or encode media typically has a 1:1 ratio with the length of the media (1s of computation to encode 1s of video).</p>
 <p>A multipoint control unit (MCU) is a server that decodes the received media and re-encodes (transcodes) it for consumption for another client or service.  An MCU can focus solely on transcoding media or can also function like an SFU, routing the transcoded media to the appropriate clients.</p>
@@ -303,7 +310,7 @@ SVC</p>
 <div style="break-before: page; page-break-before: always;"></div><h1 id="kidsloop-state-library"><a class="header" href="#kidsloop-state-library">KidsLoop State Library</a></h1>
 <p>The KidsLoop State Library is a module for the front end to assist with managing shared state in the classroom.
 It provides react hooks for interacting with the SFU and SFU gateway.</p>
-<div style="break-before: page; page-break-before: always;"></div><h1 id="codecs"><a class="header" href="#codecs">Codecs</a></h1>
+<div style="break-before: page; page-break-before: always;"></div><h1 id="codecs-1"><a class="header" href="#codecs-1">Codecs</a></h1>
 <div style="break-before: page; page-break-before: always;"></div><h1 id="video"><a class="header" href="#video">Video</a></h1>
 <div style="break-before: page; page-break-before: always;"></div><h1 id="vp8"><a class="header" href="#vp8">VP8</a></h1>
 <div style="break-before: page; page-break-before: always;"></div><h1 id="vp9"><a class="header" href="#vp9">VP9</a></h1>
@@ -433,6 +440,32 @@ no data will present.  This is to indicate that the response is a success and no
   &quot;producerTransportClosed&quot;: {}
 }
 </code></pre>
+<h2 id="protocol"><a class="header" href="#protocol">Protocol</a></h2>
+<p>Certain actions must happen in sequence to successfully create a producer or consumer on the SFU.</p>
+<h3 id="creating-a-consumer"><a class="header" href="#creating-a-consumer">Creating a Consumer</a></h3>
+<p>The process for creating a consumer is as follows:</p>
+<ul>
+<li>Establish WS connection to the SFU via the SFU Gateway</li>
+<li><code>getRouterRtpCapabilities</code>: Request the RTP capabilities from the SFU</li>
+<li><code>setRtpCapabilities</code>: Send RTP capabilities of the client to the SFU</li>
+<li><code>createConsumerTransport</code>: Send a request to create a consumer transport on the SFU</li>
+<li>Create a consumer transport on the client side</li>
+<li><code>connectConsumerTransport</code>: Request the SFU to connect to the client transport</li>
+<li>Set up clientside subscription to <code>connect</code> event on client transport</li>
+<li><code>consumeTrack</code>: Start consuming a track</li>
+</ul>
+<h3 id="creating-a-producer"><a class="header" href="#creating-a-producer">Creating a Producer</a></h3>
+<p>The process for creating a producer is as follows:</p>
+<ul>
+<li>Establish WS connection to the SFU via the SFU Gateway</li>
+<li><code>getRouterRtpCapabilities</code>: Request the RTP capabilities from the SFU</li>
+<li><code>setRtpCapabilities</code>: Send RTP capabilities of the client to the SFU</li>
+<li><code>createProducerTransport</code>: Send a request to create a producer transport on the SFU</li>
+<li>Create a producer transport on the client side</li>
+<li><code>connectProducerTransport</code>: Request the SFU to connect to the client transport</li>
+<li>Set up clientside subscription to <code>connect</code> and <code>produce</code> events on clientside transport</li>
+<li><code>produceTrack</code>: Start sending media to the SFU</li>
+</ul>
 <div style="break-before: page; page-break-before: always;"></div><h1 id="kidsloop-sfu-gateway"><a class="header" href="#kidsloop-sfu-gateway">KidsLoop SFU Gateway</a></h1>
 <div style="break-before: page; page-break-before: always;"></div><h1 id="kidsloop-cms"><a class="header" href="#kidsloop-cms">KidsLoop CMS</a></h1>
 <div style="break-before: page; page-break-before: always;"></div><h1 id="kidsloop-live-services"><a class="header" href="#kidsloop-live-services">KidsLoop Live Services</a></h1>

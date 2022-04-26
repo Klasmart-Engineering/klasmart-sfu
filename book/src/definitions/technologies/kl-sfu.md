@@ -143,3 +143,31 @@ Emitted when the WebRTC transport for a producer is closed:
   "producerTransportClosed": {}
 }
 ```
+
+## Protocol
+
+Certain actions must happen in sequence to successfully create a producer or consumer on the SFU.  
+
+### Creating a Consumer
+
+The process for creating a consumer is as follows:  
+* Establish WS connection to the SFU via the SFU Gateway
+* `getRouterRtpCapabilities`: Request the RTP capabilities from the SFU
+* `setRtpCapabilities`: Send RTP capabilities of the client to the SFU
+* `createConsumerTransport`: Send a request to create a consumer transport on the SFU
+* Create a consumer transport on the client side
+* `connectConsumerTransport`: Request the SFU to connect to the client transport
+* Set up clientside subscription to `connect` event on client transport
+* `consumeTrack`: Start consuming a track
+
+### Creating a Producer
+
+The process for creating a producer is as follows:
+* Establish WS connection to the SFU via the SFU Gateway
+* `getRouterRtpCapabilities`: Request the RTP capabilities from the SFU
+* `setRtpCapabilities`: Send RTP capabilities of the client to the SFU
+* `createProducerTransport`: Send a request to create a producer transport on the SFU
+* Create a producer transport on the client side
+* `connectProducerTransport`: Request the SFU to connect to the client transport
+* Set up clientside subscription to `connect` and `produce` events on clientside transport
+* `produceTrack`: Start sending media to the SFU

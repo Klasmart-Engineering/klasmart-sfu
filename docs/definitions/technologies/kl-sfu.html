@@ -255,6 +255,32 @@ no data will present.  This is to indicate that the response is a success and no
   &quot;producerTransportClosed&quot;: {}
 }
 </code></pre>
+<h2 id="protocol"><a class="header" href="#protocol">Protocol</a></h2>
+<p>Certain actions must happen in sequence to successfully create a producer or consumer on the SFU.</p>
+<h3 id="creating-a-consumer"><a class="header" href="#creating-a-consumer">Creating a Consumer</a></h3>
+<p>The process for creating a consumer is as follows:</p>
+<ul>
+<li>Establish WS connection to the SFU via the SFU Gateway</li>
+<li><code>getRouterRtpCapabilities</code>: Request the RTP capabilities from the SFU</li>
+<li><code>setRtpCapabilities</code>: Send RTP capabilities of the client to the SFU</li>
+<li><code>createConsumerTransport</code>: Send a request to create a consumer transport on the SFU</li>
+<li>Create a consumer transport on the client side</li>
+<li><code>connectConsumerTransport</code>: Request the SFU to connect to the client transport</li>
+<li>Set up clientside subscription to <code>connect</code> event on client transport</li>
+<li><code>consumeTrack</code>: Start consuming a track</li>
+</ul>
+<h3 id="creating-a-producer"><a class="header" href="#creating-a-producer">Creating a Producer</a></h3>
+<p>The process for creating a producer is as follows:</p>
+<ul>
+<li>Establish WS connection to the SFU via the SFU Gateway</li>
+<li><code>getRouterRtpCapabilities</code>: Request the RTP capabilities from the SFU</li>
+<li><code>setRtpCapabilities</code>: Send RTP capabilities of the client to the SFU</li>
+<li><code>createProducerTransport</code>: Send a request to create a producer transport on the SFU</li>
+<li>Create a producer transport on the client side</li>
+<li><code>connectProducerTransport</code>: Request the SFU to connect to the client transport</li>
+<li>Set up clientside subscription to <code>connect</code> and <code>produce</code> events on clientside transport</li>
+<li><code>produceTrack</code>: Start sending media to the SFU</li>
+</ul>
 
                     </main>
 
