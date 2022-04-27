@@ -1,16 +1,24 @@
 import express, {Express} from "express";
-import {register} from "prom-client";
-import {createServer, Server} from "http";
-import {Logger} from "../logger";
-import {hostname} from "os";
-import newrelic from "newrelic";
+import { createServer, IncomingMessage, Server } from "http";
+import { Duplex } from "stream";
+import { register } from "prom-client";
+import { WebSocketServer } from "ws";
+
+import { Logger } from "../logger";
+import {newClientId,} from "../v2/client";
+import { SFU } from "../v2/sfu";
+import {decodeAuthError, handleAuth} from "./auth";
+import {WSTransport} from "./wsTransport";
 
 export class HttpServer {
-    public readonly app: Express = express();
-    public _server?: Server;
-    constructor() {
-        this.app.use((req, _res, next) => {
-            newrelic.startWebTransaction(req.path, next);
+    public readonly http: Server;
+    public constructor(
+        private readonly sfu: SFU,
+    ) {
+
+        this.app.get("/.well-known/health-check", async (_req, res) => {
+            res.statusCode = 204;
+            res.end();
         });
 
         this.app.get("/metrics", async (_req, res) => {
@@ -18,43 +26,72 @@ export class HttpServer {
                 res.set("Content-Type", register.contentType);
                 const metrics = await register.metrics();
                 res.end(metrics);
-            } catch (ex: unknown) {
-                Logger.error(ex);
-                res.status(500).end(ex instanceof Error ? ex.toString() : "Error retrieving metrics");
+            } catch (e) {
+                Logger.error(e);
+                res.status(500).end(e instanceof Error ? e.toString() : "Error retrieving metrics");
             }
         });
+        this.http = createServer(this.app);
+        this.http.on("upgrade", (req, socket, head) => this.onUpgrade(req, socket, head));
     }
 
-    public initializeServer() {
-        this.server = createServer(this.app);
-    }
+    private readonly app: Express = express();
+    private readonly wss = new WebSocketServer({ noServer: true });
 
-    public startServer(ip?: string, subscriptionsPath?: string) {
-        this.server.listen({ port: process.env.PORT }, () => { Logger.info("🌎 Server available"); });
-        const address = this.server.address();
-        if (!address || typeof address === "string") { throw new Error("Unexpected address format"); }
+    private async onUpgrade(req: IncomingMessage, socket: Duplex, head: Buffer) {
+        try {
+            Logger.info(`WS connection from [${req.socket.remoteFamily}](${req.socket.remoteAddress}:${req.socket.remotePort})`);
+            const { roomId, isTeacher, userId } = await handleAuth(req);
+            const clientId = getClientIdFromRequest(req);
+            const client = clientId ?
+                this.sfu.getClient(roomId, clientId) ??
+                await this.sfu.createClient(userId, roomId, isTeacher) :
+                await this.sfu.createClient(userId, roomId, isTeacher);
 
-        const host = process.env.HTTP_ANNOUNCE_ADDRESS ||
-            process.env.HOSTNAME_OVERRIDE ||
-            (process.env.USE_IP === "1" ? ip : undefined) ||
-            hostname();
+            const room = this.sfu.getRoom(roomId);
 
-        const uri = `${host}:${address.port}${subscriptionsPath ?? ""}`;
-        Logger.info(`Announcing address HTTP traffic for webRTC signaling via redis: ${uri}`);
-        return uri;
-    }
+            this.wss.handleUpgrade(req, socket, head, (ws) =>  {
+                ws.send(JSON.stringify({ clientId: client.id }));
+                return new WSTransport(ws, client, room, null);
+            });
+        } catch (e) {
+            Logger.error(JSON.stringify(e));
+            try {
+                const authError = decodeAuthError(<Error>e);
+                this.wss.handleUpgrade(req, socket, head, ws => {
+                    ws.send(JSON.stringify(authError));
+                    ws.close(authError.code);
+                });
+            } catch (e) {
+                const error = <Error> e;
+                this.wss.handleUpgrade(req, socket, head, ws => {
+                    ws.send(JSON.stringify({
+                        error: error.name,
+                        message: error.message,
+                        code: 500,
+                    }));
+                    ws.close(500);
+                });
+            }
 
-    public get server() {
-        if (!this._server) {
-            throw new Error("Server not initialized");
+            if (socket.writable) { socket.end(); }
+            if (socket.readable) { socket.destroy(); }
         }
-        return this._server;
     }
+}
 
-    private set server(server: Server) {
-        if (this._server) {
-            throw new Error("Server already initialized");
-        }
-        this._server = server;
+function getClientIdFromRequest(req: IncomingMessage) {
+    Logger.debug(`headers: ${JSON.stringify(req.headers["sec-websocket-protocol"])}`);
+    const rawClientId = req
+        .headers["sec-websocket-protocol"]
+        ?.split(",")
+        .map(s => s.trim())
+        .filter((s) => s.startsWith("clientId"))[0]
+        ?.split("clientId")[1];
+    let clientId;
+    if (rawClientId) {
+        clientId = newClientId(rawClientId);
     }
+    Logger.debug(clientId);
+    return clientId;
 }

@@ -126,7 +126,7 @@ export class ClientV2 {
 
     public async onMessage({ id, request }: RequestMessage) {
         try {
-            Logger.info(request);
+            Logger.debug(JSON.stringify(request));
             const result = await this.handleMessage(request);
             this.emitter.emit("response", { id, result });
         } catch (error: unknown) {
@@ -153,22 +153,22 @@ export class ClientV2 {
         } = message;
 
         if (setRtpCapabilities) {
-            Logger.info(`setRtpCapabilities: ${setRtpCapabilities}`);
+            Logger.debug(`setRtpCapabilities: ${setRtpCapabilities}`);
             this.rtpCapabilities = setRtpCapabilities;
             return;
         } else if (getRouterRtpCapabilities) {
-            Logger.info(`getRouterRtpCapabilities: ${JSON.stringify(getRouterRtpCapabilities)}`);
+            Logger.debug(`getRouterRtpCapabilities: ${JSON.stringify(getRouterRtpCapabilities)}`);
             return { routerRtpCapabilities: this.room.router.rtpCapabilities };
         } else if (createProducerTransport) {
-            Logger.info(`producerTransport: ${JSON.stringify(createProducerTransport)}`);
+            Logger.debug(`producerTransport: ${JSON.stringify(createProducerTransport)}`);
             const producerTransportCreated = await this.createProducerTransport();
             return { producerTransportCreated };
         } else if (connectProducerTransport) {
-            Logger.info(`producerTransportConnect: ${JSON.stringify(connectProducerTransport)}`);
+            Logger.debug(`producerTransportConnect: ${JSON.stringify(connectProducerTransport)}`);
             await this.connectProducerTransport(connectProducerTransport);
             return;
         } else if (produceTrack) {
-            Logger.info(`produceTrack: ${JSON.stringify(produceTrack)}`);
+            Logger.debug(`produceTrack: ${JSON.stringify(produceTrack)}`);
             const { producerId, pausedGlobally } = await this.produceTrack(produceTrack);
             return {
                 producerCreated: {
@@ -177,27 +177,27 @@ export class ClientV2 {
                 }
             };
         } else if (createConsumerTransport) {
-            Logger.info(`consumerTransport: ${JSON.stringify(createConsumerTransport)}`);
+            Logger.debug(`consumerTransport: ${JSON.stringify(createConsumerTransport)}`);
             const consumerTransportCreated = await this.createConsumerTransport();
             return { consumerTransportCreated };
         } else if (connectConsumerTransport) {
-            Logger.info(`connectConsumerTransport: ${JSON.stringify(connectConsumerTransport)}`);
+            Logger.debug(`connectConsumerTransport: ${JSON.stringify(connectConsumerTransport)}`);
             await this.connectConsumerTransport(connectConsumerTransport);
             return;
         } else if (consumeTrack) {
-            Logger.info(`consumeTrack: ${JSON.stringify(consumeTrack)}`);
+            Logger.debug(`consumeTrack: ${JSON.stringify(consumeTrack)}`);
             const consumerCreated = await this.consumeTrack(consumeTrack);
             return { consumerCreated };
         } else if (pause) {
-            Logger.info(`pause: ${JSON.stringify(pause)}`);
+            Logger.debug(`pause: ${JSON.stringify(pause)}`);
             await this.pause(pause);
             return;
         } else if (pauseForEveryone) {
-            Logger.info(`pauseForEveryone: ${JSON.stringify(pauseForEveryone)}`);
+            Logger.debug(`pauseForEveryone: ${JSON.stringify(pauseForEveryone)}`);
             await this.pauseForEveryone(pauseForEveryone);
             return;
         } else if (endRoom) {
-            Logger.info(`endRoom: ${JSON.stringify(endRoom)}`);
+            Logger.debug(`endRoom: ${JSON.stringify(endRoom)}`);
             await this.endRoom();
             return;
         }
@@ -222,7 +222,7 @@ export class ClientV2 {
     private async createProducerTransport(): Promise<WebRtcTransportResult> {
         this.producerTransport = await this.createTransport(this.sfu.listenIps);
         this.producerTransport.on("routerclose", () => {
-            Logger.info(`Client(${this.id}).ProducerTransport(${this.producerTransport?.id})'s Router(${this.room.router.id}) has closed`);
+            Logger.debug(`Client(${this.id}).ProducerTransport(${this.producerTransport?.id})'s Router(${this.room.router.id}) has closed`);
             this.emitter.emit("producerTransportClosed");
         });
         return {
@@ -256,7 +256,7 @@ export class ClientV2 {
 
         this._numProducers++;
         track.on("closed", () => {
-            Logger.info(`Track(${track.producerId}) close`);
+            Logger.debug(`Track(${track.producerId}) close`);
             this.emitter.emit("producerClosed", producerId);
             this._numProducers--;
         });
@@ -269,7 +269,7 @@ export class ClientV2 {
     private async createConsumerTransport(): Promise<WebRtcTransportResult> {
         this.consumerTransport = await this.createTransport(this.sfu.listenIps);
         this.consumerTransport.on("routerclose", () => {
-            Logger.info(`Client(${this.id}).ConsumerTransport(${this.consumerTransport?.id})'s Router(${this.room.router.id}) has closed`);
+            Logger.debug(`Client(${this.id}).ConsumerTransport(${this.consumerTransport?.id})'s Router(${this.room.router.id}) has closed`);
             this.emitter.emit("consumerTransportClosed");
         });
         return {
@@ -317,14 +317,14 @@ export class ClientV2 {
             enableTcp: true,
             preferUdp: true,
         });
-        Logger.info(transport);
+        Logger.debug(JSON.stringify(transport));
 
         transport.on("routerclose", () => transport.close());
 
-        transport.on("icestatechange", iceState => Logger.info(`Client(${this.id}).Transport(${transport.id}) iceState(${iceState})`));
-        transport.on("iceselectedtuplechange", iceSelectedTuple => Logger.info(`Client(${this.id}).Transport(${transport.id}) iceSelectedTuple(${iceSelectedTuple})`));
-        transport.on("dtlsstatechange", dtlsState => Logger.info(`Client(${this.id}).Transport(${transport.id}) dtlsState(${dtlsState})`));
-        transport.on("sctpstatechange", sctpState => Logger.info(`Client(${this.id}).Transport(${transport.id}) sctpState(${sctpState})`));
+        transport.on("icestatechange", iceState => Logger.debug(`Client(${this.id}).Transport(${transport.id}) iceState(${iceState})`));
+        transport.on("iceselectedtuplechange", iceSelectedTuple => Logger.debug(`Client(${this.id}).Transport(${transport.id}) iceSelectedTuple(${iceSelectedTuple})`));
+        transport.on("dtlsstatechange", dtlsState => Logger.debug(`Client(${this.id}).Transport(${transport.id}) dtlsState(${dtlsState})`));
+        transport.on("sctpstatechange", sctpState => Logger.debug(`Client(${this.id}).Transport(${transport.id}) sctpState(${sctpState})`));
 
         return transport;
     }

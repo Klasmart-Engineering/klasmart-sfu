@@ -2,7 +2,7 @@ import { Logger } from "../logger";
 process.on("uncaughtException",  (err) => { Logger.error("uncaughtException",err); });
 
 import { getECSTaskENIPublicIP } from "../cloudUtils";
-import { Sfu2HttpServer } from "../servers/sfu2HttpServer";
+import { HttpServer } from "../servers/httpServer";
 import { RedisRegistrar } from "./registrar";
 import Redis, {Cluster, Redis as IORedis} from "ioredis";
 import { SFU } from "./sfu";
@@ -74,7 +74,7 @@ async function main() {
         privateAddress,
         new RedisRegistrar(redis),
     );
-    const wsServer = new Sfu2HttpServer(sfu);
+    const wsServer = new HttpServer(sfu);
     wsServer.http.listen({ port: process.env.PORT }, () => {
         const address = wsServer.http.address();
         Logger.info(`🌎 Server available at (${JSON.stringify(address)})`);
