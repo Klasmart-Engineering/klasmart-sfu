@@ -2,6 +2,7 @@ import { Cluster, Redis as IORedis } from "ioredis";
 import { SfuId } from "./sfu";
 import { RoomId } from "./room";
 import { ProducerId } from "./track";
+import { resolve } from "path";
 
 export type TrackInfo = {
     sfuId: SfuId,
@@ -28,11 +29,13 @@ export type SfuStatus = {
 export type SfuRegistrar = {
     addSfuId(sfuId: SfuId): Promise<void>;
     setSfuStatus(sfuId: SfuId, status: SfuStatus): Promise<void>;
+    isHealthy(): boolean;
 };
 
 export type TrackRegistrar = {
     addTrack(roomId: RoomId, track: TrackInfo): Promise<void>;
     removeTrack(roomId: RoomId, id: ProducerId): Promise<void>;
+    isHealthy(): boolean;
 };
 
 export class RedisRegistrar implements SfuRegistrar, TrackRegistrar {
@@ -60,6 +63,10 @@ export class RedisRegistrar implements SfuRegistrar, TrackRegistrar {
         const count = await this.redis.zrem(key, roomId);
         if(count <= 0) { return; }
         await this.publishTrackEvent(key, { remove: id });
+    }
+
+    public isHealthy() {
+        return this.redis.status === 'ready';
     }
 
     public constructor(

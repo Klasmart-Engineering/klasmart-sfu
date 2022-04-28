@@ -18,6 +18,9 @@ export class HttpServer {
 
         this.app.get("/.well-known/health-check", async (_req, res) => {
             res.statusCode = 204;
+            if(this.sfu.isRegistrarHealthy()){
+                res.statusCode = 500;
+            }
             res.end();
         });
 

@@ -69,6 +69,10 @@ export class SFU {
         return room;
     }
 
+    public isRegistrarHealthy() {
+        return this.registrar.isHealthy();
+    }
+
     public shutdown() {
         if (this.statusUpdateTimeout) {
             clearTimeout(this.statusUpdateTimeout);
