@@ -2,7 +2,6 @@ import { Cluster, Redis as IORedis } from "ioredis";
 import { SfuId } from "./sfu";
 import { RoomId } from "./room";
 import { ProducerId } from "./track";
-import { resolve } from "path";
 
 export type TrackInfo = {
     sfuId: SfuId,
