@@ -65,7 +65,7 @@ export class RedisRegistrar implements SfuRegistrar, TrackRegistrar {
     }
 
     public isHealthy() {
-        return this.redis.status === 'ready';
+        return this.redis.status === "ready";
     }
 
     public constructor(
