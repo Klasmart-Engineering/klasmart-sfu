@@ -69,8 +69,8 @@ export class SFU {
         return room;
     }
 
-    public isRegistrarHealthy() {
-        return this.registrar.isHealthy();
+    public async isRegistrarHealthy() {
+        return await this.registrar.isHealthy();
     }
 
     public shutdown() {

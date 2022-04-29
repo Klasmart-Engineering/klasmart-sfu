@@ -28,13 +28,13 @@ export type SfuStatus = {
 export type SfuRegistrar = {
     addSfuId(sfuId: SfuId): Promise<void>;
     setSfuStatus(sfuId: SfuId, status: SfuStatus): Promise<void>;
-    isHealthy(): boolean;
+    isHealthy(): Promise<boolean>;
 };
 
 export type TrackRegistrar = {
     addTrack(roomId: RoomId, track: TrackInfo): Promise<void>;
     removeTrack(roomId: RoomId, id: ProducerId): Promise<void>;
-    isHealthy(): boolean;
+    isHealthy(): Promise<boolean>;
 };
 
 export class RedisRegistrar implements SfuRegistrar, TrackRegistrar {
@@ -64,7 +64,7 @@ export class RedisRegistrar implements SfuRegistrar, TrackRegistrar {
         await this.publishTrackEvent(key, { remove: id });
     }
 
-    public isHealthy() {
+    public async isHealthy() {
         return this.redis.status === "ready";
     }
 
