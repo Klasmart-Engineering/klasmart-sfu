@@ -21,8 +21,23 @@ export class Track {
         sessionId?: string,
     ): Promise<Track> {
         const id = newProducerId(nanoid());
-        const producer = await transport.produce({id, kind, rtpParameters});
+        const producer = await transport.produce({id, kind, rtpParameters, keyFrameRequestDelay: 1000});
         return new Track(owner, producer, router, name, sessionId);
+    }
+
+    private constructor(
+        public readonly owner: ClientId,
+        private readonly receiver: MediaSoup.Producer,
+        private readonly router: MediaSoup.Router,
+        public readonly name?: string,
+        public readonly sessionId?: string,
+        private _pausedByProducingUser = false,
+        private _pausedGlobally = false,
+    ) {
+        this.receiver.on("transportclose", () => {
+            Logger.info(`Producer(${this.receiver.id}) owned by Client(${this.owner}) closed`);
+            this.onClose();
+        });
     }
 
     private readonly consumers = new Map<ClientId, Consumer>();
@@ -39,21 +54,6 @@ export class Track {
 
     public get pausedByProducingUser() { return this._pausedByProducingUser; }
     public get pausedGlobally() { return this._pausedGlobally; }
-
-    private constructor(
-        public readonly owner: ClientId,
-        private readonly receiver: MediaSoup.Producer,
-        private readonly router: MediaSoup.Router,
-        public readonly name?: string,
-        public readonly sessionId?: string,
-        private _pausedByProducingUser = false,
-        private _pausedGlobally = false,
-    ) {
-        this.receiver.on("transportclose", () => {
-            Logger.info(`Producer(${this.receiver.id}) owned by Client(${this.owner}) closed`);
-            this.onClose();
-        });
-    }
 
     public async consume(clientId: ClientId, transport: MediaSoup.WebRtcTransport, rtpCapabilities: MediaSoup.RtpCapabilities) {
         if(clientId === this.owner) { throw new Error("Owner can not consume a track that it produces"); }
