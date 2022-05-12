@@ -2,6 +2,51 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+### [2.1.14](https://github.com/KL-Engineering/kidsloop-sfu/compare/v2.1.13...v2.1.14) (2022-05-12)
+
+
+### 📚 Docs
+
+* **docs, book:** update docs for SFU WS API ([5603e1d](https://github.com/KL-Engineering/kidsloop-sfu/commit/5603e1dfabcee63c2225be71361343c96ec0d0e8))
+* **docs:** add docs ([f54f637](https://github.com/KL-Engineering/kidsloop-sfu/commit/f54f6372b74a52c6600c19eaefa0e1943b2bb843))
+* **docs:** move docs ([3512ced](https://github.com/KL-Engineering/kidsloop-sfu/commit/3512cede1513f49bbb86a2aab3f41d9879143b3e))
+* update sfu docs & protocol ([6a11290](https://github.com/KL-Engineering/kidsloop-sfu/commit/6a11290486f6e7add68681f014fbe641af0019a1))
+
+
+### 📦 Refactor
+
+* **servers, client, entry, logger:** remove unused file, adjust logs ([572b8ac](https://github.com/KL-Engineering/kidsloop-sfu/commit/572b8acaa129e6d54bbc37c6b34fccdb655a87de))
+* **v2:** remove custom semaphore, extract wsTransport, update packages ([5cf862d](https://github.com/KL-Engineering/kidsloop-sfu/commit/5cf862d16ec94f8d822a1c6413f1040f6bcbea47))
+
+
+### ♻️ Chores
+
+* adding redis registrar healthcheck ([2650017](https://github.com/KL-Engineering/kidsloop-sfu/commit/2650017c43486a19a17f9f1600f744887464f594))
+* change references, remove unused action, add deployment trigger ([78ba614](https://github.com/KL-Engineering/kidsloop-sfu/commit/78ba614ca1cf2f1891a39e367c96981cb3073760))
+* remove wrongly added dependency ([a3bd126](https://github.com/KL-Engineering/kidsloop-sfu/commit/a3bd1268370413552a4b83e55b75e96459e7da79))
+
+
+### 🐛 Bug Fixes
+
+* add manual run trigger ([b151390](https://github.com/KL-Engineering/kidsloop-sfu/commit/b1513904f111055e95bbc8def3269a48e4c55210))
+* change input type ([4e3f840](https://github.com/KL-Engineering/kidsloop-sfu/commit/4e3f840213ee0a3026b03323eb6594bf59d8dcd2))
+* change quote type ([361c533](https://github.com/KL-Engineering/kidsloop-sfu/commit/361c53372fc653f2bd6721fb69143c3d9c821dfb))
+* extracting latest task definition ([ca9a56a](https://github.com/KL-Engineering/kidsloop-sfu/commit/ca9a56a56b0adabace591a36e1cd211275681818))
+* make test pipeline reusable ([8671249](https://github.com/KL-Engineering/kidsloop-sfu/commit/8671249fb862b31bef4c4676f2ec6fcb2147727e))
+* oci tags ([d1b8df1](https://github.com/KL-Engineering/kidsloop-sfu/commit/d1b8df12750928008eac8f3bb20e5f726d1ec591))
+* promisified assertion for redis health check ([4247980](https://github.com/KL-Engineering/kidsloop-sfu/commit/4247980a03802de0f349e9166235046509f33865))
+* reference correct commit ([13e829e](https://github.com/KL-Engineering/kidsloop-sfu/commit/13e829ef3021808e2fc7095d3a930f12ea8fd0cf))
+* remove PR specific trigger on push to main ([9cc1987](https://github.com/KL-Engineering/kidsloop-sfu/commit/9cc198718818a04323e4fccdf98e631bb26788b1))
+* remove workflow call ([5b01b69](https://github.com/KL-Engineering/kidsloop-sfu/commit/5b01b69c6c096b9d391d0c4426b8d4274623dfcc))
+* removing comment trigger ([f1c67e2](https://github.com/KL-Engineering/kidsloop-sfu/commit/f1c67e2c9d601ac972f98ffe7f0d09c8700a4203))
+* removing trigger from PR ([4db19f0](https://github.com/KL-Engineering/kidsloop-sfu/commit/4db19f0252b62b02e9bbd05540d5275e5dbfd757))
+* synch up all shared workflows at same version ([e4d6e1a](https://github.com/KL-Engineering/kidsloop-sfu/commit/e4d6e1ab7630c182fa4981ea9ec2cb0d8c89ee0a))
+* **track:** add keyframe request delay ([824c5ee](https://github.com/KL-Engineering/kidsloop-sfu/commit/824c5eee232beb5cd7864f642dfbd5aeb9e52ceb))
+* uniform install/lint/test calls across workflows ([ff0096b](https://github.com/KL-Engineering/kidsloop-sfu/commit/ff0096b1af81dd2649003b8e99fce95035e955ae))
+* update reference to local tests, pinning to latest commit ([59951bb](https://github.com/KL-Engineering/kidsloop-sfu/commit/59951bbf57556163b190e70e91d285a32bf6bf3a))
+* was checking the inverted assetion ([bff12c5](https://github.com/KL-Engineering/kidsloop-sfu/commit/bff12c5eb121e6c3399583fe7d355d2827196c2e))
+* WIP temporary trigger off of the PR tests ([b3b5ffa](https://github.com/KL-Engineering/kidsloop-sfu/commit/b3b5ffabc1c36cd9c4b0b2061f3bf2330365375c))
+
 ### [2.1.13](https://github.com/KL-Engineering/kidsloop-sfu/compare/v2.1.12...v2.1.13) (2022-04-19)
 
 
